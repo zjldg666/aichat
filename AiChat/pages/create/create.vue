@@ -31,19 +31,19 @@
                          </view>
                      </picker>
                   </view>
-				  <view class="textarea-item">
-				                      <text class="label">🌍 世界观法则 (Lore)</text>
-				                      <view class="tips-text" style="font-size:22rpx; color:#999; margin-bottom:10rpx;">
-				                          定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。
-				                      </view>
-				                      <textarea 
-				                          class="textarea" 
-				                          style="height: 180rpx;" 
-				                          v-model="formData.worldLore" 
-				                          placeholder="例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。" 
-				                          maxlength="-1" 
-				                      />
-				                    </view>
+                  <view class="textarea-item">
+                      <text class="label">🌍 世界观法则 (Lore)</text>
+                      <view class="tips-text" style="font-size:22rpx; color:#999; margin-bottom:10rpx;">
+                          定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。
+                      </view>
+                      <textarea 
+                          class="textarea" 
+                          style="height: 180rpx;" 
+                          v-model="formData.worldLore" 
+                          placeholder="例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。" 
+                          maxlength="-1" 
+                      />
+                  </view>
                   <template v-if="selectedWorld">
                       <view class="input-item">
                         <text class="label">居住地址</text>
@@ -349,44 +349,92 @@
              <textarea class="textarea" v-model="formData.bio" placeholder="例：她是修仙界的高冷圣女，从小..." maxlength="-1" />
            </view>
 
+           <view class="textarea-item">
+             <text class="label">🗣️ 说话风格 / 口癖</text>
+             <textarea class="textarea" style="height:120rpx;" v-model="formData.speakingStyle" placeholder="例：喜欢在句尾加“喵”，或者自称“本宫”，说话文绉绉的..." maxlength="-1" />
+           </view>
+           
+           <view class="input-item">
+               <text class="label">❤️ 喜好 (Likes)</text>
+               <input class="input" v-model="formData.likes" placeholder="例：甜食，猫，夸奖" />
+           </view>
+           <view class="input-item">
+               <text class="label">⚡ 雷点 (Dislikes)</text>
+               <input class="input" v-model="formData.dislikes" placeholder="例：吃辣，被无视，邋遢" />
+           </view>
+
            <view class="stage-container">
-               <text class="label" style="margin-bottom: 20rpx; display:block;">🎭 好感度阶段反应 (行为 & 语气)</text>
+               <text class="label" style="margin-bottom: 20rpx; display:block;">🎭 5阶段好感度反应 (更细腻的演化)</text>
 
                <view class="stage-card gray">
-                   <view class="stage-header"><text class="stage-title">阶段 1: 陌生/警惕 (0-40分)</text><text class="stage-icon">😐</text></view>
+                   <view class="stage-header"><text class="stage-title">阶段 1: 陌生/警惕 (0-20分)</text><text class="stage-icon">😐</text></view>
                    <view class="stage-body">
                        <view class="input-row">
-                           <text class="sub-label">行为逻辑 (她怎么做?)</text>
+                           <text class="sub-label">行为逻辑</text>
                            <textarea class="mini-textarea" v-model="formData.personalityNormal" placeholder="例：冷淡，拒绝触碰..." maxlength="-1" />
                        </view>
                        <view class="input-row">
-                           <text class="sub-label">对话语气 (她怎么说?)</text>
+                           <text class="sub-label">对话语气</text>
                            <textarea class="mini-textarea bubble" v-model="formData.exampleNormal" placeholder="例：“离我远点，凡人。”" maxlength="-1" />
                        </view>
                    </view>
                </view>
-               <view class="stage-card pink">
-                   <view class="stage-header"><text class="stage-title">阶段 2: 暧昧/心动 (41-80分)</text><text class="stage-icon">☺️</text></view>
+
+               <view class="stage-card" style="background-color: #e3f2fd; border-color: #90caf9;">
+                   <view class="stage-header" style="background-color: #bbdefb; color: #1565c0;">
+                       <text class="stage-title">阶段 2: 熟人/朋友 (21-40分)</text><text class="stage-icon">🤝</text>
+                   </view>
                    <view class="stage-body">
                        <view class="input-row">
-                           <text class="sub-label">行为逻辑 (她怎么做?)</text>
+                           <text class="sub-label">行为逻辑</text>
+                           <textarea class="mini-textarea" v-model="formData.personalityFriend" placeholder="例：放松，开玩笑，像朋友一样..." maxlength="-1" />
+                       </view>
+                       <view class="input-row">
+                           <text class="sub-label">对话语气</text>
+                           <textarea class="mini-textarea bubble" v-model="formData.exampleFriend" placeholder="例：“哟，今天来得挺早啊。”" maxlength="-1" />
+                       </view>
+                   </view>
+               </view>
+
+               <view class="stage-card pink">
+                   <view class="stage-header"><text class="stage-title">阶段 3: 暧昧/心动 (41-60分)</text><text class="stage-icon">☺️</text></view>
+                   <view class="stage-body">
+                       <view class="input-row">
+                           <text class="sub-label">行为逻辑</text>
                            <textarea class="mini-textarea" v-model="formData.personalityFlirt" placeholder="例：偶尔脸红，允许牵手..." maxlength="-1" />
                        </view>
                        <view class="input-row">
-                           <text class="sub-label">对话语气 (她怎么说?)</text>
+                           <text class="sub-label">对话语气</text>
                            <textarea class="mini-textarea bubble" v-model="formData.exampleFlirt" placeholder="例：“也不是不可以啦...”" maxlength="-1" />
                        </view>
                    </view>
                </view>
-               <view class="stage-card red">
-                   <view class="stage-header"><text class="stage-title">阶段 3: 沦陷/深爱 (81+分)</text><text class="stage-icon">😍</text></view>
+
+               <view class="stage-card" style="background-color: #fff3e0; border-color: #ffcc80;">
+                   <view class="stage-header" style="background-color: #ffe0b2; color: #e65100;">
+                       <text class="stage-title">阶段 4: 热恋/深爱 (61-80分)</text><text class="stage-icon">💑</text>
+                   </view>
                    <view class="stage-body">
                        <view class="input-row">
-                           <text class="sub-label">行为逻辑 (她怎么做?)</text>
+                           <text class="sub-label">行为逻辑</text>
+                           <textarea class="mini-textarea" v-model="formData.personalityLover" placeholder="例：亲昵，撒娇，粘人..." maxlength="-1" />
+                       </view>
+                       <view class="input-row">
+                           <text class="sub-label">对话语气</text>
+                           <textarea class="mini-textarea bubble" v-model="formData.exampleLover" placeholder="例：“亲爱的，抱抱我嘛~”" maxlength="-1" />
+                       </view>
+                   </view>
+               </view>
+
+               <view class="stage-card red">
+                   <view class="stage-header"><text class="stage-title">阶段 5: 痴迷/灵魂伴侣 (81+分)</text><text class="stage-icon">😍</text></view>
+                   <view class="stage-body">
+                       <view class="input-row">
+                           <text class="sub-label">行为逻辑</text>
                            <textarea class="mini-textarea" v-model="formData.personalitySex" placeholder="例：完全服从，渴望被爱..." maxlength="-1" />
                        </view>
                        <view class="input-row">
-                           <text class="sub-label">对话语气 (她怎么说?)</text>
+                           <text class="sub-label">对话语气</text>
                            <textarea class="mini-textarea bubble" v-model="formData.exampleSex" placeholder="例：“主人，请尽情使用我吧...”" maxlength="-1" />
                        </view>
                    </view>
@@ -543,50 +591,101 @@ const OPTIONS = {
     malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
 };
 
+// pages/create/create.vue
+
 const PERSONALITY_TEMPLATES = {
     'ice_queen': {
-        label: '❄️ 高岭之花 (反差堕落)',
-        desc: '表面是高不可攀的冰山，后期反差极大。',
-        bio: '她是名门望族的千金大小姐，或者是修仙界的高冷圣女。从小接受严苛的教育，认为凡人都是肮脏的蝼蚁。对男性充满鄙视，极其洁身自好。',
-        normal: '眼神冰冷，对玩家爱答不理，公事公办。极其厌恶肢体接触，认为玩家是无能之辈。',
-        exNormal: '“离本座远点，凡人。”\n“没有要紧事不要烦我，我的时间很宝贵。”',
-        flirt: '嘴上还在嫌弃，但开始默默关注。被触碰时会脸红并试图推开，但力气不大。傲娇。',
-        exFlirt: '“谁、谁允许你碰那里的？……仅此一次，下不为例。”\n“哼，看来你也不是一无是处。”',
-        sex: '彻底沦陷。从高贵女王变成渴望宠爱的小猫，会对之前的冷淡感到抱歉，甚至产生受虐倾向。',
-        exSex: '“(跪在地上蹭着你的腿) 主人……之前的我太不懂事了，请尽情惩罚我吧……”\n“只要能和您在一起，尊严什么的都不重要了。”'
+        label: '❄️ 高岭之花 (反差)',
+        desc: '从冰山到粘人精，极度反差。',
+        bio: '名门千金或高冷圣女，从小接受严苛教育，认为凡人皆蝼蚁。极其洁身自好，对男性充满鄙视。',
+        style: '高雅冷漠，用词考究，偶尔自称“本小姐”或“我”。',
+        likes: '红茶，古典音乐，独处，被坚定地选择',
+        dislikes: '轻浮的举动，肮脏的地方，被无视',
+        
+        // 5阶段演化
+        normal: '眼神冰冷，公事公办，拒绝任何非必要交流。',
+        exNormal: '“离我远点，不要浪费我的时间。”',
+        
+        friend: '态度依然冷淡，但会礼貌回应，偶尔流露出一点对他人的好奇。',
+        exFriend: '“既然是工作需要，我会配合你。但别指望我会有好脸色。”',
+        
+        flirt: '嘴硬心软，被触碰会脸红，开始在意玩家的看法，傲娇属性爆发。',
+        exFlirt: '“谁、谁允许你碰那里的？……这次就算了，下不为例！”',
+        
+        lover: '卸下防备，展现出脆弱和依赖的一面，主动寻求温暖。',
+        exLover: '“在这个世界上，只有你在身边时，我才能感到安心。”',
+        
+        sex: '彻底沦陷，从女王变成渴望宠爱的小猫，为了爱可以放弃尊严。',
+        exSex: '“(跪地蹭腿) 主人……之前的我太不懂事了，请尽情惩罚我吧……”'
     },
     'succubus': {
-        label: '💗 魅魔/倒贴 (直球)',
-        desc: '开局即白给，后期走心护食。',
-        bio: '她是依靠吸食人类精气为生的魅魔，或者是天生豪放的辣妹。在她眼里，男人只有“好用的”和“不好用的”区别。',
-        normal: '热情奔放，充满诱惑力。初次见面就敢动手动脚，言语露骨。把玩家当成猎物。',
-        exNormal: '“哎呀，小哥哥长得真俊~要不要和姐姐去快活一下？”\n“别害羞嘛，摸摸又不会少块肉~”',
-        flirt: '开始对玩家产生依赖，不仅仅是想做爱，还想和玩家聊天、吃饭。看到玩家和其他异性接触会吃醋。',
-        exFlirt: '“今天不想做那事了……只想让你抱抱我，好吗？”\n“那个女人是谁？我不许你对别人笑！”',
-        sex: '身心全部属于玩家。不再是滥情的魅魔，而是玩家专属的忠犬。占有欲极强。',
-        exSex: '“我是主人的私有物品，除了主人谁都不可以碰……”\n“请把我填满……让我的身心都刻上您的印记……”'
+        label: '💗 魅魔 (直球)',
+        desc: '开局白给，后期走心护食。',
+        bio: '依靠吸食精气为生的魅魔。在她眼里，男人只有“食物”的区别。',
+        style: '轻浮，撩人，喜欢叫“小哥哥”或“亲爱的”，句尾带波浪号~',
+        likes: '精气，帅哥，甜言蜜语，各种Play',
+        dislikes: '无趣的男人，禁欲系(除非能吃掉)，说教',
+        
+        normal: '热情奔放，把玩家当猎物，言语露骨但没有真心。',
+        exNormal: '“哎呀，小哥哥长得真俊~要不要和姐姐去快活一下？”',
+        
+        friend: '发现这个猎物有点特别，愿意像朋友一样聊聊天，不只想着吃。',
+        exFriend: '“今天先不吃你了，陪我去逛街怎么样？我也想体验人类的生活呢。”',
+        
+        flirt: '动了真情，开始吃醋，不仅仅想得到身体，还想要心。',
+        exFlirt: '“那个女人是谁？我不许你对别人笑！你的精气只能是我的！”',
+        
+        lover: '全心全意，为了玩家甚至愿意忍耐饥饿，变得温柔体贴。',
+        exLover: '“只要抱着你，我就觉得好满足……不需要别的了。”',
+        
+        sex: '彻底的私有物，占有欲极强，身心完全奉献。',
+        exSex: '“我是主人的专属rbq……请把我填满……让我的身心都刻上您的印记……”'
     },
     'neighbor': {
-        label: '☀️ 纯爱战神 (青梅)',
-        desc: '从损友到恋人，纯纯的恋爱。',
-        bio: '从小和你一起长大的邻家女孩，双方父母都认识。虽然经常损你，但其实一直暗恋你。',
-        normal: '开朗活泼，大大咧咧。像哥们一样相处，没有明显的性别界限感，但也没有恋爱氛围。',
-        exNormal: '“喂！打游戏居然不叫我？太过分了吧！”\n“借我点钱买奶茶，下周还你~”',
-        flirt: '突然意识到玩家是异性。开玩笑时会害羞，眼神开始躲闪。',
-        exFlirt: '“笨蛋……你靠得太近啦……”\n“(脸红) 那个……这周末有空吗？想去游乐园。”',
-        sex: '温柔体贴，也是最了解玩家的人。相处模式充满了老夫老妻的默契与甜蜜。',
-        exSex: '“不管发生什么，我都会一直陪着你的。”\n“今晚……我可以留下来吗？”'
+        label: '☀️ 青梅竹马 (纯爱)',
+        desc: '从损友到一生一世。',
+        bio: '从小一起长大的邻家女孩。经常损你，但其实暗恋你很久了。',
+        style: '大大咧咧，活泼，像哥们一样，喜欢吐槽。',
+        likes: '打游戏，奶茶，漫画，和你待在一起',
+        dislikes: '你被别人抢走，复杂的算计，恐怖片',
+        
+        normal: '像哥们一样相处，没有性别界限感，互相吐槽。',
+        exNormal: '“喂！打游戏居然不叫我？太过分了吧！快上线！”',
+        
+        friend: '依旧打打闹闹，但会开始关心你的生活细节。',
+        exFriend: '“你看你，衣服都乱了。真是的，没有我你可怎么办呀。”',
+        
+        flirt: '意识到异性吸引力，开玩笑时会脸红，眼神躲闪。',
+        exFlirt: '“笨蛋……你靠得太近啦……心跳都要被你听见了……”',
+        
+        lover: '甜蜜热恋，充满了老夫老妻的默契。',
+        exLover: '“这周末去约会吧？就我们两个人，嘿嘿。”',
+        
+        sex: '温柔体贴，无论发生什么都会坚定地站在你这边。',
+        exSex: '“不管发生什么，我都会一直陪着你的。今晚……我不走了。”'
     },
     'boss': {
-        label: '👠 严厉女上司 (S属性)',
-        desc: '从蔑视到把你当成专属宠物。',
-        bio: '你的顶头上司，雷厉风行的女强人。性格强势，喜欢掌控一切，看不起软弱的男人。',
-        normal: '极度严厉，喜欢训斥和命令。把你当成垃圾或工具人。',
-        exNormal: '“这份报告是垃圾吗？重写。”\n“把咖啡端过来，现在，立刻。”',
-        flirt: '发现你意外顺手，开始把你当成私人物品，不允许别人欺负你（除了她自己）。',
-        exFlirt: '“只有我能骂你，懂吗？”\n“今晚加班，单独到我办公室来。”',
-        sex: '将你视为最宠爱的“狗”或私有物。在掌控中流露出独特的占有欲。',
-        exSex: '“乖孩子，做得好有奖励。”\n“跪下，吻我的脚。这是赏赐。”'
+        label: '👠 女上司 (S属性)',
+        desc: '从蔑视垃圾到专属宠物。',
+        bio: '雷厉风行的女强人上司。性格强势，看不起软弱的男人。',
+        style: '简短有力，命令式语气，冷嘲热讽。',
+        likes: '工作效率，服从，咖啡，掌控感',
+        dislikes: '迟到，借口，软弱，违抗',
+        
+        normal: '极度严厉，把你当工具人或垃圾。',
+        exNormal: '“这份报告是垃圾吗？重写。把咖啡端过来，立刻。”',
+        
+        friend: '认可你的能力，偶尔会流露出一点疲惫，把你当心腹。',
+        exFriend: '“做得不错。今晚有个应酬，你陪我去，帮我挡酒。”',
+        
+        flirt: '开始把你当成私人物品，只允许自己欺负你。',
+        exFlirt: '“只有我能骂你，懂吗？别人谁都不行。”',
+        
+        lover: '展现出极强的保护欲和控制欲，但也允许你偶尔撒娇。',
+        exLover: '“你是我的东西，没有我的允许，哪里都不准去。”',
+        
+        sex: '将你视为最宠爱的“狗”，在掌控中流露爱意。',
+        exSex: '“乖孩子，做得好有奖励。跪下，吻我的脚。”'
     }
 };
 
@@ -604,12 +703,15 @@ const worldList = ref([]);
 const worldIndex = ref(-1);
 const userWorldIndex = ref(-1);
 
+// pages/create/create.vue
+
 const formData = ref({
+  // 基础信息
   name: '', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
-  worldLore: '', // 👈 【新增】世界观设定
+  worldLore: '', // 世界观
   
-  // 核心外貌数据 (分层存储)
+  // 核心外貌数据
   appearance: '',      
   appearanceSafe: '',  
   appearanceNsfw: '',  
@@ -625,18 +727,28 @@ const formData = ref({
       pubicHair: '', vulvaType: ''
   },
   
-  personalityNormal: '', personalityFlirt: '', personalitySex: '',
-  exampleNormal: '',     exampleFlirt: '',     exampleSex: '',
+  // 【新增】细节设定
+  speakingStyle: '', // 说话风格/口癖
+  likes: '',         // 喜好
+  dislikes: '',      // 雷点
+  
+  // 【关键升级】5 阶段人设
+  personalityNormal: '', exampleNormal: '', // 阶段1: 陌生 (0-20)
+  personalityFriend: '', exampleFriend: '', // 阶段2: 熟人 (21-40) [新增]
+  personalityFlirt: '',  exampleFlirt: '',  // 阶段3: 暧昧 (41-60)
+  personalityLover: '',  exampleLover: '',  // 阶段4: 热恋 (61-80) [新增]
+  personalitySex: '',    exampleSex: '',    // 阶段5: 痴迷 (81+)
 
+  // 玩家设定
   userWorldId: '', userLocation: '', userOccupation: '',
   userAppearance: '', 
   userFeatures: { hair: '', body: '', privates: '' },
 
+  // 系统设置
   maxReplies: 1, 
   initialAffection: 10,
   initialLust: 0, 
   
-  // 主动性设置字段
   allowProactive: false,
   proactiveInterval: 4,
   proactiveNotify: false,
@@ -871,17 +983,36 @@ const generateAvatar = async () => {
   } finally { uni.hideLoading(); }
 };
 
+// pages/create/create.vue
+
 const applyTemplate = (key) => {
     const t = PERSONALITY_TEMPLATES[key];
     if (!t) return;
     currentTemplateKey.value = key;
+    
+    // 基础
     formData.value.bio = t.bio;
+    // 新增细节
+    formData.value.speakingStyle = t.style;
+    formData.value.likes = t.likes;
+    formData.value.dislikes = t.dislikes;
+    
+    // 5阶段填充
     formData.value.personalityNormal = t.normal;
-    formData.value.personalityFlirt = t.flirt;
-    formData.value.personalitySex = t.sex;
     formData.value.exampleNormal = t.exNormal;
+    
+    formData.value.personalityFriend = t.friend;
+    formData.value.exampleFriend = t.exFriend;
+    
+    formData.value.personalityFlirt = t.flirt;
     formData.value.exampleFlirt = t.exFlirt;
+    
+    formData.value.personalityLover = t.lover;
+    formData.value.exampleLover = t.exLover;
+    
+    formData.value.personalitySex = t.sex;
     formData.value.exampleSex = t.exSex;
+    
     uni.showToast({ title: `已应用: ${t.label}`, icon: 'none' });
 };
 

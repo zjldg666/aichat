@@ -14,15 +14,14 @@ export const STYLE_PROMPT_MAP = {
 
 // 2. 负面提示词 (Negative Prompt)
 export const NEGATIVE_PROMPTS = {
-    // 单人模式：防止画出多余的人或肢体
-    SOLO: "nsfw, (worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, 2girls, 2boys, multiple girls, multiple boys, couple",
+    // 【关键修改】去掉了开头的 "nsfw"，增加了去马赛克和手部修复词
+    SOLO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, 2girls, 2boys, multiple girls, multiple boys, couple, censor, mosaic, bar, blurry",
     
-    // 双人模式：允许两人，但防止畸形
-    DUO: "nsfw, (worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, multiple views, grid, collage"
+    // 双人模式
+    DUO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, multiple views, grid, collage, censor, mosaic, bar, blurry"
 };
 
-// 3. ComfyUI 工作流模板 (WebP/WAS Node 版本)
-// 注意：确保你的 ComfyUI 安装了 WAS Node Suite 插件，否则 Image Save 节点会报错
+// 3. ComfyUI 工作流模板
 export const COMFY_WORKFLOW_TEMPLATE = {
   "1": {
     "inputs": {
@@ -60,8 +59,9 @@ export const COMFY_WORKFLOW_TEMPLATE = {
     }
   },
   "4": {
+    // 这里保留默认也没事，因为 chat.vue 会用 NEGATIVE_PROMPTS 覆盖它
     "inputs": {
-      "text": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers",
+      "text": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers, censor, mosaic",
       "clip": [
         "2",
         0
@@ -75,10 +75,10 @@ export const COMFY_WORKFLOW_TEMPLATE = {
   "5": {
     "inputs": {
       "seed": 0,
-      "steps": 30,
+      "steps": 28, // 稍微降低步数提高速度，Illustrious 28步足够
       "cfg": 7,
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "sampler_name": "euler", // 推荐使用 euler 或 dpmpp_2m
+      "scheduler": "normal",   // Illustrious 推荐 normal 或 karras
       "denoise": 1,
       "model": [
         "1",
@@ -122,7 +122,6 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "title": "VAE解码（分块）"
     }
   },
-  // 【关键配置】使用 WAS 插件保存为 WebP，ID 映射为 16 以匹配 App 逻辑
   "16": {
     "inputs": {
       "output_path": "[time(%Y-%m-%d)]",
@@ -130,9 +129,9 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "filename_delimiter": "_",
       "filename_number_padding": 4,
       "filename_number_start": "false",
-      "extension": "webp",  // 格式：WebP (体积小)
+      "extension": "webp",
       "dpi": 300,
-      "quality": 85,        // 质量：85
+      "quality": 85,
       "optimize_image": "true",
       "lossless_webp": "false",
       "overwrite_mode": "false",
@@ -157,7 +156,7 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "width_override": 0,
       "height_override": 0
     },
-    "class_type": "SDXLEmptyLatentSizePicker+",
+    "class_type": "SDXLEmptyLatentSizePicker+", 
     "_meta": {
       "title": "SDXL空Latent尺寸选择"
     }
