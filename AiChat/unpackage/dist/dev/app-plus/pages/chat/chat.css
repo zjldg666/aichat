@@ -416,3 +416,37 @@ to {
   border-radius: 1.25rem;
   margin-top: 0.625rem;
 }
+
+/* 建议栏样式 */
+.suggestion-bar[data-v-0a633310] {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0.46875rem;
+  padding: 0.46875rem 0.625rem;
+  background-color: #f0f3f5;
+  border-top: 1px solid #e1e1e1;
+  white-space: nowrap;
+}
+.suggestion-chip[data-v-0a633310] {
+  background-color: #fff;
+  color: #333;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 0.9375rem;
+  font-size: 0.8125rem;
+  border: 1px solid #ddd;
+  box-shadow: 0 0.0625rem 0.125rem rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+.suggestion-chip[data-v-0a633310]:active {
+  background-color: #e3f2fd;
+  color: #007aff;
+  border-color: #007aff;
+}
+.close-suggestion[data-v-0a633310] {
+  padding: 0.3125rem 0.625rem;
+  color: #999;
+  font-size: 0.9375rem;
+  display: flex;
+  align-items: center;
+}

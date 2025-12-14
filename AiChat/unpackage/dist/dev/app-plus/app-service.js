@@ -607,6 +607,7 @@ if (uni.restoreGlobal) {
       const charHistoryLimit = vue.ref(20);
       const tempDateStr = vue.ref("");
       const tempTimeStr = vue.ref("");
+      const suggestionList = vue.ref([]);
       let timeInterval = null;
       const relationshipStatus = vue.computed(() => {
         const score = currentAffection.value;
@@ -675,7 +676,7 @@ if (uni.restoreGlobal) {
         return uni.getStorageSync("app_api_config");
       };
       onLoad((options) => {
-        formatAppLog("log", "at pages/chat/chat.vue:257", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
+        formatAppLog("log", "at pages/chat/chat.vue:275", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
         const appUser = uni.getStorageSync("app_user_info");
         if (appUser) {
           if (appUser.name)
@@ -687,12 +688,9 @@ if (uni.restoreGlobal) {
           chatId.value = options.id;
           loadRoleData(options.id);
           loadHistory(options.id);
-        } else {
-          formatAppLog("error", "at pages/chat/chat.vue:268", "❌ [LifeCycle] No Chat ID provided in options");
         }
       });
       onShow(() => {
-        formatAppLog("log", "at pages/chat/chat.vue:273", "👀 [LifeCycle] onShow");
         if (chatId.value) {
           loadRoleData(chatId.value);
           const history = uni.getStorageSync(`chat_history_${chatId.value}`);
@@ -709,18 +707,15 @@ if (uni.restoreGlobal) {
         }
       });
       onHide(() => {
-        formatAppLog("log", "at pages/chat/chat.vue:293", "🙈 [LifeCycle] onHide - Stopping time flow & saving state.");
         stopTimeFlow();
         saveCharacterState();
       });
       onUnload(() => {
-        formatAppLog("log", "at pages/chat/chat.vue:300", "👋 [LifeCycle] onUnload - Cleaning up.");
         stopTimeFlow();
         saveCharacterState();
       });
       onNavigationBarButtonTap((e) => {
         if (e.key === "setting") {
-          formatAppLog("log", "at pages/chat/chat.vue:307", "⚙️ [Nav] Tapped setting button");
           uni.navigateTo({ url: `/pages/create/create?id=${chatId.value}` });
         }
       });
@@ -748,7 +743,7 @@ if (uni.restoreGlobal) {
         const list = uni.getStorageSync("contact_list") || [];
         const target = list.find((item) => String(item.id) === String(id));
         if (target) {
-          formatAppLog("log", "at pages/chat/chat.vue:334", "👤 [Data] Loaded Role:", target.name);
+          formatAppLog("log", "at pages/chat/chat.vue:341", "👤 [Data] Loaded Role:", target.name);
           currentRole.value = target;
           chatName.value = target.name;
           uni.setNavigationBarTitle({ title: target.name });
@@ -766,8 +761,6 @@ if (uni.restoreGlobal) {
           summaryFrequency.value = target.summaryFrequency || 20;
           currentSummary.value = target.summary || "暂无重要记忆。";
           charHistoryLimit.value = target.historyLimit !== void 0 ? target.historyLimit : 20;
-        } else {
-          formatAppLog("error", "at pages/chat/chat.vue:354", "❌ [Data] Role not found for ID:", id);
         }
       };
       const loadHistory = (id) => {
@@ -811,7 +804,6 @@ if (uni.restoreGlobal) {
             item.interactionMode = interactionMode.value;
             item.lastActivity = currentActivity.value;
             uni.setStorageSync("contact_list", list);
-            formatAppLog("log", "at pages/chat/chat.vue:395", "💾 [System] State Saved to Storage");
           }
         }
       };
@@ -829,7 +821,6 @@ if (uni.restoreGlobal) {
         const newTimestamp = new Date(fullStr).getTime();
         if (isNaN(newTimestamp))
           return uni.showToast({ title: "时间格式错误", icon: "none" });
-        formatAppLog("log", "at pages/chat/chat.vue:408", "⏰ [Time] Manual set to:", fullStr);
         currentTime.value = newTimestamp;
         saveCharacterState(void 0, newTimestamp);
         showTimeSettingPanel.value = false;
@@ -874,16 +865,96 @@ if (uni.restoreGlobal) {
             desc = `${mins}分钟过去了...`;
             break;
         }
-        formatAppLog("log", "at pages/chat/chat.vue:443", `⏭️ [Time] Skip ${type}, adding ${addMs}ms`);
         const newTime = currentTime.value + addMs;
         saveCharacterState(void 0, newTime);
         showTimePanel.value = false;
         messageList.value.push({ role: "system", content: `【系统】${desc} 当前时间：${formattedTime.value}`, isSystem: true });
         scrollToBottom();
       };
+      const applySuggestion = (text) => {
+        inputText.value = text;
+        suggestionList.value = [];
+      };
+      const getReplySuggestions = async () => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+        if (isLoading.value)
+          return;
+        uni.showLoading({ title: "军师正在思考...", mask: true });
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey) {
+          uni.hideLoading();
+          uni.showToast({ title: "请先配置API", icon: "none" });
+          return;
+        }
+        const recentContext = messageList.value.slice(-10).filter((m) => !m.isSystem && m.type !== "image").map((m) => `${m.role === "user" ? "Me" : "Her"}: ${m.content}`).join("\n");
+        const coachPrompt = `
+        [System: Dating Coach Mode]
+        **Context**: The user is chatting with an AI character.
+        **Dialogue History**:
+        ${recentContext}
+        
+        **Task**: 
+        Generate **3 distinct, short reply options** for the User ("Me") to say next.
+        
+        **Styles**:
+        1. **Gentle/Safe**: Caring, normal conversation.
+        2. **Playful/Teasing**: Funny, joking, or slightly annoying her.
+        3. **Bold/Flirty**: Direct, romantic, or physically escalating (High Risk/High Reward).
+        
+        **Format**: 
+        Output ONLY the 3 sentences separated by "|||". 
+        Example: did you sleep well?|||guess what I brought you?|||come here and kiss me.
+        **Language**: Simplified Chinese (简体中文).
+        `;
+        try {
+          let baseUrl = config.baseUrl || "";
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          let requestBody = {};
+          let targetUrl = "";
+          let header = { "Content-Type": "application/json" };
+          if (config.provider === "gemini") {
+            const cleanBase = "https://generativelanguage.googleapis.com";
+            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            requestBody = { contents: [{ parts: [{ text: coachPrompt }] }] };
+          } else {
+            targetUrl = `${baseUrl}/chat/completions`;
+            header["Authorization"] = `Bearer ${config.apiKey}`;
+            requestBody = {
+              model: config.model,
+              messages: [{ role: "user", content: coachPrompt }],
+              max_tokens: 150
+            };
+          }
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
+          let rawResult = "";
+          if (config.provider === "gemini") {
+            rawResult = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "";
+          } else {
+            let data = res.data;
+            if (typeof data === "string") {
+              try {
+                data = JSON.parse(data);
+              } catch (e) {
+              }
+            }
+            rawResult = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "";
+          }
+          if (rawResult) {
+            const suggestions = rawResult.split("|||").map((s) => s.trim()).filter((s) => s);
+            suggestionList.value = suggestions;
+          } else {
+            uni.showToast({ title: "无建议生成", icon: "none" });
+          }
+        } catch (e) {
+          formatAppLog("error", "at pages/chat/chat.vue:539", e);
+          uni.showToast({ title: "军师掉线了", icon: "none" });
+        } finally {
+          uni.hideLoading();
+        }
+      };
       const performBackgroundSummary = async () => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
-        formatAppLog("log", "at pages/chat/chat.vue:455", "🧠 [Memory] Starting background summary (One-Liner Mode)...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -895,16 +966,13 @@ if (uni.restoreGlobal) {
         const summaryPrompt = `
         [System: Memory Compression]
         任务：将原本的记忆和最新的对话，**浓缩成唯一的一句话**剧情概括。
-        
         【旧记忆】：${currentSummary.value}
         【新对话】：
         ${chatContent}
-        
         **要求 (CRITICAL)**：
         1. **极简**：严格限制在 **50字以内**。
-        2. **只写结果**：不要过程，不要流水账（如“先吃饭后洗澡”）。只记录关系变化或重大事件。
+        2. **只写结果**：不要过程。
         3. **格式**：采用“虽然...但是...”或“因为...所以...”的关联句式。
-        
         输出新记忆：`;
         let baseUrl = config.baseUrl || "";
         if (baseUrl.endsWith("/"))
@@ -940,11 +1008,10 @@ if (uni.restoreGlobal) {
           }
           if (newSummary) {
             const cleanSummary = newSummary.trim();
-            formatAppLog("log", "at pages/chat/chat.vue:510", "🧠 [Memory] Updated:", cleanSummary);
             saveCharacterState(void 0, void 0, cleanSummary);
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:513", "❌ [Memory] Summary failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:600", "Summary failed:", e);
         }
       };
       const getTimeTags = () => {
@@ -962,7 +1029,7 @@ if (uni.restoreGlobal) {
       };
       const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
         var _a;
-        formatAppLog("log", "at pages/chat/chat.vue:528", "🎨 [Image] Optimizing Prompt, Raw Desc:", actionAndSceneDescription);
+        formatAppLog("log", "at pages/chat/chat.vue:614", "🎨 [Image] Optimizing Prompt:", actionAndSceneDescription);
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
         const userDesc = userAppearance.value || "1boy, short hair";
@@ -975,23 +1042,19 @@ if (uni.restoreGlobal) {
         const styleTags = STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"];
         const timeTags = getTimeTags();
         let finalPrompt = `${compositionTag}, masterpiece, best quality, ${styleTags}, ${appearanceSafe}, ${clothingAndNsfwTags}, ${cleanTagsFromAI}`;
-        if (isDuo) {
+        if (isDuo)
           finalPrompt += `, ${userDesc}`;
-        }
         finalPrompt += `, ${timeTags}`;
         let cleanPrompt = finalPrompt.replace(/，/g, ",").replace(/[^\x00-\x7F]+/g, "");
         cleanPrompt = cleanPrompt.replace(/\s+/g, " ").replace(/,\s*,/g, ",").replace(/,+/g, ",");
-        formatAppLog("log", "at pages/chat/chat.vue:565", "🎨 [ComfyUI Final Prompt]:", cleanPrompt);
         return cleanPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
-        formatAppLog("log", "at pages/chat/chat.vue:571", "🎨 [ComfyUI] Requesting image...");
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
         const isDuo = /couple|2people|1boy|multiple boys|kiss|sex|paizuri|doggystyle/i.test(englishTags);
         workflow["4"].inputs.text = isDuo ? NEGATIVE_PROMPTS.DUO : NEGATIVE_PROMPTS.SOLO;
-        const seed = Math.floor(Math.random() * 999999999999999);
-        workflow["5"].inputs.seed = seed;
+        workflow["5"].inputs.seed = Math.floor(Math.random() * 999999999999999);
         try {
           const queueRes = await uni.request({
             url: `${baseUrl}/prompt`,
@@ -1003,7 +1066,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:585", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:650", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1011,36 +1074,30 @@ if (uni.restoreGlobal) {
               const outputs = historyRes.data[promptId].outputs;
               if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
                 const imgInfo = outputs["16"].images[0];
-                const finalUrl = `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
-                formatAppLog("log", "at pages/chat/chat.vue:596", "✅ [ComfyUI] Image generated:", finalUrl);
-                return finalUrl;
+                return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
               }
             }
           }
           throw new Error("生成超时");
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:603", "❌ [ComfyUI] Error:", e);
           throw e;
         }
       };
       const generateChatImage = async (sceneDescription) => {
         const imgConfig = uni.getStorageSync("app_image_config") || {};
-        if (!imgConfig.baseUrl) {
-          formatAppLog("warn", "at pages/chat/chat.vue:611", "⚠️ [Image] No ComfyUI BaseURL configured");
+        if (!imgConfig.baseUrl)
           return null;
-        }
         const finalPrompt = await optimizePromptForComfyUI(sceneDescription);
         if (!finalPrompt)
           return null;
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:620", e);
+          formatAppLog("error", "at pages/chat/chat.vue:676", e);
         }
         return null;
       };
       const handleAsyncImageGeneration = async (imgDesc, placeholderId) => {
-        formatAppLog("log", "at pages/chat/chat.vue:625", "🖼️ [Image] Handling async gen for:", imgDesc);
         try {
           const imgUrl = await generateChatImage(imgDesc);
           const idx = messageList.value.findIndex((m) => m.id === placeholderId);
@@ -1054,7 +1111,6 @@ if (uni.restoreGlobal) {
             saveHistory();
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:639", "❌ [Image] Async handling failed:", e);
           const idx = messageList.value.findIndex((m) => m.id === placeholderId);
           if (idx !== -1) {
             messageList.value[idx] = { role: "system", content: "❌ 照片显影异常 (点击重试)", isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
@@ -1063,7 +1119,6 @@ if (uni.restoreGlobal) {
         }
       };
       const retryGenerateImage = (msg) => {
-        formatAppLog("log", "at pages/chat/chat.vue:649", "🔄 [Image] Retrying generation...");
         if (!msg.isError || !msg.originalPrompt)
           return;
         const idx = messageList.value.findIndex((m) => m.id === msg.id);
@@ -1075,13 +1130,11 @@ if (uni.restoreGlobal) {
       const triggerNextStep = () => {
         if (isLoading.value)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:660", "▶️ [Action] User triggered continue");
         sendMessage(true);
       };
       const handleCameraSend = () => {
         if (isLoading.value)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:666", "📷 [Action] User triggered camera shot");
         const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
         sendMessage(false, extraInstruction);
       };
@@ -1107,7 +1160,6 @@ if (uni.restoreGlobal) {
           uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
           return;
         }
-        formatAppLog("log", "at pages/chat/chat.vue:705", "🔔 [Proactive] Logic triggered...");
         const gameDate = new Date(currentTime.value);
         const gameHour = gameDate.getHours();
         let gameTimeDesc = "daytime";
@@ -1121,16 +1173,12 @@ if (uni.restoreGlobal) {
         [系统事件: 用户回归]
         **背景**: 用户已经离开 APP 约 ${Math.floor(hoursSinceActive)} 小时。
         **游戏内时间**: 现在是 ${gameTimeDesc} (${gameHour}:00)。
-        
-        **当前任务**: 
-        根据你的人设，主动发起对话。
-        
+        **当前任务**: 根据你的人设，主动发起对话。
         **关键要求 (CRITICAL)**:
         1. **语言锁死**: 必须使用**简体中文**回复。
-        2. **保持人设**: 不要像个机器人。如果你是高冷的，就冷淡地问候；如果你是黏人的，就撒娇说想他了。
+        2. **保持人设**: 不要像个机器人。
         3. **话题**: 对“时间过去了多久”或“现在的天色”做出反应。
-        4. **长度**: 像微信聊天一样，简短自然 (30字以内)。
-        5. **禁忌**: 不要重复之前的对话，直接开启新话题。
+        4. **长度**: 简短自然 (30字以内)。
         `;
         sendMessage(false, triggerPrompt);
         uni.setStorageSync(`last_proactive_lock_${chatId.value}`, now);
@@ -1156,7 +1204,7 @@ if (uni.restoreGlobal) {
         }
         if (!isContinue) {
           if (inputText.value.trim()) {
-            formatAppLog("log", "at pages/chat/chat.vue:763", "🗣️ [Chat] User sent:", inputText.value);
+            formatAppLog("log", "at pages/chat/chat.vue:790", "🗣️ [Chat] User sent:", inputText.value);
             messageList.value.push({ role: "user", content: inputText.value });
             inputText.value = "";
           } else if (systemOverride && systemOverride.includes("SHUTTER")) {
@@ -1183,25 +1231,17 @@ if (uni.restoreGlobal) {
         const lust = currentLust.value;
         if (lust > 80 && score < 60) {
           activeRules = `
-                **【特殊状态：高欲望身心博弈 (Lust Paradox)】**
-                你的身体已经离不开玩家，但心理上依然有防线。
-                1. **过程 (During Intimacy)**: 允许少量扣分([AFF: -1])或不加分，表现出"含着泪迎合"或"自我厌恶"。
-                2. **事后 (Post-Clarity) - 关键结算**:
-                   - 若玩家冷漠/嘲讽 -> 视为被羞辱，好感度**暴跌** ([AFF: -5]~[AFF: -10])。
-                   - 若玩家温柔(拥抱/情话) -> 心理防线崩溃，产生依赖，好感度**报复性反弹/暴涨** ([AFF: +3]~[AFF: +8])。
-                `;
+            **【特殊状态：高欲望身心博弈 (Lust Paradox)】**
+            1. **过程 (During Intimacy)**: 允许少量扣分([AFF: -1])或不加分。
+            2. **事后 (Post-Clarity)**: 若玩家冷漠则好感暴跌([AFF: -5])；若玩家温柔则好感暴涨([AFF: +5])。
+            `;
         } else {
-          activeRules = `
-                根据你的人设原型进行判定：
-                - 符合你性格/XP的行为：加分 (+1~+3)。
-                - 冒犯/不礼貌/不合时宜的行为：扣分 (-1~-5)。
-                `;
+          activeRules = `根据你的人设原型进行判定：符合性格/XP加分，冒犯扣分。`;
         }
         let nsfwInstruction = "";
         const isIntimate = lust > 60 || score > 80 || currentActivity.value.includes("性") || currentActivity.value.includes("爱");
-        if (isIntimate) {
+        if (isIntimate)
           nsfwInstruction = NSFW_STYLE;
-        }
         const hiddenInstruction = `
 [System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
         let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
@@ -1212,24 +1252,18 @@ if (uni.restoreGlobal) {
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:857", "📝 [LLM] System Prompt (Snippet):", prompt.substring(0, 200) + "...");
+        formatAppLog("log", "at pages/chat/chat.vue:862", "📝 [LLM] System Prompt (Snippet):", prompt.substring(0, 200) + "...");
         const continuePrompt = `
         [System Command: AUTO-DRIVE MODE]
         **Situation**: The user is silent/waiting. You need to drive the conversation forward.
-        
         **Decision Logic**:
-        1. **IF your last message was incomplete** (cut off mid-sentence):
-           - Finish the sentence seamlessly.
-           
+        1. **IF your last message was incomplete** (cut off mid-sentence): Finish the sentence seamlessly.
         2. **IF your last message was complete**:
            - Do **NOT** repeat yourself.
            - Do **NOT** ask "What's wrong?".
            - **Take Initiative**: Perform a new action, describe a change in the environment, or start a new topic based on the current mood (Affection: ${currentAffection.value}, Lust: ${currentLust.value}).
-           - *Example*: If kissing, deepen the kiss. If chatting, ask a question or show something on your phone.
-           
         **Output Requirement**:
         - Just output the content. No "Okay" or "Sure".
-        - Keep it natural and in character.
         `;
         let targetUrl = "";
         let requestBody = {};
@@ -1259,14 +1293,11 @@ if (uni.restoreGlobal) {
           };
         } else {
           targetUrl = `${baseUrl}/chat/completions`;
-          const openAIMessages = [
-            { role: "system", content: prompt }
-          ];
+          const openAIMessages = [{ role: "system", content: prompt }];
           contextMessages.forEach((item) => {
             const cleanText = item.role === "model" ? cleanMessageForAI(item.content) : item.content;
-            if (cleanText.trim()) {
+            if (cleanText.trim())
               openAIMessages.push({ role: item.role === "model" ? "assistant" : "user", content: cleanText });
-            }
           });
           if (systemOverride)
             openAIMessages.push({ role: "user", content: systemOverride });
@@ -1279,7 +1310,7 @@ if (uni.restoreGlobal) {
             stream: false
           };
         }
-        formatAppLog("log", "at pages/chat/chat.vue:933", "📡 [LLM] Requesting:", targetUrl);
+        formatAppLog("log", "at pages/chat/chat.vue:922", "📡 [LLM] Requesting:", targetUrl);
         try {
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
@@ -1297,9 +1328,8 @@ if (uni.restoreGlobal) {
             if (config.provider === "gemini") {
               rawText = ((_k = (_j = (_i = (_h = (_g = (_f = res.data) == null ? void 0 : _f.candidates) == null ? void 0 : _g[0]) == null ? void 0 : _h.content) == null ? void 0 : _i.parts) == null ? void 0 : _j[0]) == null ? void 0 : _k.text) || "";
               const usage = (_l = res.data) == null ? void 0 : _l.usageMetadata;
-              if (usage) {
+              if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
-              }
             } else {
               let data = res.data;
               if (typeof data === "string") {
@@ -1310,20 +1340,16 @@ if (uni.restoreGlobal) {
               }
               rawText = ((_o = (_n = (_m = data == null ? void 0 : data.choices) == null ? void 0 : _m[0]) == null ? void 0 : _n.message) == null ? void 0 : _o.content) || "";
               const usage = data == null ? void 0 : data.usage;
-              if (usage) {
+              if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
-              }
             }
-            if (tokenLog) {
-              formatAppLog("log", "at pages/chat/chat.vue:976", tokenLog);
-            } else {
-              formatAppLog("log", "at pages/chat/chat.vue:978", "📊 [Token Usage] No usage data returned from API.");
-            }
+            if (tokenLog)
+              formatAppLog("log", "at pages/chat/chat.vue:948", tokenLog);
             if (rawText) {
-              formatAppLog("log", "at pages/chat/chat.vue:982", "📥 [LLM] Raw Response:", rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""));
+              formatAppLog("log", "at pages/chat/chat.vue:951", "📥 [LLM] Raw Response:", rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""));
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:985", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:954", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_q = (_p = res.data) == null ? void 0 : _p.promptFeedback) == null ? void 0 : _q.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1331,14 +1357,14 @@ if (uni.restoreGlobal) {
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:991", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:960", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:996", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:965", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1356,7 +1382,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 3)
               change = 3;
-            formatAppLog("log", "at pages/chat/chat.vue:1025", `❤️ [Status] Affection change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:987", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
             if (change !== 0)
               uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
@@ -1368,7 +1394,7 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:1038", `🔥 [Status] Lust change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:999", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
@@ -1381,7 +1407,7 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1054", `📡 [Status] Mode switch to: ${newMode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1012", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
             const modeText = newMode === "face" ? "见面了" : "分开了";
@@ -1393,7 +1419,7 @@ if (uni.restoreGlobal) {
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
           const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1068", `📍 [Status] Moved to: ${newLoc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1025", `📍 [Status] Moved to: ${newLoc}`);
           currentLocation.value = newLoc;
           saveCharacterState(void 0, void 0, void 0, newLoc);
           systemMsgs.push(`移动到：${newLoc}`);
@@ -1403,7 +1429,7 @@ if (uni.restoreGlobal) {
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
           const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1080", `👗 [Status] Clothes changed to: ${newClothes}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1036", `👗 [Status] Clothes changed to: ${newClothes}`);
           currentClothing.value = newClothes;
           saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
           systemMsgs.push(`换装：${newClothes}`);
@@ -1413,7 +1439,7 @@ if (uni.restoreGlobal) {
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
           const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1092", `🎬 [Status] Activity update: ${newAct}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1047", `🎬 [Status] Activity update: ${newAct}`);
           currentActivity.value = newAct;
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
@@ -1423,15 +1449,10 @@ if (uni.restoreGlobal) {
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1106", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1058", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
-          pendingImagePlaceholder = {
-            role: "system",
-            content: "📷 影像显影中... (请稍候)",
-            isSystem: true,
-            id: placeholderId
-          };
+          pendingImagePlaceholder = { role: "system", content: "📷 影像显影中... (请稍候)", isSystem: true, id: placeholderId };
           handleAsyncImageGeneration(imgDesc, placeholderId);
         }
         displayText = displayText.replace(/\[(System|Logic).*?\]/gis, "").trim();
@@ -1448,20 +1469,17 @@ if (uni.restoreGlobal) {
           parts.forEach((part) => {
             let cleanPart = part.trim();
             const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || /^["“”'‘’]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
-            if (!isJunk) {
+            if (!isJunk)
               messageList.value.push({ role: "model", content: cleanPart });
-            }
           });
         }
-        if (pendingImagePlaceholder) {
+        if (pendingImagePlaceholder)
           messageList.value.push(pendingImagePlaceholder);
-        }
         saveHistory();
         if (enableSummary.value) {
           const validMsgCount = messageList.value.filter((m) => !m.isSystem).length;
-          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
+          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0)
             performBackgroundSummary();
-          }
         }
       };
       const scrollToBottom = () => {
@@ -1472,11 +1490,11 @@ if (uni.restoreGlobal) {
           }, 100);
         });
       };
-      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, TIME_SPEED_RATIO, get timeInterval() {
+      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, suggestionList, TIME_SPEED_RATIO, get timeInterval() {
         return timeInterval;
       }, set timeInterval(v) {
         timeInterval = v;
-      }, relationshipStatus, formattedTime, cleanMessageForAI, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, performBackgroundSummary, getTimeTags, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, getActiveExample, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
+      }, relationshipStatus, formattedTime, cleanMessageForAI, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, applySuggestion, getReplySuggestions, performBackgroundSummary, getTimeTags, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, getActiveExample, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
         return onLoad;
       }, get onShow() {
         return onShow;
@@ -1718,11 +1736,33 @@ if (uni.restoreGlobal) {
           })
         ])
       ], 8, ["scroll-into-view"]),
+      $setup.suggestionList.length > 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 0,
+        class: "suggestion-bar"
+      }, [
+        (vue.openBlock(true), vue.createElementBlock(
+          vue.Fragment,
+          null,
+          vue.renderList($setup.suggestionList, (text, index) => {
+            return vue.openBlock(), vue.createElementBlock("view", {
+              class: "suggestion-chip",
+              key: index,
+              onClick: ($event) => $setup.applySuggestion(text)
+            }, vue.toDisplayString(text), 9, ["onClick"]);
+          }),
+          128
+          /* KEYED_FRAGMENT */
+        )),
+        vue.createElementVNode("view", {
+          class: "close-suggestion",
+          onClick: _cache[1] || (_cache[1] = ($event) => $setup.suggestionList = [])
+        }, "×")
+      ])) : vue.createCommentVNode("v-if", true),
       vue.createElementVNode("view", { class: "input-area" }, [
         vue.createElementVNode("view", {
           class: "action-btn",
           "hover-class": "btn-hover",
-          onClick: _cache[1] || (_cache[1] = ($event) => $setup.showTimePanel = true)
+          onClick: _cache[2] || (_cache[2] = ($event) => $setup.showTimePanel = true)
         }, [
           vue.createElementVNode("text", { class: "action-icon" }, "⏱️"),
           vue.createElementVNode("text", { class: "action-text" }, "快进")
@@ -1735,11 +1775,19 @@ if (uni.restoreGlobal) {
           vue.createElementVNode("text", { class: "action-icon" }, "▶️"),
           vue.createElementVNode("text", { class: "action-text" }, "继续")
         ]),
+        vue.createElementVNode("view", {
+          class: "action-btn",
+          "hover-class": "btn-hover",
+          onClick: $setup.getReplySuggestions
+        }, [
+          vue.createElementVNode("text", { class: "action-icon" }, "💡"),
+          vue.createElementVNode("text", { class: "action-text" }, "提示")
+        ]),
         vue.withDirectives(vue.createElementVNode("input", {
           class: "text-input",
-          "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.inputText = $event),
+          "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.inputText = $event),
           "confirm-type": "send",
-          onConfirm: _cache[3] || (_cache[3] = ($event) => $setup.sendMessage()),
+          onConfirm: _cache[4] || (_cache[4] = ($event) => $setup.sendMessage()),
           placeholder: "输入对话...",
           disabled: $setup.isLoading
         }, null, 40, ["disabled"]), [
@@ -1756,7 +1804,7 @@ if (uni.restoreGlobal) {
           "button",
           {
             class: vue.normalizeClass(["send-btn", { "disabled": $setup.isLoading }]),
-            onClick: _cache[4] || (_cache[4] = ($event) => $setup.sendMessage())
+            onClick: _cache[5] || (_cache[5] = ($event) => $setup.sendMessage())
           },
           "发送",
           2
@@ -1764,32 +1812,32 @@ if (uni.restoreGlobal) {
         )
       ]),
       $setup.showTimePanel ? (vue.openBlock(), vue.createElementBlock("view", {
-        key: 0,
+        key: 1,
         class: "time-panel-mask",
-        onClick: _cache[12] || (_cache[12] = ($event) => $setup.showTimePanel = false)
+        onClick: _cache[13] || (_cache[13] = ($event) => $setup.showTimePanel = false)
       }, [
         vue.createElementVNode("view", {
           class: "time-panel",
-          onClick: _cache[11] || (_cache[11] = vue.withModifiers(() => {
+          onClick: _cache[12] || (_cache[12] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "panel-title" }, "时间跳跃"),
           vue.createElementVNode("view", { class: "grid-actions" }, [
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[5] || (_cache[5] = ($event) => $setup.handleTimeSkip("morning"))
+              onClick: _cache[6] || (_cache[6] = ($event) => $setup.handleTimeSkip("morning"))
             }, "🌤️ 一上午过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[6] || (_cache[6] = ($event) => $setup.handleTimeSkip("afternoon"))
+              onClick: _cache[7] || (_cache[7] = ($event) => $setup.handleTimeSkip("afternoon"))
             }, "🌇 一下午过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[7] || (_cache[7] = ($event) => $setup.handleTimeSkip("night"))
+              onClick: _cache[8] || (_cache[8] = ($event) => $setup.handleTimeSkip("night"))
             }, "🌙 一晚上过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[8] || (_cache[8] = ($event) => $setup.handleTimeSkip("day"))
+              onClick: _cache[9] || (_cache[9] = ($event) => $setup.handleTimeSkip("day"))
             }, "📅 一整天过去")
           ]),
           vue.createElementVNode("view", { class: "custom-time" }, [
@@ -1799,7 +1847,7 @@ if (uni.restoreGlobal) {
               {
                 class: "mini-input",
                 type: "number",
-                "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => $setup.customMinutes = $event),
+                "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $setup.customMinutes = $event),
                 placeholder: "30"
               },
               null,
@@ -1810,19 +1858,19 @@ if (uni.restoreGlobal) {
             ]),
             vue.createElementVNode("view", {
               class: "mini-btn",
-              onClick: _cache[10] || (_cache[10] = ($event) => $setup.handleTimeSkip("custom"))
+              onClick: _cache[11] || (_cache[11] = ($event) => $setup.handleTimeSkip("custom"))
             }, "确定")
           ])
         ])
       ])) : vue.createCommentVNode("v-if", true),
       $setup.showTimeSettingPanel ? (vue.openBlock(), vue.createElementBlock("view", {
-        key: 1,
+        key: 2,
         class: "time-panel-mask",
-        onClick: _cache[14] || (_cache[14] = ($event) => $setup.showTimeSettingPanel = false)
+        onClick: _cache[15] || (_cache[15] = ($event) => $setup.showTimeSettingPanel = false)
       }, [
         vue.createElementVNode("view", {
           class: "time-panel",
-          onClick: _cache[13] || (_cache[13] = vue.withModifiers(() => {
+          onClick: _cache[14] || (_cache[14] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "panel-title" }, "设定具体时间"),
@@ -3941,36 +3989,45 @@ Task: ${prompt}` }]
     __name: "mine",
     setup(__props, { expose: __expose }) {
       __expose();
+      const LLM_PROVIDERS = [
+        // 1. Gemini: 使用你提供的官方 OpenAI 兼容 Chat 地址作为默认 BaseUrl
+        { label: "Google Gemini", value: "gemini", defaultUrl: "https://generativelanguage.googleapis.com/v1beta/openai" },
+        // 2. 豆包 (火山引擎)
+        { label: "火山引擎 (豆包)", value: "volcengine", defaultUrl: "https://ark.cn-beijing.volces.com/api/v3" },
+        // 3. 硅基流动
+        { label: "硅基流动 (SiliconFlow)", value: "siliconflow", defaultUrl: "https://api.siliconflow.cn/v1" },
+        // 4. OpenAI / 自定义
+        { label: "OpenAI (自定义)", value: "openai", defaultUrl: "https://api.openai.com/v1" }
+      ];
       const DRAWING_STYLES = [
-        { label: "标准日漫 (Standard)", value: "anime", emoji: "📺" },
-        { label: "厚涂风格 (Impasto)", value: "impasto", emoji: "🖌️" },
-        { label: "90年代复古 (Retro)", value: "retro", emoji: "📼" },
-        { label: "新海诚风 (Scenery)", value: "shinkai", emoji: "☁️" },
-        { label: "暗黑哥特 (Gothic)", value: "gothic", emoji: "🦇" },
-        { label: "赛博朋克 (Cyber)", value: "cyber", emoji: "🤖" },
-        { label: "水彩柔和 (Pastel)", value: "pastel", emoji: "🌸" },
-        { label: "黑白线稿 (Sketch)", value: "sketch", emoji: "✏️" }
+        { label: "标准日漫", value: "anime", emoji: "📺" },
+        { label: "厚涂风格", value: "impasto", emoji: "🖌️" },
+        { label: "90年代复古", value: "retro", emoji: "📼" },
+        { label: "新海诚风", value: "shinkai", emoji: "☁️" },
+        { label: "暗黑哥特", value: "gothic", emoji: "🦇" },
+        { label: "赛博朋克", value: "cyber", emoji: "🤖" },
+        { label: "水彩柔和", value: "pastel", emoji: "🌸" },
+        { label: "黑白线稿", value: "sketch", emoji: "✏️" }
       ];
       const userInfo = vue.ref({ name: "我", avatar: "/static/user-avatar.png" });
       const activeSections = vue.ref({ chat: false, image: false, world: false });
-      const toggleSection = (key) => {
-        activeSections.value[key] = !activeSections.value[key];
-      };
-      const apiConfig = vue.ref({
-        baseUrl: "https://generativelanguage.googleapis.com",
-        apiKey: "",
-        model: "",
-        historyLimit: 20
-      });
+      const llmSchemes = vue.ref([]);
+      const currentSchemeIndex = vue.ref(0);
+      const tempModelList = vue.ref([]);
+      const activeFetchIndex = vue.ref(-1);
       const imageConfig = vue.ref({
         provider: "gemini",
         baseUrl: "https://generativelanguage.googleapis.com",
         apiKey: "",
         model: "",
         style: "anime"
-        // 默认为标准日漫
       });
       const worldSettings = vue.ref([]);
+      const currentLlmScheme = vue.computed(() => {
+        if (llmSchemes.value.length === 0)
+          return null;
+        return llmSchemes.value[currentSchemeIndex.value];
+      });
       const imageConfigIndex = vue.computed(() => {
         if (imageConfig.value.provider === "openai")
           return 1;
@@ -3993,104 +4050,218 @@ Task: ${prompt}` }]
         const storedUser = uni.getStorageSync("app_user_info");
         if (storedUser)
           userInfo.value = storedUser;
-        const storedConfig = uni.getStorageSync("app_api_config");
-        if (storedConfig)
-          apiConfig.value = { ...apiConfig.value, ...storedConfig };
+        const storedSchemes = uni.getStorageSync("app_llm_schemes");
+        const storedIndex = uni.getStorageSync("app_current_scheme_index");
+        if (storedSchemes && Array.isArray(storedSchemes) && storedSchemes.length > 0) {
+          llmSchemes.value = storedSchemes.map((s) => ({ ...s, isExpanded: false }));
+          currentSchemeIndex.value = storedIndex !== void 0 && storedIndex < storedSchemes.length ? storedIndex : 0;
+        } else {
+          createNewScheme(true);
+        }
         const storedImgConfig = uni.getStorageSync("app_image_config");
         if (storedImgConfig)
           imageConfig.value = { ...imageConfig.value, ...storedImgConfig };
         const storedWorlds = uni.getStorageSync("app_world_settings");
         if (storedWorlds && Array.isArray(storedWorlds)) {
-          worldSettings.value = storedWorlds.map((w) => ({
-            ...w,
-            isOpen: false,
-            tempLoc: "",
-            tempJob: ""
-          }));
+          worldSettings.value = storedWorlds.map((w) => ({ ...w, isOpen: false, tempLoc: "", tempJob: "" }));
         }
       });
+      const toggleSection = (key) => {
+        activeSections.value[key] = !activeSections.value[key];
+      };
       const goToEdit = () => {
         uni.navigateTo({ url: "/pages/mine/edit-profile" });
       };
       const goToGallery = () => {
         uni.navigateTo({ url: "/pages/mine/gallery" });
       };
+      const createNewScheme = (isInit = false) => {
+        const newScheme = {
+          id: Date.now(),
+          name: isInit ? "默认方案" : `方案 ${llmSchemes.value.length + 1}`,
+          provider: "gemini",
+          // 默认使用 Gemini 的 OpenAI 兼容地址
+          baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+          apiKey: "",
+          model: "",
+          historyLimit: 20,
+          isExpanded: true
+        };
+        if (!isInit)
+          llmSchemes.value.forEach((s) => s.isExpanded = false);
+        llmSchemes.value.push(newScheme);
+        if (isInit)
+          currentSchemeIndex.value = 0;
+      };
+      const selectScheme = (index) => {
+        currentSchemeIndex.value = index;
+      };
+      const toggleSchemeExpand = (index) => {
+        llmSchemes.value[index].isExpanded = !llmSchemes.value[index].isExpanded;
+        tempModelList.value = [];
+        activeFetchIndex.value = -1;
+      };
+      const deleteScheme = (index) => {
+        uni.showModal({
+          title: "确认删除",
+          content: "确定要删除这个API方案吗？",
+          success: (res) => {
+            if (res.confirm) {
+              llmSchemes.value.splice(index, 1);
+              if (index === currentSchemeIndex.value || currentSchemeIndex.value >= llmSchemes.value.length) {
+                currentSchemeIndex.value = 0;
+              }
+              if (llmSchemes.value.length === 0)
+                createNewScheme(true);
+            }
+          }
+        });
+      };
+      const handleProviderChange = (e, index) => {
+        const selectedIdx = e.detail.value;
+        const selected = LLM_PROVIDERS[selectedIdx];
+        const scheme = llmSchemes.value[index];
+        scheme.provider = selected.value;
+        scheme.baseUrl = selected.defaultUrl;
+        scheme.model = "";
+        tempModelList.value = [];
+      };
+      const getProviderLabel = (val) => {
+        const f = LLM_PROVIDERS.find((p) => p.value === val);
+        return f ? f.label : val;
+      };
+      const fetchModels = (index) => {
+        const scheme = llmSchemes.value[index];
+        if (!scheme.apiKey) {
+          uni.showToast({ title: "请先填写 API Key", icon: "none" });
+          return;
+        }
+        uni.showLoading({ title: "获取中...", mask: true });
+        let requestUrl = "";
+        let method = "GET";
+        let header = { "Authorization": `Bearer ${scheme.apiKey}` };
+        if (scheme.provider === "gemini") {
+          requestUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${scheme.apiKey}`;
+          header = {};
+        } else {
+          let baseUrl = scheme.baseUrl;
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          requestUrl = `${baseUrl}/models`;
+        }
+        uni.request({
+          url: requestUrl,
+          method,
+          header,
+          success: (res) => {
+            var _a, _b;
+            uni.hideLoading();
+            formatAppLog("log", "at pages/mine/mine.vue:483", "Fetch Models Result:", res);
+            let models = [];
+            if (scheme.provider === "gemini" && res.data && res.data.models) {
+              models = res.data.models.map((m) => {
+                return m.name.replace("models/", "");
+              });
+            } else if (res.data && Array.isArray(res.data.data)) {
+              models = res.data.data.map((m) => m.id);
+            }
+            if (models.length > 0) {
+              tempModelList.value = models;
+              activeFetchIndex.value = index;
+              uni.showToast({ title: `获取到 ${models.length} 个模型`, icon: "success" });
+            } else {
+              const errMsg = ((_b = (_a = res.data) == null ? void 0 : _a.error) == null ? void 0 : _b.message) || JSON.stringify(res.data);
+              uni.showModal({
+                title: "获取失败",
+                content: `状态码: ${res.statusCode}
+响应: ${errMsg}`,
+                showCancel: false
+              });
+            }
+          },
+          fail: (err) => {
+            uni.hideLoading();
+            uni.showToast({ title: "网络请求失败", icon: "none" });
+            formatAppLog("error", "at pages/mine/mine.vue:516", err);
+          }
+        });
+      };
+      const applyModel = (index, modelName) => {
+        llmSchemes.value[index].model = modelName;
+        tempModelList.value = [];
+      };
       const handleTypeChange = (e) => {
         const idx = e.detail.value;
         if (idx == 0) {
           imageConfig.value.provider = "gemini";
           imageConfig.value.baseUrl = "https://generativelanguage.googleapis.com";
-          if (!imageConfig.value.model)
-            imageConfig.value.model = "gemini-2.0-flash-exp";
         } else if (idx == 1) {
           imageConfig.value.provider = "openai";
           imageConfig.value.baseUrl = "https://api.openai.com/v1";
-          if (!imageConfig.value.model)
-            imageConfig.value.model = "dall-e-3";
         } else if (idx == 2) {
           imageConfig.value.provider = "comfyui";
           imageConfig.value.baseUrl = "";
-          imageConfig.value.model = "";
         }
         activeSections.value.image = true;
       };
       const addNewWorld = () => {
-        worldSettings.value.push({ id: Date.now(), name: "新世界 " + (worldSettings.value.length + 1), locations: ["家中", "公园", "学校"], occupations: ["学生", "上班族"], isOpen: true, tempLoc: "", tempJob: "" });
+        worldSettings.value.push({ id: Date.now(), name: "新世界", locations: [], occupations: [], isOpen: true, tempLoc: "", tempJob: "" });
       };
-      const toggleWorldItem = (index) => {
-        worldSettings.value[index].isOpen = !worldSettings.value[index].isOpen;
+      const toggleWorldItem = (idx) => {
+        worldSettings.value[idx].isOpen = !worldSettings.value[idx].isOpen;
       };
-      const deleteWorld = (index) => {
-        uni.showModal({ title: "确认删除", content: "确定要删除这个世界设定吗？", success: (res) => {
+      const deleteWorld = (idx) => {
+        uni.showModal({ title: "删除", content: "确定删除吗？", success: (res) => {
           if (res.confirm)
-            worldSettings.value.splice(index, 1);
+            worldSettings.value.splice(idx, 1);
         } });
       };
-      const addLocation = (index) => {
-        const world = worldSettings.value[index];
-        if (world.tempLoc && world.tempLoc.trim()) {
-          world.locations.push(world.tempLoc.trim());
-          world.tempLoc = "";
+      const addLocation = (idx) => {
+        const w = worldSettings.value[idx];
+        if (w.tempLoc) {
+          w.locations.push(w.tempLoc);
+          w.tempLoc = "";
         }
       };
-      const removeLocation = (wIndex, lIndex) => {
-        worldSettings.value[wIndex].locations.splice(lIndex, 1);
+      const removeLocation = (wi, li) => {
+        worldSettings.value[wi].locations.splice(li, 1);
       };
-      const addOccupation = (index) => {
-        const world = worldSettings.value[index];
-        if (world.tempJob && world.tempJob.trim()) {
-          world.occupations.push(world.tempJob.trim());
-          world.tempJob = "";
+      const addOccupation = (idx) => {
+        const w = worldSettings.value[idx];
+        if (w.tempJob) {
+          w.occupations.push(w.tempJob);
+          w.tempJob = "";
         }
       };
-      const removeOccupation = (wIndex, jIndex) => {
-        worldSettings.value[wIndex].occupations.splice(jIndex, 1);
+      const removeOccupation = (wi, ji) => {
+        worldSettings.value[wi].occupations.splice(ji, 1);
       };
       const saveAllConfig = () => {
-        if (!apiConfig.value.apiKey.trim()) {
-          uni.showToast({ title: "对话 Key 不能为空", icon: "none" });
+        if (llmSchemes.value.length === 0) {
+          uni.showToast({ title: "请添加对话方案", icon: "none" });
           return;
         }
-        let chatUrl = apiConfig.value.baseUrl.trim();
-        if (chatUrl.endsWith("/"))
-          chatUrl = chatUrl.slice(0, -1);
-        apiConfig.value.baseUrl = chatUrl;
-        uni.setStorageSync("app_api_config", apiConfig.value);
+        const cleanSchemes = llmSchemes.value.map(({ isExpanded, ...rest }) => {
+          let url = rest.baseUrl.trim();
+          if (url.endsWith("/"))
+            url = url.slice(0, -1);
+          return { ...rest, baseUrl: url };
+        });
+        uni.setStorageSync("app_llm_schemes", cleanSchemes);
+        uni.setStorageSync("app_current_scheme_index", currentSchemeIndex.value);
         let imgUrl = imageConfig.value.baseUrl ? imageConfig.value.baseUrl.trim() : "";
         if (imgUrl.endsWith("/"))
           imgUrl = imgUrl.slice(0, -1);
         imageConfig.value.baseUrl = imgUrl;
-        if (!imageConfig.value.style)
-          imageConfig.value.style = "anime";
         uni.setStorageSync("app_image_config", imageConfig.value);
         const cleanWorlds = worldSettings.value.map(({ tempLoc, tempJob, isOpen, ...rest }) => rest);
         uni.setStorageSync("app_world_settings", cleanWorlds);
-        uni.showToast({ title: "所有配置已保存", icon: "success" });
+        uni.showToast({ title: "保存成功", icon: "success" });
         activeSections.value.chat = false;
         activeSections.value.image = false;
         activeSections.value.world = false;
       };
-      const __returned__ = { DRAWING_STYLES, userInfo, activeSections, toggleSection, apiConfig, imageConfig, worldSettings, imageConfigIndex, currentProviderLabel, currentStyleLabel, goToEdit, goToGallery, handleTypeChange, addNewWorld, toggleWorldItem, deleteWorld, addLocation, removeLocation, addOccupation, removeOccupation, saveAllConfig, ref: vue.ref, computed: vue.computed, get onShow() {
+      const __returned__ = { LLM_PROVIDERS, DRAWING_STYLES, userInfo, activeSections, llmSchemes, currentSchemeIndex, tempModelList, activeFetchIndex, imageConfig, worldSettings, currentLlmScheme, imageConfigIndex, currentProviderLabel, currentStyleLabel, toggleSection, goToEdit, goToGallery, createNewScheme, selectScheme, toggleSchemeExpand, deleteScheme, handleProviderChange, getProviderLabel, fetchModels, applyModel, handleTypeChange, addNewWorld, toggleWorldItem, deleteWorld, addLocation, removeLocation, addOccupation, removeOccupation, saveAllConfig, ref: vue.ref, computed: vue.computed, get onShow() {
         return onShow;
       }, CustomTabBar };
       Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
@@ -4143,7 +4314,7 @@ Task: ${prompt}` }]
             vue.createElementVNode(
               "text",
               { class: "group-subtitle" },
-              vue.toDisplayString($setup.apiConfig.model || "未设置"),
+              " 当前使用: " + vue.toDisplayString($setup.currentLlmScheme ? $setup.currentLlmScheme.name : "未选择"),
               1
               /* TEXT */
             )
@@ -4160,78 +4331,191 @@ Task: ${prompt}` }]
           "view",
           { class: "group-content" },
           [
-            vue.createElementVNode("view", { class: "setting-item" }, [
-              vue.createElementVNode("view", { class: "item-label" }, "接口地址"),
-              vue.withDirectives(vue.createElementVNode(
-                "input",
-                {
-                  class: "item-input",
-                  type: "text",
-                  "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => $setup.apiConfig.baseUrl = $event),
-                  placeholder: "例如 https://generativelanguage.googleapis.com"
-                },
+            vue.createElementVNode("view", { class: "scheme-list" }, [
+              (vue.openBlock(true), vue.createElementBlock(
+                vue.Fragment,
                 null,
-                512
-                /* NEED_PATCH */
-              ), [
-                [vue.vModelText, $setup.apiConfig.baseUrl]
-              ])
+                vue.renderList($setup.llmSchemes, (scheme, index) => {
+                  return vue.openBlock(), vue.createElementBlock(
+                    "view",
+                    {
+                      key: scheme.id,
+                      class: vue.normalizeClass(["scheme-card", { "is-active": $setup.currentSchemeIndex === index }])
+                    },
+                    [
+                      vue.createElementVNode("view", {
+                        class: "scheme-card-header",
+                        onClick: ($event) => $setup.toggleSchemeExpand(index)
+                      }, [
+                        vue.createElementVNode("view", {
+                          class: "radio-area",
+                          onClick: vue.withModifiers(($event) => $setup.selectScheme(index), ["stop"])
+                        }, [
+                          vue.createElementVNode("view", { class: "radio-circle" }, [
+                            $setup.currentSchemeIndex === index ? (vue.openBlock(), vue.createElementBlock("view", {
+                              key: 0,
+                              class: "radio-inner"
+                            })) : vue.createCommentVNode("v-if", true)
+                          ])
+                        ], 8, ["onClick"]),
+                        vue.createElementVNode("view", { class: "scheme-info" }, [
+                          vue.createElementVNode(
+                            "text",
+                            { class: "scheme-name" },
+                            vue.toDisplayString(scheme.name),
+                            1
+                            /* TEXT */
+                          ),
+                          vue.createElementVNode(
+                            "text",
+                            { class: "scheme-desc" },
+                            vue.toDisplayString(scheme.model || "未设置模型"),
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        vue.createElementVNode(
+                          "text",
+                          { class: "expand-icon" },
+                          vue.toDisplayString(scheme.isExpanded ? "▲" : "▼"),
+                          1
+                          /* TEXT */
+                        )
+                      ], 8, ["onClick"]),
+                      scheme.isExpanded ? (vue.openBlock(), vue.createElementBlock("view", {
+                        key: 0,
+                        class: "scheme-card-body"
+                      }, [
+                        vue.createElementVNode("view", { class: "setting-item" }, [
+                          vue.createElementVNode("view", { class: "item-label" }, "方案名称"),
+                          vue.withDirectives(vue.createElementVNode("input", {
+                            class: "item-input",
+                            type: "text",
+                            "onUpdate:modelValue": ($event) => scheme.name = $event,
+                            placeholder: "方案别名"
+                          }, null, 8, ["onUpdate:modelValue"]), [
+                            [vue.vModelText, scheme.name]
+                          ])
+                        ]),
+                        vue.createElementVNode("view", { class: "setting-item" }, [
+                          vue.createElementVNode("view", { class: "item-label" }, "厂商预设"),
+                          vue.createElementVNode("picker", {
+                            mode: "selector",
+                            range: $setup.LLM_PROVIDERS,
+                            "range-key": "label",
+                            onChange: (e) => $setup.handleProviderChange(e, index)
+                          }, [
+                            vue.createElementVNode(
+                              "view",
+                              { class: "picker-val" },
+                              vue.toDisplayString($setup.getProviderLabel(scheme.provider)) + " ▾",
+                              1
+                              /* TEXT */
+                            )
+                          ], 40, ["onChange"])
+                        ]),
+                        vue.createElementVNode("view", { class: "setting-item" }, [
+                          vue.createElementVNode("view", { class: "item-label" }, "接口地址"),
+                          vue.withDirectives(vue.createElementVNode("input", {
+                            class: "item-input",
+                            type: "text",
+                            "onUpdate:modelValue": ($event) => scheme.baseUrl = $event,
+                            placeholder: "https://..."
+                          }, null, 8, ["onUpdate:modelValue"]), [
+                            [vue.vModelText, scheme.baseUrl]
+                          ])
+                        ]),
+                        vue.createElementVNode("view", { class: "setting-item" }, [
+                          vue.createElementVNode("view", { class: "item-label" }, "API Key"),
+                          vue.withDirectives(vue.createElementVNode("input", {
+                            class: "item-input",
+                            type: "text",
+                            password: "",
+                            "onUpdate:modelValue": ($event) => scheme.apiKey = $event,
+                            placeholder: "在此粘贴 Key"
+                          }, null, 8, ["onUpdate:modelValue"]), [
+                            [vue.vModelText, scheme.apiKey]
+                          ])
+                        ]),
+                        vue.createElementVNode("view", { class: "setting-item" }, [
+                          vue.createElementVNode("view", { class: "item-label" }, "模型名称"),
+                          vue.createElementVNode("view", { class: "model-input-group" }, [
+                            vue.withDirectives(vue.createElementVNode("input", {
+                              class: "item-input model-manual-input",
+                              type: "text",
+                              "onUpdate:modelValue": ($event) => scheme.model = $event,
+                              placeholder: "输入或刷新获取"
+                            }, null, 8, ["onUpdate:modelValue"]), [
+                              [vue.vModelText, scheme.model]
+                            ]),
+                            vue.createElementVNode("view", {
+                              class: "icon-btn",
+                              onClick: ($event) => $setup.fetchModels(index)
+                            }, "🔄", 8, ["onClick"])
+                          ])
+                        ]),
+                        $setup.tempModelList.length > 0 && $setup.activeFetchIndex === index ? (vue.openBlock(), vue.createElementBlock("view", {
+                          key: 0,
+                          class: "model-select-area"
+                        }, [
+                          vue.createElementVNode("view", { class: "model-tag-title" }, "点击选择模型:"),
+                          vue.createElementVNode("view", { class: "model-tags" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.tempModelList, (m) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: m,
+                                  class: "model-tag",
+                                  onClick: ($event) => $setup.applyModel(index, m)
+                                }, vue.toDisplayString(m), 9, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])) : vue.createCommentVNode("v-if", true),
+                        vue.createElementVNode("view", { class: "setting-item-col" }, [
+                          vue.createElementVNode("view", { class: "item-header" }, [
+                            vue.createElementVNode("text", { class: "item-label" }, "记忆深度"),
+                            vue.createElementVNode(
+                              "text",
+                              { class: "item-value" },
+                              vue.toDisplayString(scheme.historyLimit) + " 条",
+                              1
+                              /* TEXT */
+                            )
+                          ]),
+                          vue.createElementVNode("slider", {
+                            value: scheme.historyLimit,
+                            min: "0",
+                            max: "60",
+                            step: "2",
+                            activeColor: "#007aff",
+                            onChange: (e) => scheme.historyLimit = e.detail.value
+                          }, null, 40, ["value", "onChange"])
+                        ]),
+                        vue.createElementVNode("view", { class: "card-footer" }, [
+                          $setup.llmSchemes.length > 1 ? (vue.openBlock(), vue.createElementBlock("view", {
+                            key: 0,
+                            class: "delete-text",
+                            onClick: ($event) => $setup.deleteScheme(index)
+                          }, "删除此方案", 8, ["onClick"])) : vue.createCommentVNode("v-if", true)
+                        ])
+                      ])) : vue.createCommentVNode("v-if", true)
+                    ],
+                    2
+                    /* CLASS */
+                  );
+                }),
+                128
+                /* KEYED_FRAGMENT */
+              ))
             ]),
-            vue.createElementVNode("view", { class: "setting-item" }, [
-              vue.createElementVNode("view", { class: "item-label" }, "API Key"),
-              vue.withDirectives(vue.createElementVNode(
-                "input",
-                {
-                  class: "item-input",
-                  type: "text",
-                  password: "",
-                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.apiConfig.apiKey = $event),
-                  placeholder: "在此粘贴 Key"
-                },
-                null,
-                512
-                /* NEED_PATCH */
-              ), [
-                [vue.vModelText, $setup.apiConfig.apiKey]
-              ])
-            ]),
-            vue.createElementVNode("view", { class: "setting-item" }, [
-              vue.createElementVNode("view", { class: "item-label" }, "模型名称"),
-              vue.withDirectives(vue.createElementVNode(
-                "input",
-                {
-                  class: "item-input",
-                  type: "text",
-                  "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.apiConfig.model = $event),
-                  placeholder: "例如 gemini-2.0-flash"
-                },
-                null,
-                512
-                /* NEED_PATCH */
-              ), [
-                [vue.vModelText, $setup.apiConfig.model]
-              ])
-            ]),
-            vue.createElementVNode("view", { class: "setting-item-col" }, [
-              vue.createElementVNode("view", { class: "item-header" }, [
-                vue.createElementVNode("text", { class: "item-label" }, "记忆深度"),
-                vue.createElementVNode(
-                  "text",
-                  { class: "item-value" },
-                  vue.toDisplayString($setup.apiConfig.historyLimit) + " 条",
-                  1
-                  /* TEXT */
-                )
-              ]),
-              vue.createElementVNode("slider", {
-                value: $setup.apiConfig.historyLimit,
-                min: "0",
-                max: "60",
-                step: "2",
-                activeColor: "#007aff",
-                onChange: _cache[4] || (_cache[4] = (e) => $setup.apiConfig.historyLimit = e.detail.value)
-              }, null, 40, ["value"])
-            ])
+            vue.createElementVNode("button", {
+              class: "add-scheme-btn",
+              onClick: $setup.createNewScheme
+            }, "➕ 添加新方案 API")
           ],
           512
           /* NEED_PATCH */
@@ -4242,7 +4526,7 @@ Task: ${prompt}` }]
       vue.createElementVNode("view", { class: "setting-group" }, [
         vue.createElementVNode("view", {
           class: "group-header",
-          onClick: _cache[5] || (_cache[5] = ($event) => $setup.toggleSection("image"))
+          onClick: _cache[1] || (_cache[1] = ($event) => $setup.toggleSection("image"))
         }, [
           vue.createElementVNode("view", { class: "group-title-wrapper" }, [
             vue.createElementVNode("view", {
@@ -4298,8 +4582,8 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $setup.imageConfig.baseUrl = $event),
-                      placeholder: "例如 https://generativelanguage.googleapis.com"
+                      "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      placeholder: "https://generativelanguage.googleapis.com"
                     },
                     null,
                     512
@@ -4316,7 +4600,7 @@ Task: ${prompt}` }]
                       class: "item-input",
                       type: "text",
                       password: "",
-                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.imageConfig.apiKey = $event),
+                      "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.imageConfig.apiKey = $event),
                       placeholder: "同上则留空"
                     },
                     null,
@@ -4333,7 +4617,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.imageConfig.model = $event),
+                      "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.imageConfig.model = $event),
                       placeholder: "例如 gemini-2.0-flash-exp"
                     },
                     null,
@@ -4357,8 +4641,8 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => $setup.imageConfig.baseUrl = $event),
-                      placeholder: "例如 https://api.openai.com/v1"
+                      "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      placeholder: "https://api.openai.com/v1"
                     },
                     null,
                     512
@@ -4375,7 +4659,7 @@ Task: ${prompt}` }]
                       class: "item-input",
                       type: "text",
                       password: "",
-                      "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $setup.imageConfig.apiKey = $event),
+                      "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $setup.imageConfig.apiKey = $event),
                       placeholder: "sk-..."
                     },
                     null,
@@ -4392,7 +4676,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.imageConfig.model = $event),
+                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.imageConfig.model = $event),
                       placeholder: "例如 dall-e-3"
                     },
                     null,
@@ -4409,11 +4693,7 @@ Task: ${prompt}` }]
               vue.Fragment,
               { key: 2 },
               [
-                vue.createElementVNode("view", { class: "setting-tip" }, [
-                  vue.createTextVNode(" 填写 Cloudflare Tunnel 的公网地址。"),
-                  vue.createElementVNode("br"),
-                  vue.createTextVNode(" 例如: https://my-comfy.trycloudflare.com ")
-                ]),
+                vue.createElementVNode("view", { class: "setting-tip" }, "填写 Cloudflare Tunnel 公网地址。"),
                 vue.createElementVNode("view", { class: "setting-item" }, [
                   vue.createElementVNode("view", { class: "item-label" }, "公网地址"),
                   vue.withDirectives(vue.createElementVNode(
@@ -4421,7 +4701,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.imageConfig.baseUrl = $event),
                       placeholder: "https://..."
                     },
                     null,
@@ -4476,7 +4756,7 @@ Task: ${prompt}` }]
       vue.createElementVNode("view", { class: "setting-group" }, [
         vue.createElementVNode("view", {
           class: "group-header",
-          onClick: _cache[13] || (_cache[13] = ($event) => $setup.toggleSection("world"))
+          onClick: _cache[9] || (_cache[9] = ($event) => $setup.toggleSection("world"))
         }, [
           vue.createElementVNode("view", { class: "group-title-wrapper" }, [
             vue.createElementVNode("view", {
@@ -4582,7 +4862,7 @@ Task: ${prompt}` }]
                           vue.withDirectives(vue.createElementVNode("input", {
                             class: "mini-input",
                             "onUpdate:modelValue": ($event) => world.tempLoc = $event,
-                            placeholder: "输入地点 (如: 荒坂塔)"
+                            placeholder: "输入地点"
                           }, null, 8, ["onUpdate:modelValue"]), [
                             [vue.vModelText, world.tempLoc]
                           ]),
@@ -4622,7 +4902,7 @@ Task: ${prompt}` }]
                           vue.withDirectives(vue.createElementVNode("input", {
                             class: "mini-input",
                             "onUpdate:modelValue": ($event) => world.tempJob = $event,
-                            placeholder: "输入职业 (如: 黑客)"
+                            placeholder: "输入职业"
                           }, null, 8, ["onUpdate:modelValue"]), [
                             [vue.vModelText, world.tempJob]
                           ]),

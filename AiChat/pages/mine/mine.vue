@@ -16,40 +16,117 @@
       </view>
     </view>
 
-    <!-- 1. 对话模型配置 -->
+    <!-- 1. 对话模型配置 (LLM) - 列表式方案管理 -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('chat')">
         <view class="group-title-wrapper">
           <view class="group-title">对话模型 (LLM)</view>
-          <text class="group-subtitle">{{ apiConfig.model || '未设置' }}</text>
+          <text class="group-subtitle">
+            当前使用: {{ currentLlmScheme ? currentLlmScheme.name : '未选择' }}
+          </text>
         </view>
         <text class="arrow-icon">{{ activeSections.chat ? '▼' : '▶' }}</text>
       </view>
 
       <view v-show="activeSections.chat" class="group-content">
-        <view class="setting-item">
-          <view class="item-label">接口地址</view>
-          <input class="item-input" type="text" v-model="apiConfig.baseUrl" placeholder="例如 https://generativelanguage.googleapis.com" />
-        </view>
-        <view class="setting-item">
-          <view class="item-label">API Key</view>
-          <input class="item-input" type="text" password v-model="apiConfig.apiKey" placeholder="在此粘贴 Key" />
-        </view>
-        <view class="setting-item">
-          <view class="item-label">模型名称</view>
-          <input class="item-input" type="text" v-model="apiConfig.model" placeholder="例如 gemini-2.0-flash" />
-        </view>
-        <view class="setting-item-col">
-          <view class="item-header">
-            <text class="item-label">记忆深度</text>
-            <text class="item-value">{{ apiConfig.historyLimit }} 条</text>
+        <!-- 方案列表区域 -->
+        <view class="scheme-list">
+          <view 
+            v-for="(scheme, index) in llmSchemes" 
+            :key="scheme.id" 
+            class="scheme-card"
+            :class="{ 'is-active': currentSchemeIndex === index }"
+          >
+            <!-- 卡片头部：点击切换展开/收起，左侧点击切换选中状态 -->
+            <view class="scheme-card-header" @click="toggleSchemeExpand(index)">
+               <view class="radio-area" @click.stop="selectScheme(index)">
+                  <view class="radio-circle">
+                      <view v-if="currentSchemeIndex === index" class="radio-inner"></view>
+                  </view>
+               </view>
+               <view class="scheme-info">
+                   <text class="scheme-name">{{ scheme.name }}</text>
+                   <text class="scheme-desc">{{ scheme.model || '未设置模型' }}</text>
+               </view>
+               <text class="expand-icon">{{ scheme.isExpanded ? '▲' : '▼' }}</text>
+            </view>
+
+            <!-- 卡片内容：展开后显示配置项 -->
+            <view v-if="scheme.isExpanded" class="scheme-card-body">
+                <view class="setting-item">
+                  <view class="item-label">方案名称</view>
+                  <input class="item-input" type="text" v-model="scheme.name" placeholder="方案别名" />
+                </view>
+                
+                <view class="setting-item">
+                  <view class="item-label">厂商预设</view>
+                  <!-- 传入 index 以便修改对应方案 -->
+                  <picker mode="selector" :range="LLM_PROVIDERS" range-key="label" @change="(e) => handleProviderChange(e, index)">
+                      <view class="picker-val">{{ getProviderLabel(scheme.provider) }} ▾</view>
+                  </picker>
+                </view>
+
+                <view class="setting-item">
+                  <view class="item-label">接口地址</view>
+                  <input class="item-input" type="text" v-model="scheme.baseUrl" placeholder="https://..." />
+                </view>
+                
+                <view class="setting-item">
+                  <view class="item-label">API Key</view>
+                  <input class="item-input" type="text" password v-model="scheme.apiKey" placeholder="在此粘贴 Key" />
+                </view>
+                
+                <view class="setting-item">
+                  <view class="item-label">模型名称</view>
+                  <view class="model-input-group">
+                      <!-- 这里的 fetchedModels 如果要做得更细致，应该每个方案独立，这里简化为共用或者点击刷新时单独获取 -->
+                      <input 
+                        class="item-input model-manual-input" 
+                        type="text" 
+                        v-model="scheme.model" 
+                        placeholder="输入或刷新获取" 
+                      />
+                      <view class="icon-btn" @click="fetchModels(index)">🔄</view>
+                  </view>
+                </view>
+                
+                <!-- 如果获取到了模型，显示快捷选择气泡 -->
+                <view v-if="tempModelList.length > 0 && activeFetchIndex === index" class="model-select-area">
+                    <view class="model-tag-title">点击选择模型:</view>
+                    <view class="model-tags">
+                        <view 
+                            v-for="m in tempModelList" 
+                            :key="m" 
+                            class="model-tag" 
+                            @click="applyModel(index, m)"
+                        >
+                            {{ m }}
+                        </view>
+                    </view>
+                </view>
+
+                <view class="setting-item-col">
+                  <view class="item-header">
+                    <text class="item-label">记忆深度</text>
+                    <text class="item-value">{{ scheme.historyLimit }} 条</text>
+                  </view>
+                  <slider :value="scheme.historyLimit" min="0" max="60" step="2" activeColor="#007aff" @change="(e) => scheme.historyLimit = e.detail.value" />
+                </view>
+                
+                <!-- 删除按钮 -->
+                <view class="card-footer">
+                    <view class="delete-text" @click="deleteScheme(index)" v-if="llmSchemes.length > 1">删除此方案</view>
+                </view>
+            </view>
           </view>
-          <slider :value="apiConfig.historyLimit" min="0" max="60" step="2" activeColor="#007aff" @change="(e) => apiConfig.historyLimit = e.detail.value" />
         </view>
+
+        <!-- 新建按钮 -->
+        <button class="add-scheme-btn" @click="createNewScheme">➕ 添加新方案 API</button>
       </view>
     </view>
 
-    <!-- 2. 画图模型配置 -->
+    <!-- 2. 画图模型配置 (保持不变) -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('image')">
         <view class="group-title-wrapper">
@@ -72,7 +149,7 @@
             <view class="setting-tip">Key 留空则自动使用上方对话 Key。</view>
             <view class="setting-item">
               <view class="item-label">接口地址</view>
-              <input class="item-input" type="text" v-model="imageConfig.baseUrl" placeholder="例如 https://generativelanguage.googleapis.com" />
+              <input class="item-input" type="text" v-model="imageConfig.baseUrl" placeholder="https://generativelanguage.googleapis.com" />
             </view>
             <view class="setting-item">
               <view class="item-label">画图 Key</view>
@@ -88,7 +165,7 @@
         <template v-else-if="imageConfig.provider === 'openai'">
             <view class="setting-item">
               <view class="item-label">接口地址</view>
-              <input class="item-input" type="text" v-model="imageConfig.baseUrl" placeholder="例如 https://api.openai.com/v1" />
+              <input class="item-input" type="text" v-model="imageConfig.baseUrl" placeholder="https://api.openai.com/v1" />
             </view>
             <view class="setting-item">
               <view class="item-label">API Key</view>
@@ -102,17 +179,13 @@
 
         <!-- C. ComfyUI -->
         <template v-else-if="imageConfig.provider === 'comfyui'">
-            <view class="setting-tip">
-              填写 Cloudflare Tunnel 的公网地址。<br>
-              例如: https://my-comfy.trycloudflare.com
-            </view>
+            <view class="setting-tip">填写 Cloudflare Tunnel 公网地址。</view>
             <view class="setting-item">
               <view class="item-label">公网地址</view>
               <input class="item-input" type="text" v-model="imageConfig.baseUrl" placeholder="https://..." />
             </view>
         </template>
 
-        <!-- 新增：画风选择 -->
         <view class="sub-section-title">🎨 画风选择 (Style)</view>
         <view class="style-grid">
             <view 
@@ -129,7 +202,7 @@
       </view>
     </view>
     
-    <!-- 3. 世界观设定 -->
+    <!-- 3. 世界观设定 (保持不变) -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('world')">
         <view class="group-title-wrapper">
@@ -149,7 +222,6 @@
               <text class="delete-icon" @click.stop="deleteWorld(index)">🗑️</text>
             </view>
           </view>
-          
           <view v-show="world.isOpen" class="world-body">
              <view class="setting-item">
                <view class="item-label">世界名称</view>
@@ -164,7 +236,7 @@
                  </view>
                </view>
                <view class="add-row">
-                 <input class="mini-input" v-model="world.tempLoc" placeholder="输入地点 (如: 荒坂塔)" />
+                 <input class="mini-input" v-model="world.tempLoc" placeholder="输入地点" />
                  <view class="mini-btn" @click="addLocation(index)">添加</view>
                </view>
              </view>
@@ -177,7 +249,7 @@
                  </view>
                </view>
                <view class="add-row">
-                 <input class="mini-input" v-model="world.tempJob" placeholder="输入职业 (如: 黑客)" />
+                 <input class="mini-input" v-model="world.tempJob" placeholder="输入职业" />
                  <view class="mini-btn" @click="addOccupation(index)">添加</view>
                </view>
              </view>
@@ -201,39 +273,61 @@ import { onShow } from '@dcloudio/uni-app';
 import CustomTabBar from '@/components/CustomTabBar.vue';
 
 // =========================================================================
-// 画风定义 (多样性选择)
+// 静态常量
 // =========================================================================
-const DRAWING_STYLES = [
-    { label: '标准日漫 (Standard)', value: 'anime', emoji: '📺' },
-    { label: '厚涂风格 (Impasto)', value: 'impasto', emoji: '🖌️' },
-    { label: '90年代复古 (Retro)', value: 'retro', emoji: '📼' },
-    { label: '新海诚风 (Scenery)', value: 'shinkai', emoji: '☁️' },
-    { label: '暗黑哥特 (Gothic)', value: 'gothic', emoji: '🦇' },
-    { label: '赛博朋克 (Cyber)', value: 'cyber', emoji: '🤖' },
-    { label: '水彩柔和 (Pastel)', value: 'pastel', emoji: '🌸' },
-    { label: '黑白线稿 (Sketch)', value: 'sketch', emoji: '✏️' }
+
+const LLM_PROVIDERS = [
+    // 1. Gemini: 使用你提供的官方 OpenAI 兼容 Chat 地址作为默认 BaseUrl
+    { label: 'Google Gemini', value: 'gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+    // 2. 豆包 (火山引擎)
+    { label: '火山引擎 (豆包)', value: 'volcengine', defaultUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
+    // 3. 硅基流动
+    { label: '硅基流动 (SiliconFlow)', value: 'siliconflow', defaultUrl: 'https://api.siliconflow.cn/v1' },
+    // 4. OpenAI / 自定义
+    { label: 'OpenAI (自定义)', value: 'openai', defaultUrl: 'https://api.openai.com/v1' }
 ];
+
+const DRAWING_STYLES = [
+    { label: '标准日漫', value: 'anime', emoji: '📺' },
+    { label: '厚涂风格', value: 'impasto', emoji: '🖌️' },
+    { label: '90年代复古', value: 'retro', emoji: '📼' },
+    { label: '新海诚风', value: 'shinkai', emoji: '☁️' },
+    { label: '暗黑哥特', value: 'gothic', emoji: '🦇' },
+    { label: '赛博朋克', value: 'cyber', emoji: '🤖' },
+    { label: '水彩柔和', value: 'pastel', emoji: '🌸' },
+    { label: '黑白线稿', value: 'sketch', emoji: '✏️' }
+];
+
+// =========================================================================
+// 状态变量
+// =========================================================================
 
 const userInfo = ref({ name: '我', avatar: '/static/user-avatar.png' });
 const activeSections = ref({ chat: false, image: false, world: false });
-const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 
-const apiConfig = ref({
-  baseUrl: 'https://generativelanguage.googleapis.com',
-  apiKey: '',
-  model: '', 
-  historyLimit: 20
-});
+const llmSchemes = ref([]);           
+const currentSchemeIndex = ref(0);    
+const tempModelList = ref([]);
+const activeFetchIndex = ref(-1);
 
 const imageConfig = ref({
   provider: 'gemini', 
   baseUrl: 'https://generativelanguage.googleapis.com',
   apiKey: '',
   model: '',
-  style: 'anime' // 默认为标准日漫
+  style: 'anime'
 });
 
 const worldSettings = ref([]);
+
+// =========================================================================
+// 计算属性
+// =========================================================================
+
+const currentLlmScheme = computed(() => {
+    if (llmSchemes.value.length === 0) return null;
+    return llmSchemes.value[currentSchemeIndex.value];
+});
 
 const imageConfigIndex = computed(() => {
     if (imageConfig.value.provider === 'openai') return 1;
@@ -252,82 +346,241 @@ const currentStyleLabel = computed(() => {
     return target ? target.label : '标准日漫';
 });
 
+// =========================================================================
+// 生命周期
+// =========================================================================
+
 onShow(() => {
   const storedUser = uni.getStorageSync('app_user_info');
   if (storedUser) userInfo.value = storedUser;
 
-  const storedConfig = uni.getStorageSync('app_api_config');
-  if (storedConfig) apiConfig.value = { ...apiConfig.value, ...storedConfig };
+  const storedSchemes = uni.getStorageSync('app_llm_schemes');
+  const storedIndex = uni.getStorageSync('app_current_scheme_index');
+  
+  if (storedSchemes && Array.isArray(storedSchemes) && storedSchemes.length > 0) {
+      llmSchemes.value = storedSchemes.map(s => ({ ...s, isExpanded: false }));
+      currentSchemeIndex.value = (storedIndex !== undefined && storedIndex < storedSchemes.length) ? storedIndex : 0;
+  } else {
+      createNewScheme(true);
+  }
 
   const storedImgConfig = uni.getStorageSync('app_image_config');
   if (storedImgConfig) imageConfig.value = { ...imageConfig.value, ...storedImgConfig };
   
   const storedWorlds = uni.getStorageSync('app_world_settings');
   if (storedWorlds && Array.isArray(storedWorlds)) {
-      worldSettings.value = storedWorlds.map(w => ({
-          ...w, isOpen: false, tempLoc: '', tempJob: ''
-      }));
+      worldSettings.value = storedWorlds.map(w => ({ ...w, isOpen: false, tempLoc: '', tempJob: '' }));
   }
 });
 
+// =========================================================================
+// 方法
+// =========================================================================
+
+const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 const goToEdit = () => { uni.navigateTo({ url: '/pages/mine/edit-profile' }); };
 const goToGallery = () => { uni.navigateTo({ url: '/pages/mine/gallery' }); };
 
+// --- LLM 方案管理 ---
+
+const createNewScheme = (isInit = false) => {
+    const newScheme = {
+        id: Date.now(),
+        name: isInit ? '默认方案' : `方案 ${llmSchemes.value.length + 1}`,
+        provider: 'gemini', 
+        // 默认使用 Gemini 的 OpenAI 兼容地址
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        apiKey: '',
+        model: '', 
+        historyLimit: 20,
+        isExpanded: true 
+    };
+    if (!isInit) llmSchemes.value.forEach(s => s.isExpanded = false);
+    llmSchemes.value.push(newScheme);
+    if (isInit) currentSchemeIndex.value = 0;
+};
+
+const selectScheme = (index) => {
+    currentSchemeIndex.value = index;
+};
+
+const toggleSchemeExpand = (index) => {
+    llmSchemes.value[index].isExpanded = !llmSchemes.value[index].isExpanded;
+    tempModelList.value = [];
+    activeFetchIndex.value = -1;
+};
+
+const deleteScheme = (index) => {
+    uni.showModal({
+        title: '确认删除', content: '确定要删除这个API方案吗？',
+        success: (res) => {
+            if (res.confirm) {
+                llmSchemes.value.splice(index, 1);
+                if (index === currentSchemeIndex.value || currentSchemeIndex.value >= llmSchemes.value.length) {
+                    currentSchemeIndex.value = 0;
+                }
+                if (llmSchemes.value.length === 0) createNewScheme(true);
+            }
+        }
+    });
+};
+
+const handleProviderChange = (e, index) => {
+    const selectedIdx = e.detail.value;
+    const selected = LLM_PROVIDERS[selectedIdx];
+    const scheme = llmSchemes.value[index];
+    scheme.provider = selected.value;
+    scheme.baseUrl = selected.defaultUrl;
+    scheme.model = '';
+    tempModelList.value = [];
+};
+
+const getProviderLabel = (val) => {
+    const f = LLM_PROVIDERS.find(p => p.value === val);
+    return f ? f.label : val;
+};
+
+// =========================================================================
+// [核心修改] 获取模型列表逻辑
+// =========================================================================
+const fetchModels = (index) => {
+    const scheme = llmSchemes.value[index];
+    if (!scheme.apiKey) {
+        uni.showToast({ title: '请先填写 API Key', icon: 'none' });
+        return;
+    }
+    
+    uni.showLoading({ title: '获取中...', mask: true });
+
+    let requestUrl = '';
+    let method = 'GET';
+    let header = { 'Authorization': `Bearer ${scheme.apiKey}` };
+    
+    // --- 针对 Gemini 的特殊处理 ---
+    // Gemini 的 OpenAI 兼容接口 (/v1beta/openai/models) 有时不稳定或返回 404
+    // 策略：获取列表时使用【Google 原生接口】，聊天时继续使用【OpenAI 兼容接口】
+    if (scheme.provider === 'gemini') {
+        // 原生列表接口：https://generativelanguage.googleapis.com/v1beta/models?key=API_KEY
+        // 注意：这里我们使用 'key' 参数鉴权，而不是 Authorization header，这是 Google 原生的推荐方式，但 header 也可以
+        // 为了稳妥，我们直接访问根路径的 /models
+        requestUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${scheme.apiKey}`;
+        // 对于原生接口，通常不需要 Bearer Token，而是 key 参数。
+        // 但为了兼容，我们把 Header 留着也无妨，主要是 URL 要对。
+        header = {}; 
+    } else {
+        // --- 其他标准 OpenAI 厂商 (硅基流动、豆包、DeepSeek) ---
+        let baseUrl = scheme.baseUrl;
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+        requestUrl = `${baseUrl}/models`;
+    }
+
+    uni.request({
+        url: requestUrl,
+        method: method,
+        header: header,
+        success: (res) => {
+            uni.hideLoading();
+            console.log('Fetch Models Result:', res);
+
+            let models = [];
+
+            // 1. 处理 Google 原生返回格式 { "models": [ { "name": "models/gemini-pro" } ] }
+            if (scheme.provider === 'gemini' && res.data && res.data.models) {
+                models = res.data.models.map(m => {
+                    // 去掉 'models/' 前缀，只保留 'gemini-2.0-flash' 这种格式
+                    return m.name.replace('models/', '');
+                });
+            }
+            // 2. 处理标准 OpenAI 返回格式 { "data": [ { "id": "deepseek-chat" } ] }
+            else if (res.data && Array.isArray(res.data.data)) {
+                models = res.data.data.map(m => m.id);
+            }
+            
+            if (models.length > 0) {
+                tempModelList.value = models;
+                activeFetchIndex.value = index;
+                uni.showToast({ title: `获取到 ${models.length} 个模型`, icon: 'success' });
+            } else {
+                // 错误处理
+                const errMsg = res.data?.error?.message || JSON.stringify(res.data);
+                uni.showModal({
+                    title: '获取失败',
+                    content: `状态码: ${res.statusCode}\n响应: ${errMsg}`,
+                    showCancel: false
+                });
+            }
+        },
+        fail: (err) => {
+            uni.hideLoading();
+            uni.showToast({ title: '网络请求失败', icon: 'none' });
+            console.error(err);
+        }
+    });
+};
+
+const applyModel = (index, modelName) => {
+    llmSchemes.value[index].model = modelName;
+    tempModelList.value = []; 
+};
+
+// --- 图片配置 ---
 const handleTypeChange = (e) => {
     const idx = e.detail.value;
     if (idx == 0) {
         imageConfig.value.provider = 'gemini';
         imageConfig.value.baseUrl = 'https://generativelanguage.googleapis.com';
-        if(!imageConfig.value.model) imageConfig.value.model = 'gemini-2.0-flash-exp'; 
     } else if (idx == 1) {
         imageConfig.value.provider = 'openai';
         imageConfig.value.baseUrl = 'https://api.openai.com/v1';
-        if(!imageConfig.value.model) imageConfig.value.model = 'dall-e-3';
     } else if (idx == 2) {
         imageConfig.value.provider = 'comfyui';
         imageConfig.value.baseUrl = ''; 
-        imageConfig.value.model = '';
     }
     activeSections.value.image = true;
 };
 
-// --- 世界观逻辑 (保持不变) ---
-const addNewWorld = () => {
-    worldSettings.value.push({ id: Date.now(), name: '新世界 ' + (worldSettings.value.length + 1), locations: ['家中', '公园', '学校'], occupations: ['学生', '上班族'], isOpen: true, tempLoc: '', tempJob: '' });
-};
-const toggleWorldItem = (index) => { worldSettings.value[index].isOpen = !worldSettings.value[index].isOpen; };
-const deleteWorld = (index) => { uni.showModal({ title: '确认删除', content: '确定要删除这个世界设定吗？', success: (res) => { if (res.confirm) worldSettings.value.splice(index, 1); } }); };
-const addLocation = (index) => { const world = worldSettings.value[index]; if (world.tempLoc && world.tempLoc.trim()) { world.locations.push(world.tempLoc.trim()); world.tempLoc = ''; } };
-const removeLocation = (wIndex, lIndex) => { worldSettings.value[wIndex].locations.splice(lIndex, 1); };
-const addOccupation = (index) => { const world = worldSettings.value[index]; if (world.tempJob && world.tempJob.trim()) { world.occupations.push(world.tempJob.trim()); world.tempJob = ''; } };
-const removeOccupation = (wIndex, jIndex) => { worldSettings.value[wIndex].occupations.splice(jIndex, 1); };
+// --- 世界观 ---
+const addNewWorld = () => { worldSettings.value.push({ id: Date.now(), name: '新世界', locations: [], occupations: [], isOpen: true, tempLoc: '', tempJob: '' }); };
+const toggleWorldItem = (idx) => { worldSettings.value[idx].isOpen = !worldSettings.value[idx].isOpen; };
+const deleteWorld = (idx) => { uni.showModal({ title: '删除', content: '确定删除吗？', success: (res) => { if (res.confirm) worldSettings.value.splice(idx, 1); } }); };
+const addLocation = (idx) => { const w = worldSettings.value[idx]; if (w.tempLoc) { w.locations.push(w.tempLoc); w.tempLoc = ''; } };
+const removeLocation = (wi, li) => { worldSettings.value[wi].locations.splice(li, 1); };
+const addOccupation = (idx) => { const w = worldSettings.value[idx]; if (w.tempJob) { w.occupations.push(w.tempJob); w.tempJob = ''; } };
+const removeOccupation = (wi, ji) => { worldSettings.value[wi].occupations.splice(ji, 1); };
 
+// --- 保存 ---
 const saveAllConfig = () => {
-  if (!apiConfig.value.apiKey.trim()) { uni.showToast({ title: '对话 Key 不能为空', icon: 'none' }); return; }
-  let chatUrl = apiConfig.value.baseUrl.trim();
-  if (chatUrl.endsWith('/')) chatUrl = chatUrl.slice(0, -1);
-  apiConfig.value.baseUrl = chatUrl;
-  uni.setStorageSync('app_api_config', apiConfig.value);
-
-  let imgUrl = imageConfig.value.baseUrl ? imageConfig.value.baseUrl.trim() : '';
-  if (imgUrl.endsWith('/')) imgUrl = imgUrl.slice(0, -1);
-  imageConfig.value.baseUrl = imgUrl;
-  // 确保风格被保存
-  if (!imageConfig.value.style) imageConfig.value.style = 'anime';
-  uni.setStorageSync('app_image_config', imageConfig.value);
-  
-  const cleanWorlds = worldSettings.value.map(({tempLoc, tempJob, isOpen, ...rest}) => rest);
-  uni.setStorageSync('app_world_settings', cleanWorlds);
-
-  uni.showToast({ title: '所有配置已保存', icon: 'success' });
-  activeSections.value.chat = false;
-  activeSections.value.image = false;
-  activeSections.value.world = false;
+    if (llmSchemes.value.length === 0) {
+        uni.showToast({ title: '请添加对话方案', icon: 'none' }); return;
+    }
+    
+    // 保存前清理
+    const cleanSchemes = llmSchemes.value.map(({isExpanded, ...rest}) => {
+        let url = rest.baseUrl.trim();
+        if (url.endsWith('/')) url = url.slice(0, -1);
+        return { ...rest, baseUrl: url };
+    });
+    
+    uni.setStorageSync('app_llm_schemes', cleanSchemes);
+    uni.setStorageSync('app_current_scheme_index', currentSchemeIndex.value);
+    
+    let imgUrl = imageConfig.value.baseUrl ? imageConfig.value.baseUrl.trim() : '';
+    if (imgUrl.endsWith('/')) imgUrl = imgUrl.slice(0, -1);
+    imageConfig.value.baseUrl = imgUrl;
+    uni.setStorageSync('app_image_config', imageConfig.value);
+    
+    const cleanWorlds = worldSettings.value.map(({tempLoc, tempJob, isOpen, ...rest}) => rest);
+    uni.setStorageSync('app_world_settings', cleanWorlds);
+    
+    uni.showToast({ title: '保存成功', icon: 'success' });
+    activeSections.value.chat = false;
+    activeSections.value.image = false;
+    activeSections.value.world = false;
 };
 </script>
 
 <style lang="scss">
-/* 保持原有样式，新增 style-grid 相关样式 */
+/* --- 基础布局 --- */
 .mine-container { min-height: 100vh; background-color: #f5f7fa; padding-bottom: 120rpx; }
 .user-section { background-color: #ffffff; padding: 60rpx 40rpx; display: flex; align-items: center; margin-bottom: 24rpx; position: relative; }
 .avatar-wrapper { margin-right: 32rpx; position: relative; width: 140rpx; height: 140rpx;}
@@ -340,6 +593,8 @@ const saveAllConfig = () => {
 .gallery-btn { display: flex; flex-direction: column; align-items: center; margin-left: 20rpx; padding: 10rpx; }
 .gallery-icon { font-size: 48rpx; margin-bottom: 4rpx; }
 .gallery-text { font-size: 20rpx; color: #666; }
+
+/* --- 设置分组通用 --- */
 .setting-group { background-color: #ffffff; margin-bottom: 24rpx; overflow: hidden; }
 .group-header { padding: 30rpx; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid transparent; transition: background 0.2s;}
 .group-header:active { background-color: #f9f9f9; }
@@ -349,14 +604,55 @@ const saveAllConfig = () => {
 .arrow-icon { color: #ccc; font-size: 24rpx; }
 .group-content { padding: 0 32rpx 20rpx; animation: fadeIn 0.3s ease; border-top: 1px solid #f0f0f0; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.setting-item { display: flex; align-items: center; justify-content: space-between; height: 100rpx; border-bottom: 1px solid #f0f0f0; }
+
+/* --- 列表式方案管理样式 (重点修改) --- */
+.scheme-list { margin-bottom: 20rpx; margin-top: 10rpx;}
+.scheme-card { background: #fff; border: 1px solid #eee; border-radius: 16rpx; margin-bottom: 20rpx; overflow: hidden; transition: all 0.2s; box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.02); }
+.scheme-card.is-active { border-color: #007aff; background-color: #f0f8ff; box-shadow: 0 4rpx 12rpx rgba(0,122,255,0.1); }
+
+/* 卡片头部 */
+.scheme-card-header { padding: 24rpx; display: flex; align-items: center; cursor: pointer; }
+.radio-area { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: flex-start; }
+.radio-circle { width: 36rpx; height: 36rpx; border-radius: 50%; border: 2rpx solid #ccc; display: flex; align-items: center; justify-content: center; background: #fff; }
+.is-active .radio-circle { border-color: #007aff; }
+.radio-inner { width: 20rpx; height: 20rpx; border-radius: 50%; background-color: #007aff; }
+.scheme-info { flex: 1; display: flex; flex-direction: column; }
+.scheme-name { font-size: 28rpx; font-weight: bold; color: #333; }
+.scheme-desc { font-size: 22rpx; color: #999; margin-top: 4rpx; }
+.expand-icon { padding: 10rpx; color: #ccc; font-size: 24rpx; }
+
+/* 卡片展开内容 */
+.scheme-card-body { padding: 0 24rpx 24rpx 24rpx; border-top: 1px solid #f0f0f0; background-color: #fafafa; }
+.card-footer { display: flex; justify-content: flex-end; margin-top: 20rpx; }
+.delete-text { color: #ff4d4f; font-size: 24rpx; padding: 10rpx 0; }
+
+/* 添加按钮 */
+.add-scheme-btn { background-color: #fff; border: 1px dashed #007aff; color: #007aff; font-size: 28rpx; border-radius: 40rpx; margin-top: 20rpx; }
+.add-scheme-btn:active { background-color: #f0f8ff; }
+
+/* 模型选择气泡 */
+.model-select-area { background: #fff; border: 1px solid #eee; border-radius: 12rpx; padding: 20rpx; margin-bottom: 20rpx; }
+.model-tag-title { font-size: 24rpx; color: #999; margin-bottom: 12rpx; }
+.model-tags { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.model-tag { background: #e3f2fd; color: #007aff; font-size: 24rpx; padding: 8rpx 20rpx; border-radius: 30rpx; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- 通用 Setting Item --- */
+.setting-item { display: flex; align-items: center; justify-content: space-between; height: 100rpx; border-bottom: 1px solid #e0e0e0; }
 .item-label { font-size: 30rpx; color: #333; width: 180rpx; }
 .item-input { flex: 1; text-align: right; font-size: 30rpx; color: #333; }
 .picker-val { font-size: 30rpx; color: #007aff; font-weight: bold; }
-.setting-item-col { padding: 20rpx 0; border-bottom: 1px solid #f0f0f0; }
+.setting-item-col { padding: 20rpx 0; border-bottom: 1px solid #e0e0e0; }
 .item-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }
 .item-value { font-size: 28rpx; color: #007aff; font-weight: bold; }
 .setting-tip { font-size: 24rpx; color: #999; padding: 20rpx 0; line-height: 1.5; }
+
+/* 模型输入+刷新 */
+.model-input-group { flex: 1; display: flex; align-items: center; justify-content: flex-end; }
+.model-manual-input { flex: 1; text-align: right; margin-right: 16rpx; }
+.icon-btn { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; background: #e6e6e6; border-radius: 50%; font-size: 30rpx; flex-shrink: 0;}
+.icon-btn:active { background: #d0d0d0; }
+
+/* --- World 样式 --- */
 .world-card { background-color: #f8f9fa; border-radius: 12rpx; margin-bottom: 20rpx; overflow: hidden; border: 1px solid #eee;}
 .world-header { padding: 20rpx; display: flex; justify-content: space-between; align-items: center; background: #fff; border-bottom: 1px solid #eee; }
 .world-name { font-weight: bold; font-size: 28rpx; color: #333; }
@@ -374,11 +670,11 @@ const saveAllConfig = () => {
 .mini-input { flex: 1; background: #fff; height: 60rpx; border: 1px solid #ddd; border-radius: 8rpx; padding: 0 16rpx; font-size: 24rpx; }
 .mini-btn { width: 100rpx; height: 60rpx; background: #333; color: #fff; border-radius: 8rpx; font-size: 24rpx; display: flex; align-items: center; justify-content: center; }
 .add-world-btn { background-color: #fff; color: #9c27b0; border: 1px dashed #9c27b0; font-size: 28rpx; margin-top: 20rpx; }
-.add-world-btn:active { background-color: #f3e5f5; }
+
 .action-area { padding: 0 32rpx; }
 .save-btn { margin: 30rpx 0; background-color: #007aff; color: #fff; border-radius: 40rpx; box-shadow: 0 8rpx 16rpx rgba(0,122,255,0.2); }
 
-/* 新增：画风选择样式 */
+/* --- 画风 --- */
 .sub-section-title { font-size: 28rpx; color: #666; margin: 30rpx 0 20rpx 0; font-weight: bold; }
 .style-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20rpx; }
 .style-card { background-color: #f8f9fa; border: 2rpx solid transparent; border-radius: 12rpx; padding: 20rpx; display: flex; align-items: center; transition: all 0.2s; }
