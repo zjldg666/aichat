@@ -1372,7 +1372,12 @@ if (uni.restoreGlobal) {
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText.replace(/【/g, "[").replace(/】/g, "]");
+        let displayText = rawText;
+        displayText = displayText.replace(/LINTYAHOT_IMG/gi, "IMG");
+        displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE):\s*(.*?)\)/gi, "[$1:$2]");
+        displayText = displayText.replace(/\(IMG:/gi, "[IMG:");
+        displayText = displayText.replace(/\(CLOTHES:/gi, "[CLOTHES:");
+        displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
         displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, "").trim().replace(/\[Logic[\s\S]*?\]/gi, "").trim();
         let systemMsgs = [];
         const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
@@ -1382,7 +1387,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 3)
               change = 3;
-            formatAppLog("log", "at pages/chat/chat.vue:987", `❤️ [Status] Affection change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1012", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
             if (change !== 0)
               uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
@@ -1394,7 +1399,7 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:999", `🔥 [Status] Lust change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1025", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
@@ -1407,7 +1412,7 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1012", `📡 [Status] Mode switch to: ${newMode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1041", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
             const modeText = newMode === "face" ? "见面了" : "分开了";
@@ -1419,7 +1424,7 @@ if (uni.restoreGlobal) {
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
           const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1025", `📍 [Status] Moved to: ${newLoc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1055", `📍 [Status] Moved to: ${newLoc}`);
           currentLocation.value = newLoc;
           saveCharacterState(void 0, void 0, void 0, newLoc);
           systemMsgs.push(`移动到：${newLoc}`);
@@ -1429,7 +1434,7 @@ if (uni.restoreGlobal) {
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
           const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1036", `👗 [Status] Clothes changed to: ${newClothes}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1067", `👗 [Status] Clothes changed to: ${newClothes}`);
           currentClothing.value = newClothes;
           saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
           systemMsgs.push(`换装：${newClothes}`);
@@ -1439,7 +1444,7 @@ if (uni.restoreGlobal) {
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
           const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1047", `🎬 [Status] Activity update: ${newAct}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1079", `🎬 [Status] Activity update: ${newAct}`);
           currentActivity.value = newAct;
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
@@ -1449,10 +1454,15 @@ if (uni.restoreGlobal) {
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1058", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1093", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
-          pendingImagePlaceholder = { role: "system", content: "📷 影像显影中... (请稍候)", isSystem: true, id: placeholderId };
+          pendingImagePlaceholder = {
+            role: "system",
+            content: "📷 影像显影中... (请稍候)",
+            isSystem: true,
+            id: placeholderId
+          };
           handleAsyncImageGeneration(imgDesc, placeholderId);
         }
         displayText = displayText.replace(/\[(System|Logic).*?\]/gis, "").trim();
@@ -1469,17 +1479,20 @@ if (uni.restoreGlobal) {
           parts.forEach((part) => {
             let cleanPart = part.trim();
             const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || /^["“”'‘’]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
-            if (!isJunk)
+            if (!isJunk) {
               messageList.value.push({ role: "model", content: cleanPart });
+            }
           });
         }
-        if (pendingImagePlaceholder)
+        if (pendingImagePlaceholder) {
           messageList.value.push(pendingImagePlaceholder);
+        }
         saveHistory();
         if (enableSummary.value) {
           const validMsgCount = messageList.value.filter((m) => !m.isSystem).length;
-          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0)
+          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
             performBackgroundSummary();
+          }
         }
       };
       const scrollToBottom = () => {
