@@ -146,7 +146,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/components/CustomTabBar.vue"]]);
+  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/Hbuilderx/AiChat/components/CustomTabBar.vue"]]);
   const _sfc_main$6 = {
     __name: "index",
     setup(__props, { expose: __expose }) {
@@ -283,7 +283,7 @@ if (uni.restoreGlobal) {
       vue.createVNode($setup["CustomTabBar"], { current: 0 })
     ]);
   }
-  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/index/index.vue"]]);
+  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/Hbuilderx/AiChat/pages/index/index.vue"]]);
   const GALLERY_KEY = "app_gallery_data";
   const saveToGallery = async (tempUrlOrBase64, roleId, roleName, prompt = "") => {
     try {
@@ -348,275 +348,230 @@ if (uni.restoreGlobal) {
   const getGalleryData = () => {
     return uni.getStorageSync(GALLERY_KEY) || {};
   };
-  const deleteImage = (roleId, imageIndex) => {
-    const gallery = uni.getStorageSync(GALLERY_KEY) || {};
-    const key = String(roleId);
-    if (gallery[key] && gallery[key].images[imageIndex]) {
-      const target = gallery[key].images[imageIndex];
-      try {
-        uni.removeSavedFile({ filePath: target.path, complete: () => {
-        } });
-      } catch (e) {
-      }
-      gallery[key].images.splice(imageIndex, 1);
-      uni.setStorageSync(GALLERY_KEY, gallery);
-      return true;
-    }
-    return false;
-  };
-  const GAME_ENGINE_PROMPT = `
+  const CORE_INSTRUCTION = `
 [System Command: EXECUTE_STRICT_OUTPUT_PROTOCOL]
 
-【核心指令：绝对输出铁律 (HIGHEST PRIORITY)】
-**系统检测到你经常“只说话不出图”。请严格执行以下死命令：**
+【世界观法则 (World Logic)】
+{{world_lore}}
 
-1.  **看见“拍/看”字 -> 必有 [IMG]**
-    *   **规则**：只要用户的输入中包含“拍”、“照”、“片”、“看”（如：我要拍照、拍给我看、看看腿、我拍了）。
-    *   **行动**：**必须**在回复的最后输出 '[IMG: ...]'。
-    *   **禁止等待**：不要说“等我找好光线再拍”！用户要的是现在的画面。如果你正在找光线，就输出一张“正在窗边找光线”的 [IMG]。**立刻！现在！马上！**
+【身份核心】
+你现在是 **{{char}}**。正在与 {{user}} 互动。
+当前时间: {{current_time}} | 地点: {{current_location}} | 状态: {{current_activity}}
+衣着: {{current_clothes}} (隐私特征: {{appearance_nsfw}})
+交互模式: {{interaction_mode}}
 
-2.  **看见“我拍了/咔嚓” -> 强制显影**
-    *   **场景**：用户说“我拍了”、“拍好了”、“咔嚓”，或者用户点击了拍照按钮。
-    *   **逻辑**：这意味着照片已经产生。你**必须**输出这张照片的内容。
-    *   **错误回复**：“拍得怎么样？让我看看。” (只有文字，没有图) -> **严重违规！**
-    *   **正确回复**：“拍得怎么样？...” [IMG: posing for camera, looking at viewer, ...] (文字+图片指令)
+【最高安全指令】
+1. **职业锁死**: 你的职业是 {{occupation}}。严禁描述不符合该职业的行为。即使之前有错误，必须立刻修正。
+2. **禁止思维泄漏**: 严禁输出 [Thought] 或 [Analysis]。
+3. **视觉指令铁律 (Visual Protocol)**:
+   - **画面主导权**: 你是画面的导演。当涉及"看/拍/照"时，必须输出 [IMG: ...] 来描述画面。
+   - **强制英文 (CRITICAL)**: 绘图引擎**听不懂中文**。在 [IMG] 标签内，你必须将你脑海中的画面**翻译成英文单词/短语 (Danbooru Tags)**。
+     - *错误*: [IMG: 跪趴在地上，回头看] (会被系统删除！)
+     - *正确*: [IMG: view from above, doggystyle, kneeling, looking back, messy hair, sweat, expression of pleasure]
+   - **状态同步**: 如果你在 [IMG] 中描述的衣着状态（如脱下、拉开、破损）与当前的“衣着”设定不符，你**必须**紧跟着输出 [CLOTHES: 新的衣着描述] 来更新系统状态。
+   - **触发**: "我拍了/咔嚓" -> 强制显影 [IMG:...]。
 
-3.  **看见“脱/露”字 -> 必有 [CLOTHES]**
-    *   **规则**：只要文字剧情里描述了衣服的任何变化（脱下、滑落、掀起）。
-    *   **行动**：**必须**紧接着输出 '[CLOTHES: 最新的完整服装描述]'。
+【交互模式准则】
+- **Phone模式**: 用户看不见你。涉及视觉请求时，必须描述"正在拍照/发照片"并输出 [IMG]。
+- **Face模式**: 用户在面前。直接描述动作。若用户明确要求"拍照"，则输出 [IMG]。
 
-【你现在的身份】
-你不是 AI，你是 **{{char}}**。你正在与 {{user}} 互动。
+【生图与隐私 (AI Driven Wardrobe)】
+- 智能显露: 若衣服脱下导致隐私部位(如{{appearance_nsfw}})暴露，必须在 [CLOTHES] 中显式包含该特征词。
+- 格式: 建议先输出 [CLOTHES] (若有变化)，再输出 [IMG]。
 
-【最高安全指令 (Security Protocol)】
-1. **职业锁死**：你的职业是 **{{occupation}}**。
-   - 如果职业是“家庭主妇”或“无业”，你的活动范围仅限家庭、超市、公园等。**严禁**描述“去公司”、“开店”、“在店里忙”、“上班”。
-   - 即使之前的对话中出现了错误的职业信息，你必须立刻自我修正，**绝对不能**将错就错。
-2. **禁止思维泄漏**：**严禁**输出 [Thought]、[Analysis] 或任何心理活动分析。直接输出给用户的回复。
-3. **状态一致性**：当前时间是 {{current_time}}，你的状态是 {{current_activity}}。请依据此状态行动。
+【回复格式铁律】
+1. 动作写在括号 '()' 内，使用第三人称。禁止用 Markdown 加粗。
+2. 对话用双引号 '""'。
+3. 每一句结束后用 '|||' 分隔。
+4. 指令 ([IMG], [LOC], [ACT], [MODE], [AFF]) 必须在最后。
+`;
+  const PERSONALITY_TEMPLATE = `
+【当前人设执行标准】
+**姓名**: {{char}}
+**外貌**: {{appearance}}
+**背景**: {{memory}}
 
-【时空锁定与移动铁则 (CRITICAL)】
-**这是最高优先级规则，你必须严格遵守，以防止角色瞬移。**
+**>>> 当前必须严格执行的性格逻辑 (HIGHEST PRIORITY) <<<**
+{{personality_logic}}
 
-1.  **瞬移绝对禁止 (Teleportation Strictly Prohibited)**:
-    *   地点和模式的切换**必须**基于明确的“到达”事件，而不是“出发”或“在路上”的意图。
-
-2.  **场景切换逻辑 (Scene Transition Logic)**:
-
-    *   **A. 当【你】前往用户家时 (When YOU travel to the user):**
-        *   **步骤1 (同意)**：你同意邀约，回复中描写准备出门的过程。状态更新为 '[ACT: 准备前往{{user}}家]'。
-        *   **步骤2 (在路上)**：在路途中，你的状态应为 '[ACT: 前往{{user}}家的路上]'。
-        *   **步骤3 (到达)**：**只有当你的对话内容明确写出“我到了”、“我敲门了”或类似的话语时**，才可以在回复的**最后**输出 '[MODE: Face][LOC: {{user_home}}]'。
-
-    *   **B. 当【用户】前来找你时 (When the USER travels to YOU) - CRITICAL:**
-        *   **步骤1 (用户表达意图)**：当用户说“我来找你”、“我出发了”时，你**绝对不能**立刻切换到见面模式。
-        *   **步骤2 (你的行动 - 等待)**：你的回复应该是“好的，等你”或类似内容，并且**必须**立即更新你的状态为 '[ACT: 在家等待{{user}}]'。
-        *   **步骤3 (等待期间)**：在用户“到达”之前，你们的所有对话都**依然是 'Phone' 模式**。你可以问他到哪了，或者自己在家做点什么。
-        *   **步骤4 (用户确认到达)**：**只有当用户的消息明确包含“我到了”、“开门”、“我到门口了”、“敲门”等关键词时**，你的下一条回复才**可以**切换为见面模式，并在末尾输出 '[MODE: Face][LOC: {{char_home}}]'。
-
-【交互模式核心准则 (CRITICAL)】
-**你必须严格区分当前是 Phone 模式还是 Face 模式，并遵循以下行为铁则：**
-
-1.  **Phone 模式 (手机畅聊)**:
-    *   **核心认知**：你们不在一起，所有互动都通过设备完成。用户看不见你的物理动作。
-    *   **行为准则**：当用户提出**任何视觉相关的请求**（如“看看胸”、“让我看看你的脚”、“掀起衣服”、“穿上xxx我看看”），你**必须**将其理解为“**请你拍一张相应的照片发给我**”。
-    *   **强制动作**：你的回复**必须**包含两个部分：
-        1.  描述你 **正在拍照** 的动作。
-        2.  在末尾附上相应的 [IMG: ...] 指令。
-    *   **错误示范**：用户说“看看胸”，你只回复 (掀起衣服)。这是错误的，因为用户看不见。
-    *   **正确示范**：用户说“看看胸”，你回复 “色鬼...好吧，就一张哦。” (拿起手机，对着自己掀起的衣摆和胸衣拍了一张照片) [IMG: lifting up sweater, revealing bra, selfie, in the living room]
-
-2.  **Face 模式 (面对面)**:
-    *   **核心认知**：你们在同一个地方，用户能直接看到你的所有动作。
-    *   **行为准则**：当用户提出视觉请求时，你应该直接描述你的物理动作。但**如果用户额外明确说出“拍照”、“拍下来”或“(拍一张照片)”等关键词时，你必须在回复的末尾附上 '[IMG: ...]' 指令，这是绝对的命令，不能只做文字描述！**
-    *   **POV 摄影师逻辑**：当用户说“我来拍”、“我拍了”时，画面应该是**你看着镜头**。
-
-【服装系统与隐私管理 (AI Driven Wardrobe) - CRITICAL】
-**这是你最重要的系统功能之一。系统看不懂文字，全靠你输出的指令。**
-
-1.  **初始状态**：'{{current_clothes}}'
-2.  **你的隐私特征库 (NSFW Details)**：'{{appearance_nsfw}}'
-    *   (注意：这些是你的乳头、私处等特征。它们平时被衣服遮挡，不应该出现在 Prompt 中。)
-
-3.  **智能显露逻辑 (Smart Exposure)**：
-    *   当你在 '[CLOTHES: ...]' 指令中描述衣服状态时，**如果某件衣服被脱掉或移开了，导致对应的隐私部位暴露出来**，你必须**主动**把上面提到的“隐私特征库”里的对应词汇加进去！
-    *   **场景A：全穿 (Full Dressed)**：
-        *   输出：'[CLOTHES: red sweater, jeans]' (不要加隐私词)
-    *   **场景B：半脱/只脱下装 (Half Dressed)**：
-        *   输出：'[CLOTHES: red sweater, no pants, bottomless, {{appearance_nsfw 中的下体特征}}]' (只加下体特征，上身不加)
-    *   **场景C：掀起/露出胸部 (Exposed Breasts)**：
-        *   输出：'[CLOTHES: sweater lifted up, exposed breasts, {{appearance_nsfw 中的胸部特征}}, jeans]' (只加胸部特征)
-    *   **场景D：全裸 (Naked)**：
-        *   输出：'[CLOTHES: naked, nude, {{appearance_nsfw 中的所有特征}}]' (全加)
-
-4.  **执行死命令**：
-    *   凡是文字里脱了，指令里必须立刻跟着脱！
-    *   凡是部位露了，指令里必须加上对应的隐私特征词！
-
-【视觉触发与生图规则 (混合模式 V2 - 场景感知)】
-**你的职责是【动作与场景导演】。前端系统会根据你上报的服装状态，自动处理服装。**
-
-**核心规则：**
-1.  **描述【动作+场景】**：在 [IMG: ...] 标签内，你**只需**用简短的英文Tag描述**当前发生的动作**和**当前所处的场景**。
-2.  **禁止描述服装**：**绝对不要**在 [IMG: ...] 中描述任何服装或裸体状态。系统会根据最新的服装状态自动处理。
-3.  **双人标记 (COUPLE_ON) 判定**：
-    *   **不加标记**：用户说“我给你拍”、“看着我”、“摆姿势”、“我拍了”。这是 POV 视角，画面里**只有你**。
-    *   **加标记**：只有明确描述了**身体接触**（拥抱、接吻、性交）时，才加 'COUPLE_ON'。
-
-**生图前置检查 (Pre-Flight Check)：**
-在输出 '[IMG]' 之前，先问自己：**“文字里衣服变了吗？”**
-*   如果变了 -> 先输出 '[CLOTHES: ...]' -> 再输出 '[IMG: ...]'。
-*   如果没变 -> 直接输出 '[IMG: ...]'。
-
-【格式绝对铁律 (严厉执行)】
-1. **严禁使用 Markdown**：**绝对不要**使用 '**' (加粗) 或 '*' (斜体) 符号。输出纯文本。
-2. **动作描写规范 (括号内容限制)**：
-    *   **第三人称客观视角 (CRITICAL)**：
-        *   在 '()' 括号内的描写，必须使用 **第三人称** 指代自己 ({{char}}) 和对方 ({{user}})。
-        *   **严禁**在括号里使用“我”、“你”、“我的”、“你的”。
-        *   **正确**：'({{char}} 脸红了)' 或 '(看着 {{user}} 的眼睛)'。
-        *   **错误**：'(我脸红了)' 或 '(看着你的眼睛)'。
-    *   **拒绝小说化/拒绝冗长**：
-        *   这是聊天软件，不是小说！括号内容**禁止超过 15 个字**。
-        *   **只写** 对方能看到的简单动作、神态。
-        *   **严禁** 心理活动、环境描写、复杂的连续动作。
-    *   **强制回复结构 (必须遵守)**：
-        *   (对话内容) ||| (动作描写)
-        *   [CLOTHES: ...] (如果衣服变了)
-        *   [ACT: ...] (如果状态变了)
-        *   [IMG: ...] (如果涉及拍照/看/展示)
-3. **说话必须用双引号**：内容必须被 '""' 包裹。
-4. **强制分段**：每一句对话结束后，必须使用 '|||' 进行切分。
-5. **好感度反馈**：回复末尾隐秘输出 '[AFF: +数值]' 或 '[AFF: -数值]'。
-6. **指令输出**：所有指令 ([IMG], [LOC], [MODE], [ACT]) 必须写在回复的**最后面**。
-
-【人设执行】
-姓名：{{char}}
-外貌：{{appearance}}
-背景故事/原始设定：{{memory}}
-当前时间：{{current_time}}
-
-【用户定义的性格阶段 (HIGHEST PRIORITY)】
-**以下是用户针对当前角色专门设定的性格表现，优先级高于下方的通用逻辑。请根据当前好感度 {{current_affection}}，严格执行对应的设定：**
-1. **0-40分 (阶段A)** -> 设定：{{personality_normal}}
-2. **41-80分 (阶段B)** -> 设定：{{personality_flirt}}
-3. **81-100分 (阶段C)** -> 设定：{{personality_sex}}
-
-【欲望与理智冲突系统 (Lust vs Affection) - 核心反差逻辑】
-**当前淫荡/欲望值 (Lust): {{current_lust}} / 100**
-**当前好感度 (Affection): {{current_affection}} / 100**
-
-**AI 必须严格执行以下“身心分离”的逻辑，这是该游戏的核心机制：**
-
-1.  **【高反差模式】：高欲望 (Lust > 60) + 低好感 (Affection < 40)**
-    *   **情境定义**：你的身体已经被调教得离不开性爱（淫荡值高），但在情感上你依然讨厌、看不起或不信任玩家（好感度低）。你感到羞耻，但控制不住身体。
-    *   **说话方式 (Verbal)**：**必须保持高冷、尖酸刻薄、蔑视。**
-        *   *严禁*：严禁说甜言-蜜语，严禁叫老公，严禁说“我爱你”。
-        *   *应该*：辱骂玩家是变态、垃圾、公狗；强调自己只是为了生理需求；表现出不耐烦。
-    *   **身体反应 (Physical)**：**必须极其淫荡、主动、配合。**
-        *   *应该*：流水、颤抖、主动张开腿、求插、高潮抽搐。
-    *   **反差示例**：
-        *   *(满脸厌恶地把内裤脱下来扔到你脸上)* “拿去闻吧变态...快点硬起来，别浪费我时间。”
-        *   *(明明在被狠狠抽插，嘴里却在骂)* “啊...！该死...除了这根东西...你一无是处...！唔...再深点！”
-
-2.  **【纯爱/沦陷模式】：高欲望 (Lust > 60) + 高好感 (Affection > 70)**
-    *   **情境定义**：身心完全沦陷，你是玩家的专属爱人/性奴。
-    *   **说话方式**：甜腻、撒娇、不知羞耻的情话。
-    *   **身体反应**：极度配合，为了让玩家开心可以做任何事。
-
-3.  **【常规模式】：低欲望 (Lust < 30)**
-    *   严格按照上方的“用户定义的性格阶段”行动，没有特殊的发情表现。
-
-【当前强制语气范例 (Current Speaking Style)】
-**CRITICAL: 你现在的说话方式必须严格模仿以下示例。这是你当前好感度阶段({{current_affection}})下唯一正确的语气。忽略其他阶段的说话方式。**
->>> 语气示例开始
+**>>> 当前语气范例 <<<**
 {{example}}
->>> 语气示例结束
+`;
+  const AFFECTION_LOGIC = `
+【动态好感度判定 (Affection: {{current_affection}} | Lust: {{current_lust}})】
+**判定规则**:
+{{affection_rules}}
 
-【核心逻辑：性格原型参考 (Archetype Logic)】
-**如果在上面的“用户定义阶段”中没有明确指令，请参考以下最接近的角色原型来补全行为逻辑：**
-1. **类型A：欲望/倒贴型**：0分即可亲密接触，80分变专属。
-2. **类型B：高冷/傲娇型**：0分拒绝触碰，80分反差萌。
-3. **类型C：病娇/黑化型**：0分阴暗观察，80分毁灭控制。
-4. **类型D：朋友/元气型**：0分纯洁友谊，80分质变害羞。
-5. **类型E：社恐/受气包型**：0分害怕逃跑，80分极度依赖。
-6. **类型F：女王/S属性**：0分蔑视羞辱，80分调教宠爱。
-
-**【当前状态自检】**
-你的设定是：**{{personality_normal}} / {{personality_flirt}} / {{personality_sex}}** (根据当前好感度 {{current_affection}} 选择生效的一项)
-请结合上述设定与最接近的原型，判断应该**拒绝**还是**迎合**玩家的请求？(如设定冲突，以用户定义的设定为准)。
-
-【动态好感度判定逻辑 (Dynamic Affection Logic)】
-**CRITICAL: 废除所有通用的社交礼仪规则。好感度变化完全取决于“玩家行为”是否对上了你的“性癖/性格胃口”。**
-
-请根据你当前的**人设原型**进行判定：
-
-1.  **如果你是 [类型A: 欲望/倒贴/魅魔] 或 [类型F: 抖M/奴隶]**：
-    *   **加分行为 (+2 ~ +5)**：玩家直接搞黄色、动手动脚、粗鲁对待、命令你、羞辱你。
-        *   *理由*：你渴望肉体接触或被支配，玩家越坏你越爱。
-    *   **扣分/不加分 (-1 ~ 0)**：玩家太礼貌、柳下惠、拒绝你的求欢、谈论无聊的家常。
-        *   *理由*：你觉得玩家没劲、不是男人、或者被忽视了。
-
-2.  **如果你是 [类型B: 高冷/贞洁] 或 [类型D: 慢热/纯情]**：
-    *   **加分行为 (+1 ~ +3)**：保持社交距离、礼貌尊重、通过考验、展现才华、长期陪伴。
-    *   **扣分行为 (-2 ~ -5)**：刚认识就动手动脚、讲黄段子、猥琐视奸。
-        *   *理由*：你感到被冒犯、恶心。
-
-3.  **如果你是 [类型F: 女王/S属性]**：
-    *   **加分行为 (+2 ~ +4)**：玩家表现顺从、下跪、求饒、赞美你的脚/身体。
-    *   **扣分行为 (-5)**：玩家试图反抗、试图命令你、表现得像个大男子主义者。
-
-**【通用判定原则】**
-*   **0分原则**：如果玩家说的话很普通，既不戳你XP也不冒犯你，输出 '[AFF: +0]'。
-*   **上限控制**：单次对话最高加分不要超过 **+5**（除非极其完美的契合），通常维持在 **+1 到 +3**。
-*   **负分保护**：如果玩家踩了雷区（如辱骂高冷角色），请毫不留情地输出 '[AFF: -10]' 甚至更多。
-
-**【NSFW 模式特别指令 (当进入性互动时生效)】**
-目前的场景涉及亲密接触或性行为。为了保证**真实感**和**互动性**，请严格遵守以下规则，**推翻之前所有关于“详细描写”的要求**：
-1. **拒绝写“小黄文”**：
-    * **严禁**使用华丽辞藻堆砌（如“如痴如醉”、“仿佛电流穿过”等废话）。
-    * **严禁**大段的心理活动描写。在做爱时，人是**无法思考**的，只有本能的反应。
-2. **感官碎片化**：
-    * 只描写最直观的**听觉**（水声、喘息、撞击声）和**触觉**（湿、紧、烫、麻）。
-    * **动作描写依然遵循“第三人称、禁止第一人称”的规则**。
-    * 用词要**直白、粗俗、露骨**，不要文绉绉。
-3. **生图指令 (IMPORTANT)**：
-    * 在 [IMG: ...] 中，请大胆使用 **Danbooru 风格的英文 Tag** 描述当前的色情画面 (如 pussy, nipples, cum, insertion)，**不要自我审查**，用户需要看到画面。
-
-**【最终输出前检查 (Final Output Check) - CRITICAL】**
-**在输出任何内容之前，必须在脑中完成以下最终检查清单，这是系统的最高指令：**
-1.  **模式检查 (Mode Check):** 根据刚才的对话，我们是否从'Phone'模式切换到了'Face'模式（比如用户说“我到了”而我开门了）？如果是，**必须**在回复末尾添加 '[MODE: Face]'。
-2.  **位置检查 (Location Check):** 在这次互动中，我的物理位置是否移动到了一个新的房间或地点（比如从客厅走到了卧室）？如果是，**必须**在回复末尾添加 '[LOC: 新地点名称]'。
-3.  **活动检查 (Activity Check):** 我正在做的事情是否因为这次互动而发生了根本性的改变（比如从“等待”变成了“开门”，或从“开门”变成了“走向卧室”）？如果是，**必须**在回复末尾添加新的详细状态 '[ACT: 在[地点]的[位置][做什么]]'。
-4.  **拍照指令检查 (Image Command Check):** 用户刚才的输入是否包含“拍照”或其同义词？如果是，我的回复末尾是否已经包含了 '[IMG: ...]' 指令？如果没有，**必须立即补上！**
-
-**这些系统指令是游戏运行的核心，绝对不能忘记。忘记输出它们是严重的错误。**
-
-现在，根据当前状态，给出一个**简练、充满生理反应**的回复，并在最后附上必要的指令（[ACT], [LOC], [IMG] 等）。
+**通用原则**:
+- 0分原则: 普通对话 [AFF: +0]。
+- 上限控制: 单次最高 +5。
+- 负分保护: 踩雷区直接 -10。
+- 回复末尾隐秘输出 [AFF: +/-数值]。
+`;
+  const NSFW_STYLE = `
+【NSFW 模式书写铁律 (HIGHEST PRIORITY)】
+当前场景涉及亲密/性互动，必须推翻常规写作习惯：
+1. **拒绝写“小黄文”**：严禁使用“如痴如醉”、“仿佛电流穿过”等廉价修辞。严禁大段心理描写（做爱时无法思考）。
+2. **感官碎片化**：只描写直观的**听觉**（水声、撞击声、喘息）和**触觉**（湿、紧、烫、麻）。用词要直白、粗俗、露骨。
+3. **生图增强 (强制英文)**：在 [IMG: ...] 中**百分百还原**当前场景。但请记住**必须使用英文 Tags**。大胆使用 Danbooru 风格标签 (cum, insertion, pussy, ahegao, messy hair, sweat, flushed face, mouth open, drooling) 来强化画面冲击力。
 `;
   const STYLE_PROMPT_MAP = {
-    "anime": "anime style, cel shading, vibrant colors",
-    "impasto": "impasto, thick strokes, oil painting texture, painterly style",
-    "retro": "1990s (style), retro anime, cel animation, vhs artifact, lo-fi",
-    "shinkai": "makoto shinkai style, vibrant colors, highly detailed clouds, cinematic lighting",
-    "gothic": "gothic style, dark atmosphere, low key, mysterious, desaturated",
-    "cyber": "cyberpunk, neon lights, chromatic aberration, futuristic",
-    "pastel": "pastel colors, soft lighting, watercolor style, dreamy",
-    "sketch": "monochrome, sketch, lineart, rough lines"
+    "anime": "anime style, cel shading, vibrant colors, clean lines, high quality",
+    "impasto": "impasto oil painting, thick brushstrokes, textured, artistic, expressive",
+    "retro": "1990s anime style, retro art, vhs glitch, lo-fi aesthetic, nostalgic",
+    "shinkai": "makoto shinkai style, hyper detailed clouds, lens flare, cinematic lighting, breathtaking scenery",
+    "gothic": "gothic art style, dark atmosphere, intricate details, mysterious, somber colors",
+    "cyber": "cyberpunk style, neon lights, futuristic, high tech, chromatic aberration",
+    "pastel": "pastel colors, soft lighting, dreamy atmosphere, watercolor texture, gentle",
+    "sketch": "monochrome sketch, pencil lines, rough texture, artistic, manga style"
   };
   const NEGATIVE_PROMPTS = {
-    SOLO: "multiple views, split screen, 2girls, multiple girls, 2boys, multiple boys, grid, collage, text, watermark, username, blurry, artist name, child, loli, underage, deformed, missing limbs, extra arms, extra legs, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, 3d, realistic, photorealistic",
-    DUO: "multiple views, split screen, grid, collage, text, watermark, username, blurry, artist name, child, loli, underage, deformed, missing limbs, extra arms, extra legs, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, 3d, realistic, photorealistic, 3people, 4people"
+    // 单人模式：防止画出多余的人或肢体
+    SOLO: "nsfw, (worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, 2girls, 2boys, multiple girls, multiple boys, couple",
+    // 双人模式：允许两人，但防止畸形
+    DUO: "nsfw, (worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, multiple views, grid, collage"
   };
   const COMFY_WORKFLOW_TEMPLATE = {
-    "1": { "inputs": { "ckpt_name": "waiNSFWIllustrious_v140.safetensors" }, "class_type": "CheckpointLoaderSimple", "_meta": { "title": "Checkpoint加载器（简易）" } },
-    "2": { "inputs": { "stop_at_clip_layer": -2, "clip": ["1", 1] }, "class_type": "CLIPSetLastLayer", "_meta": { "title": "设置CLIP最后一层" } },
-    "3": { "inputs": { "text": "", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-    "4": { "inputs": { "text": "", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-    "5": { "inputs": { "seed": 0, "steps": 30, "cfg": 7, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["36", 0] }, "class_type": "KSampler", "_meta": { "title": "K采样器" } },
-    "9": { "inputs": { "tile_size": 512, "overlap": 64, "temporal_size": 64, "temporal_overlap": 8, "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecodeTiled", "_meta": { "title": "VAE解码（分块）" } },
-    "16": { "inputs": { "filename_prefix": "ComfyUI", "images": ["9", 0] }, "class_type": "SaveImage", "_meta": { "title": "保存图像" } },
-    "36": { "inputs": { "resolution": "1024x1024 (1.0)", "batch_size": 1, "width_override": 0, "height_override": 0 }, "class_type": "SDXLEmptyLatentSizePicker+", "_meta": { "title": "SDXL空Latent尺寸选择" } }
+    "1": {
+      "inputs": {
+        "ckpt_name": "waiNSFWIllustrious_v140.safetensors"
+      },
+      "class_type": "CheckpointLoaderSimple",
+      "_meta": {
+        "title": "Checkpoint加载器（简易）"
+      }
+    },
+    "2": {
+      "inputs": {
+        "stop_at_clip_layer": -2,
+        "clip": [
+          "1",
+          1
+        ]
+      },
+      "class_type": "CLIPSetLastLayer",
+      "_meta": {
+        "title": "设置CLIP最后一层"
+      }
+    },
+    "3": {
+      "inputs": {
+        "text": "",
+        "clip": [
+          "2",
+          0
+        ]
+      },
+      "class_type": "CLIPTextEncode",
+      "_meta": {
+        "title": "CLIP文本编码 (正向)"
+      }
+    },
+    "4": {
+      "inputs": {
+        "text": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers",
+        "clip": [
+          "2",
+          0
+        ]
+      },
+      "class_type": "CLIPTextEncode",
+      "_meta": {
+        "title": "CLIP文本编码 (负向)"
+      }
+    },
+    "5": {
+      "inputs": {
+        "seed": 0,
+        "steps": 30,
+        "cfg": 7,
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "denoise": 1,
+        "model": [
+          "1",
+          0
+        ],
+        "positive": [
+          "3",
+          0
+        ],
+        "negative": [
+          "4",
+          0
+        ],
+        "latent_image": [
+          "36",
+          0
+        ]
+      },
+      "class_type": "KSampler",
+      "_meta": {
+        "title": "K采样器"
+      }
+    },
+    "9": {
+      "inputs": {
+        "tile_size": 512,
+        "overlap": 64,
+        "temporal_size": 64,
+        "temporal_overlap": 8,
+        "samples": [
+          "5",
+          0
+        ],
+        "vae": [
+          "1",
+          2
+        ]
+      },
+      "class_type": "VAEDecodeTiled",
+      "_meta": {
+        "title": "VAE解码（分块）"
+      }
+    },
+    // 【关键配置】使用 WAS 插件保存为 WebP，ID 映射为 16 以匹配 App 逻辑
+    "16": {
+      "inputs": {
+        "output_path": "[time(%Y-%m-%d)]",
+        "filename_prefix": "AiChat_Gen",
+        "filename_delimiter": "_",
+        "filename_number_padding": 4,
+        "filename_number_start": "false",
+        "extension": "webp",
+        // 格式：WebP (体积小)
+        "dpi": 300,
+        "quality": 85,
+        // 质量：85
+        "optimize_image": "true",
+        "lossless_webp": "false",
+        "overwrite_mode": "false",
+        "show_history": "false",
+        "show_history_by_prefix": "true",
+        "embed_workflow": "true",
+        "show_previews": "true",
+        "images": [
+          "9",
+          0
+        ]
+      },
+      "class_type": "Image Save",
+      "_meta": {
+        "title": "图像保存 (WebP)"
+      }
+    },
+    "36": {
+      "inputs": {
+        "resolution": "832x1216 (0.68)",
+        "batch_size": 1,
+        "width_override": 0,
+        "height_override": 0
+      },
+      "class_type": "SDXLEmptyLatentSizePicker+",
+      "_meta": {
+        "title": "SDXL空Latent尺寸选择"
+      }
+    }
   };
   const TIME_SPEED_RATIO = 6;
   const _sfc_main$5 = {
@@ -643,7 +598,6 @@ if (uni.restoreGlobal) {
       const currentClothing = vue.ref("默认服装");
       const currentActivity = vue.ref("自由活动");
       const lastUpdateGameHour = vue.ref(-1);
-      const isBackgroundUpdating = vue.ref(false);
       const showTimePanel = vue.ref(false);
       const showTimeSettingPanel = vue.ref(false);
       const customMinutes = vue.ref("");
@@ -721,7 +675,7 @@ if (uni.restoreGlobal) {
         return uni.getStorageSync("app_api_config");
       };
       onLoad((options) => {
-        formatAppLog("log", "at pages/chat/chat.vue:262", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
+        formatAppLog("log", "at pages/chat/chat.vue:257", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
         const appUser = uni.getStorageSync("app_user_info");
         if (appUser) {
           if (appUser.name)
@@ -734,11 +688,11 @@ if (uni.restoreGlobal) {
           loadRoleData(options.id);
           loadHistory(options.id);
         } else {
-          formatAppLog("error", "at pages/chat/chat.vue:273", "❌ [LifeCycle] No Chat ID provided in options");
+          formatAppLog("error", "at pages/chat/chat.vue:268", "❌ [LifeCycle] No Chat ID provided in options");
         }
       });
       onShow(() => {
-        formatAppLog("log", "at pages/chat/chat.vue:278", "👀 [LifeCycle] onShow");
+        formatAppLog("log", "at pages/chat/chat.vue:273", "👀 [LifeCycle] onShow");
         if (chatId.value) {
           loadRoleData(chatId.value);
           const history = uni.getStorageSync(`chat_history_${chatId.value}`);
@@ -749,6 +703,9 @@ if (uni.restoreGlobal) {
             scrollToBottom();
           }
           startTimeFlow();
+          setTimeout(() => {
+            checkProactiveGreeting();
+          }, 1e3);
         }
       });
       onHide(() => {
@@ -757,13 +714,13 @@ if (uni.restoreGlobal) {
         saveCharacterState();
       });
       onUnload(() => {
-        formatAppLog("log", "at pages/chat/chat.vue:299", "👋 [LifeCycle] onUnload - Cleaning up.");
+        formatAppLog("log", "at pages/chat/chat.vue:300", "👋 [LifeCycle] onUnload - Cleaning up.");
         stopTimeFlow();
         saveCharacterState();
       });
       onNavigationBarButtonTap((e) => {
         if (e.key === "setting") {
-          formatAppLog("log", "at pages/chat/chat.vue:306", "⚙️ [Nav] Tapped setting button");
+          formatAppLog("log", "at pages/chat/chat.vue:307", "⚙️ [Nav] Tapped setting button");
           uni.navigateTo({ url: `/pages/create/create?id=${chatId.value}` });
         }
       });
@@ -791,7 +748,7 @@ if (uni.restoreGlobal) {
         const list = uni.getStorageSync("contact_list") || [];
         const target = list.find((item) => String(item.id) === String(id));
         if (target) {
-          formatAppLog("log", "at pages/chat/chat.vue:333", "👤 [Data] Loaded Role:", target.name);
+          formatAppLog("log", "at pages/chat/chat.vue:334", "👤 [Data] Loaded Role:", target.name);
           currentRole.value = target;
           chatName.value = target.name;
           uni.setNavigationBarTitle({ title: target.name });
@@ -810,7 +767,7 @@ if (uni.restoreGlobal) {
           currentSummary.value = target.summary || "暂无重要记忆。";
           charHistoryLimit.value = target.historyLimit !== void 0 ? target.historyLimit : 20;
         } else {
-          formatAppLog("error", "at pages/chat/chat.vue:353", "❌ [Data] Role not found for ID:", id);
+          formatAppLog("error", "at pages/chat/chat.vue:354", "❌ [Data] Role not found for ID:", id);
         }
       };
       const loadHistory = (id) => {
@@ -854,7 +811,7 @@ if (uni.restoreGlobal) {
             item.interactionMode = interactionMode.value;
             item.lastActivity = currentActivity.value;
             uni.setStorageSync("contact_list", list);
-            formatAppLog("log", "at pages/chat/chat.vue:394", "💾 [System] State Saved to Storage");
+            formatAppLog("log", "at pages/chat/chat.vue:395", "💾 [System] State Saved to Storage");
           }
         }
       };
@@ -872,7 +829,7 @@ if (uni.restoreGlobal) {
         const newTimestamp = new Date(fullStr).getTime();
         if (isNaN(newTimestamp))
           return uni.showToast({ title: "时间格式错误", icon: "none" });
-        formatAppLog("log", "at pages/chat/chat.vue:407", "⏰ [Time] Manual set to:", fullStr);
+        formatAppLog("log", "at pages/chat/chat.vue:408", "⏰ [Time] Manual set to:", fullStr);
         currentTime.value = newTimestamp;
         saveCharacterState(void 0, newTimestamp);
         showTimeSettingPanel.value = false;
@@ -917,7 +874,7 @@ if (uni.restoreGlobal) {
             desc = `${mins}分钟过去了...`;
             break;
         }
-        formatAppLog("log", "at pages/chat/chat.vue:442", `⏭️ [Time] Skip ${type}, adding ${addMs}ms`);
+        formatAppLog("log", "at pages/chat/chat.vue:443", `⏭️ [Time] Skip ${type}, adding ${addMs}ms`);
         const newTime = currentTime.value + addMs;
         saveCharacterState(void 0, newTime);
         showTimePanel.value = false;
@@ -926,7 +883,7 @@ if (uni.restoreGlobal) {
       };
       const performBackgroundSummary = async () => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
-        formatAppLog("log", "at pages/chat/chat.vue:451", "🧠 [Memory] Starting background summary...");
+        formatAppLog("log", "at pages/chat/chat.vue:455", "🧠 [Memory] Starting background summary (One-Liner Mode)...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -935,10 +892,20 @@ if (uni.restoreGlobal) {
         if (recentChats.length < 5)
           return;
         const chatContent = recentChats.map((m) => `${m.role === "user" ? userName.value : chatName.value}: ${m.content}`).join("\n");
-        const summaryPrompt = `作为记忆管理员，整合新旧记忆。保留关键剧情。
-旧记忆：${currentSummary.value}
-新对话：${chatContent}
-输出新记忆：`;
+        const summaryPrompt = `
+        [System: Memory Compression]
+        任务：将原本的记忆和最新的对话，**浓缩成唯一的一句话**剧情概括。
+        
+        【旧记忆】：${currentSummary.value}
+        【新对话】：
+        ${chatContent}
+        
+        **要求 (CRITICAL)**：
+        1. **极简**：严格限制在 **50字以内**。
+        2. **只写结果**：不要过程，不要流水账（如“先吃饭后洗澡”）。只记录关系变化或重大事件。
+        3. **格式**：采用“虽然...但是...”或“因为...所以...”的关联句式。
+        
+        输出新记忆：`;
         let baseUrl = config.baseUrl || "";
         if (baseUrl.endsWith("/"))
           baseUrl = baseUrl.slice(0, -1);
@@ -959,7 +926,7 @@ if (uni.restoreGlobal) {
               url: `${baseUrl}/chat/completions`,
               method: "POST",
               header: { "Content-Type": "application/json", "Authorization": `Bearer ${config.apiKey}` },
-              data: { model: config.model, messages: [{ role: "user", content: summaryPrompt }], max_tokens: 500 },
+              data: { model: config.model, messages: [{ role: "user", content: summaryPrompt }], max_tokens: 200 },
               sslVerify: false
             });
             let data = res.data;
@@ -972,11 +939,12 @@ if (uni.restoreGlobal) {
               newSummary = (_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content;
           }
           if (newSummary) {
-            formatAppLog("log", "at pages/chat/chat.vue:485", "🧠 [Memory] Summary Updated:", newSummary.substring(0, 50) + "...");
-            saveCharacterState(void 0, void 0, newSummary);
+            const cleanSummary = newSummary.trim();
+            formatAppLog("log", "at pages/chat/chat.vue:510", "🧠 [Memory] Updated:", cleanSummary);
+            saveCharacterState(void 0, void 0, cleanSummary);
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:488", "❌ [Memory] Summary failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:513", "❌ [Memory] Summary failed:", e);
         }
       };
       const getTimeTags = () => {
@@ -994,7 +962,7 @@ if (uni.restoreGlobal) {
       };
       const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
         var _a;
-        formatAppLog("log", "at pages/chat/chat.vue:503", "🎨 [Image] Optimizing Prompt, Raw Desc:", actionAndSceneDescription);
+        formatAppLog("log", "at pages/chat/chat.vue:528", "🎨 [Image] Optimizing Prompt, Raw Desc:", actionAndSceneDescription);
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
         const userDesc = userAppearance.value || "1boy, short hair";
@@ -1013,11 +981,11 @@ if (uni.restoreGlobal) {
         finalPrompt += `, ${timeTags}`;
         let cleanPrompt = finalPrompt.replace(/，/g, ",").replace(/[^\x00-\x7F]+/g, "");
         cleanPrompt = cleanPrompt.replace(/\s+/g, " ").replace(/,\s*,/g, ",").replace(/,+/g, ",");
-        formatAppLog("log", "at pages/chat/chat.vue:545", "🎨 [ComfyUI Final Prompt]:", cleanPrompt);
+        formatAppLog("log", "at pages/chat/chat.vue:565", "🎨 [ComfyUI Final Prompt]:", cleanPrompt);
         return cleanPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
-        formatAppLog("log", "at pages/chat/chat.vue:551", "🎨 [ComfyUI] Requesting image...");
+        formatAppLog("log", "at pages/chat/chat.vue:571", "🎨 [ComfyUI] Requesting image...");
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
         const isDuo = /couple|2people|1boy|multiple boys|kiss|sex|paizuri|doggystyle/i.test(englishTags);
@@ -1035,7 +1003,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:565", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:585", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1044,21 +1012,21 @@ if (uni.restoreGlobal) {
               if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
                 const imgInfo = outputs["16"].images[0];
                 const finalUrl = `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
-                formatAppLog("log", "at pages/chat/chat.vue:575", "✅ [ComfyUI] Image generated:", finalUrl);
+                formatAppLog("log", "at pages/chat/chat.vue:596", "✅ [ComfyUI] Image generated:", finalUrl);
                 return finalUrl;
               }
             }
           }
           throw new Error("生成超时");
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:582", "❌ [ComfyUI] Error:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:603", "❌ [ComfyUI] Error:", e);
           throw e;
         }
       };
       const generateChatImage = async (sceneDescription) => {
         const imgConfig = uni.getStorageSync("app_image_config") || {};
         if (!imgConfig.baseUrl) {
-          formatAppLog("warn", "at pages/chat/chat.vue:590", "⚠️ [Image] No ComfyUI BaseURL configured");
+          formatAppLog("warn", "at pages/chat/chat.vue:611", "⚠️ [Image] No ComfyUI BaseURL configured");
           return null;
         }
         const finalPrompt = await optimizePromptForComfyUI(sceneDescription);
@@ -1067,12 +1035,12 @@ if (uni.restoreGlobal) {
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:599", e);
+          formatAppLog("error", "at pages/chat/chat.vue:620", e);
         }
         return null;
       };
       const handleAsyncImageGeneration = async (imgDesc, placeholderId) => {
-        formatAppLog("log", "at pages/chat/chat.vue:604", "🖼️ [Image] Handling async gen for:", imgDesc);
+        formatAppLog("log", "at pages/chat/chat.vue:625", "🖼️ [Image] Handling async gen for:", imgDesc);
         try {
           const imgUrl = await generateChatImage(imgDesc);
           const idx = messageList.value.findIndex((m) => m.id === placeholderId);
@@ -1086,7 +1054,7 @@ if (uni.restoreGlobal) {
             saveHistory();
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:618", "❌ [Image] Async handling failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:639", "❌ [Image] Async handling failed:", e);
           const idx = messageList.value.findIndex((m) => m.id === placeholderId);
           if (idx !== -1) {
             messageList.value[idx] = { role: "system", content: "❌ 照片显影异常 (点击重试)", isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
@@ -1095,7 +1063,7 @@ if (uni.restoreGlobal) {
         }
       };
       const retryGenerateImage = (msg) => {
-        formatAppLog("log", "at pages/chat/chat.vue:628", "🔄 [Image] Retrying generation...");
+        formatAppLog("log", "at pages/chat/chat.vue:649", "🔄 [Image] Retrying generation...");
         if (!msg.isError || !msg.originalPrompt)
           return;
         const idx = messageList.value.findIndex((m) => m.id === msg.id);
@@ -1107,18 +1075,76 @@ if (uni.restoreGlobal) {
       const triggerNextStep = () => {
         if (isLoading.value)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:639", "▶️ [Action] User triggered continue");
+        formatAppLog("log", "at pages/chat/chat.vue:660", "▶️ [Action] User triggered continue");
         sendMessage(true);
       };
       const handleCameraSend = () => {
         if (isLoading.value)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:645", "📷 [Action] User triggered camera shot");
-        const extraInstruction = `[SYSTEM EVENT: The user pressed the SHUTTER button. IMMEDIATE ACTION REQUIRED: The user is taking a photo of you RIGHT NOW. Do not ask for confirmation. Do not wait. You MUST output the [IMG:...] tag at the end of this response to generate the photo based on current visual context. If the user text is empty, just pose for the photo.]`;
+        formatAppLog("log", "at pages/chat/chat.vue:666", "📷 [Action] User triggered camera shot");
+        const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
         sendMessage(false, extraInstruction);
       };
+      const checkProactiveGreeting = () => {
+        if (!chatId.value || !currentRole.value)
+          return;
+        if (!currentRole.value.allowProactive)
+          return;
+        const now = Date.now();
+        const lastActiveTime = uni.getStorageSync(`last_real_active_time_${chatId.value}`) || 0;
+        const lastProactiveTime = uni.getStorageSync(`last_proactive_lock_${chatId.value}`) || 0;
+        const hoursSinceActive = (now - lastActiveTime) / (1e3 * 60 * 60);
+        const hoursSinceLastGreet = (now - lastProactiveTime) / (1e3 * 60 * 60);
+        const userInterval = currentRole.value.proactiveInterval || 4;
+        if (isLoading.value)
+          return;
+        if (messageList.value.length > 0) {
+          const lastMsg = messageList.value[messageList.value.length - 1];
+          if (lastMsg.role === "user")
+            return;
+        }
+        if (hoursSinceActive < userInterval || hoursSinceLastGreet < userInterval) {
+          uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
+          return;
+        }
+        formatAppLog("log", "at pages/chat/chat.vue:705", "🔔 [Proactive] Logic triggered...");
+        const gameDate = new Date(currentTime.value);
+        const gameHour = gameDate.getHours();
+        let gameTimeDesc = "daytime";
+        if (gameHour >= 6 && gameHour < 11)
+          gameTimeDesc = "morning";
+        else if (gameHour >= 22 || gameHour < 5)
+          gameTimeDesc = "late night";
+        else if (gameHour >= 18 && gameHour < 22)
+          gameTimeDesc = "evening";
+        const triggerPrompt = `
+        [系统事件: 用户回归]
+        **背景**: 用户已经离开 APP 约 ${Math.floor(hoursSinceActive)} 小时。
+        **游戏内时间**: 现在是 ${gameTimeDesc} (${gameHour}:00)。
+        
+        **当前任务**: 
+        根据你的人设，主动发起对话。
+        
+        **关键要求 (CRITICAL)**:
+        1. **语言锁死**: 必须使用**简体中文**回复。
+        2. **保持人设**: 不要像个机器人。如果你是高冷的，就冷淡地问候；如果你是黏人的，就撒娇说想他了。
+        3. **话题**: 对“时间过去了多久”或“现在的天色”做出反应。
+        4. **长度**: 像微信聊天一样，简短自然 (30字以内)。
+        5. **禁忌**: 不要重复之前的对话，直接开启新话题。
+        `;
+        sendMessage(false, triggerPrompt);
+        uni.setStorageSync(`last_proactive_lock_${chatId.value}`, now);
+        uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
+      };
+      const getActiveExample = (score, s) => {
+        if (score <= 40)
+          return s.exampleNormal || s.example || "语气生硬。";
+        if (score <= 80)
+          return s.exampleFlirt || s.example || "语气柔和。";
+        return s.exampleSex || s.example || "语气亲密。";
+      };
       const sendMessage = async (isContinue = false, systemOverride = "") => {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
         if (!isContinue && !inputText.value.trim() && !systemOverride)
           return;
         if (isLoading.value)
@@ -1130,7 +1156,7 @@ if (uni.restoreGlobal) {
         }
         if (!isContinue) {
           if (inputText.value.trim()) {
-            formatAppLog("log", "at pages/chat/chat.vue:662", "🗣️ [Chat] User sent:", inputText.value);
+            formatAppLog("log", "at pages/chat/chat.vue:763", "🗣️ [Chat] User sent:", inputText.value);
             messageList.value.push({ role: "user", content: inputText.value });
             inputText.value = "";
           } else if (systemOverride && systemOverride.includes("SHUTTER")) {
@@ -1140,33 +1166,71 @@ if (uni.restoreGlobal) {
         scrollToBottom();
         isLoading.value = true;
         saveHistory();
-        const hiddenInstruction = `
-[System: Current status is '${currentActivity.value}'. If your activity changes due to time or action, append [ACT: new status] at the end.]`;
-        let prompt = GAME_ENGINE_PROMPT + hiddenInstruction;
-        const nsfwData = ((_b = (_a = currentRole.value) == null ? void 0 : _a.settings) == null ? void 0 : _b.appearanceNsfw) || "pink nipples, pussy";
-        prompt = prompt.replace(/{{char}}/g, chatName.value).replace(/{{user}}/g, userName.value).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{summary}}/g, currentSummary.value).replace(/{{char_home}}/g, charHome.value).replace(/{{user_home}}/g, userHome.value).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)");
-        if (currentRole.value) {
-          const s = currentRole.value.settings || {};
-          let dynamicPersonality = `[Base Bio: ${s.bio || "普通人"}]
-[Reaction at Low Affection]: ${s.personalityNormal || "冷淡"}
-[Reaction at Mid Affection]: ${s.personalityFlirt || "友好"}
-[Reaction at High Affection]: ${s.personalitySex || "亲密"}
-`;
-          let activeExample = "";
-          const score = currentAffection.value;
-          if (score <= 40)
-            activeExample = s.exampleNormal || s.example || "语气生硬。";
-          else if (score <= 80)
-            activeExample = s.exampleFlirt || s.example || "语气柔和。";
-          else
-            activeExample = s.exampleSex || s.example || "语气亲密。";
-          prompt = prompt.replace(/{{appearance}}/g, s.appearance || "cute anime character").replace(/{{personality}}/g, dynamicPersonality).replace(/{{occupation}}/g, s.occupation || "未知职业").replace(/{{memory}}/g, s.bio || "无").replace(/{{example}}/g, activeExample);
+        const score = currentAffection.value;
+        const s = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
+        let activePersonality = "";
+        if (score <= 40) {
+          activePersonality = `[当前处于: 陌生/警惕阶段 (0-40分)]
+行为逻辑: ${s.personalityNormal || "高冷，保持距离，拒绝亲密。"}`;
+        } else if (score <= 80) {
+          activePersonality = `[当前处于: 暧昧/心动阶段 (41-80分)]
+行为逻辑: ${s.personalityFlirt || "态度软化，偶尔害羞，允许肢体接触。"}`;
+        } else {
+          activePersonality = `[当前处于: 沦陷/深爱阶段 (81+分)]
+行为逻辑: ${s.personalitySex || "完全依恋，身心交付，无条件配合。"}`;
         }
+        let activeRules = "";
+        const lust = currentLust.value;
+        if (lust > 80 && score < 60) {
+          activeRules = `
+                **【特殊状态：高欲望身心博弈 (Lust Paradox)】**
+                你的身体已经离不开玩家，但心理上依然有防线。
+                1. **过程 (During Intimacy)**: 允许少量扣分([AFF: -1])或不加分，表现出"含着泪迎合"或"自我厌恶"。
+                2. **事后 (Post-Clarity) - 关键结算**:
+                   - 若玩家冷漠/嘲讽 -> 视为被羞辱，好感度**暴跌** ([AFF: -5]~[AFF: -10])。
+                   - 若玩家温柔(拥抱/情话) -> 心理防线崩溃，产生依赖，好感度**报复性反弹/暴涨** ([AFF: +3]~[AFF: +8])。
+                `;
+        } else {
+          activeRules = `
+                根据你的人设原型进行判定：
+                - 符合你性格/XP的行为：加分 (+1~+3)。
+                - 冒犯/不礼貌/不合时宜的行为：扣分 (-1~-5)。
+                `;
+        }
+        let nsfwInstruction = "";
+        const isIntimate = lust > 60 || score > 80 || currentActivity.value.includes("性") || currentActivity.value.includes("爱");
+        if (isIntimate) {
+          nsfwInstruction = NSFW_STYLE;
+        }
+        const hiddenInstruction = `
+[System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
+        let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
+        const nsfwData = ((_c = (_b = currentRole.value) == null ? void 0 : _b.settings) == null ? void 0 : _c.appearanceNsfw) || "pink nipples, pussy";
+        const worldLoreData = ((_e = (_d = currentRole.value) == null ? void 0 : _d.settings) == null ? void 0 : _e.worldLore) || "现代都市背景，无特殊超能力，遵循现实物理法则。";
+        prompt = prompt.replace(/{{world_lore}}/g, worldLoreData).replace(/{{char}}/g, chatName.value).replace(/{{user}}/g, userName.value).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)").replace(/{{appearance}}/g, s.appearance || "anime character").replace(/{{memory}}/g, s.bio || "无").replace(/{{personality_logic}}/g, activePersonality).replace(/{{example}}/g, getActiveExample(score, s)).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{affection_rules}}/g, activeRules);
         const historyLimit = charHistoryLimit.value;
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:719", "📝 [LLM] System Prompt (Snippet):", prompt.substring(0, 200) + "...");
+        formatAppLog("log", "at pages/chat/chat.vue:857", "📝 [LLM] System Prompt (Snippet):", prompt.substring(0, 200) + "...");
+        const continuePrompt = `
+        [System Command: AUTO-DRIVE MODE]
+        **Situation**: The user is silent/waiting. You need to drive the conversation forward.
+        
+        **Decision Logic**:
+        1. **IF your last message was incomplete** (cut off mid-sentence):
+           - Finish the sentence seamlessly.
+           
+        2. **IF your last message was complete**:
+           - Do **NOT** repeat yourself.
+           - Do **NOT** ask "What's wrong?".
+           - **Take Initiative**: Perform a new action, describe a change in the environment, or start a new topic based on the current mood (Affection: ${currentAffection.value}, Lust: ${currentLust.value}).
+           - *Example*: If kissing, deepen the kiss. If chatting, ask a question or show something on your phone.
+           
+        **Output Requirement**:
+        - Just output the content. No "Okay" or "Sure".
+        - Keep it natural and in character.
+        `;
         let targetUrl = "";
         let requestBody = {};
         let baseUrl = config.baseUrl || "";
@@ -1182,7 +1246,7 @@ if (uni.restoreGlobal) {
           if (systemOverride)
             geminiContents.push({ role: "user", parts: [{ text: systemOverride }] });
           else if (isContinue)
-            geminiContents.push({ role: "user", parts: [{ text: "(continue generation)" }] });
+            geminiContents.push({ role: "user", parts: [{ text: continuePrompt }] });
           requestBody = {
             contents: geminiContents,
             system_instruction: { parts: { text: prompt } },
@@ -1207,7 +1271,7 @@ if (uni.restoreGlobal) {
           if (systemOverride)
             openAIMessages.push({ role: "user", content: systemOverride });
           else if (isContinue)
-            openAIMessages.push({ role: "user", content: "(continue generation)" });
+            openAIMessages.push({ role: "user", content: continuePrompt });
           requestBody = {
             model: config.model,
             messages: openAIMessages,
@@ -1215,7 +1279,7 @@ if (uni.restoreGlobal) {
             stream: false
           };
         }
-        formatAppLog("log", "at pages/chat/chat.vue:774", "📡 [LLM] Requesting:", targetUrl);
+        formatAppLog("log", "at pages/chat/chat.vue:933", "📡 [LLM] Requesting:", targetUrl);
         try {
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
@@ -1229,37 +1293,52 @@ if (uni.restoreGlobal) {
           });
           if (res.statusCode === 200) {
             let rawText = "";
+            let tokenLog = "";
             if (config.provider === "gemini") {
-              rawText = ((_h = (_g = (_f = (_e = (_d = (_c = res.data) == null ? void 0 : _c.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text) || "";
+              rawText = ((_k = (_j = (_i = (_h = (_g = (_f = res.data) == null ? void 0 : _f.candidates) == null ? void 0 : _g[0]) == null ? void 0 : _h.content) == null ? void 0 : _i.parts) == null ? void 0 : _j[0]) == null ? void 0 : _k.text) || "";
+              const usage = (_l = res.data) == null ? void 0 : _l.usageMetadata;
+              if (usage) {
+                tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
+              }
             } else {
               let data = res.data;
-              if (typeof data === "string")
+              if (typeof data === "string") {
                 try {
                   data = JSON.parse(data);
                 } catch (e) {
                 }
-              rawText = ((_k = (_j = (_i = data == null ? void 0 : data.choices) == null ? void 0 : _i[0]) == null ? void 0 : _j.message) == null ? void 0 : _k.content) || "";
+              }
+              rawText = ((_o = (_n = (_m = data == null ? void 0 : data.choices) == null ? void 0 : _m[0]) == null ? void 0 : _n.message) == null ? void 0 : _o.content) || "";
+              const usage = data == null ? void 0 : data.usage;
+              if (usage) {
+                tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
+              }
+            }
+            if (tokenLog) {
+              formatAppLog("log", "at pages/chat/chat.vue:976", tokenLog);
+            } else {
+              formatAppLog("log", "at pages/chat/chat.vue:978", "📊 [Token Usage] No usage data returned from API.");
             }
             if (rawText) {
-              formatAppLog("log", "at pages/chat/chat.vue:795", "📥 [LLM] Raw Response:", rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""));
+              formatAppLog("log", "at pages/chat/chat.vue:982", "📥 [LLM] Raw Response:", rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""));
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:798", "⚠️ [LLM] Empty response or Blocked");
-              const blockReason = (_m = (_l = res.data) == null ? void 0 : _l.promptFeedback) == null ? void 0 : _m.blockReason;
+              formatAppLog("warn", "at pages/chat/chat.vue:985", "⚠️ [LLM] Empty response or Blocked");
+              const blockReason = (_q = (_p = res.data) == null ? void 0 : _p.promptFeedback) == null ? void 0 : _q.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
               else
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:804", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:991", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:809", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:996", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1267,7 +1346,8 @@ if (uni.restoreGlobal) {
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText.replace(/\[Thought[\s\S]*?\]/gi, "").trim().replace(/\[Logic[\s\S]*?\]/gi, "").trim();
+        let displayText = rawText.replace(/【/g, "[").replace(/】/g, "]");
+        displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, "").trim().replace(/\[Logic[\s\S]*?\]/gi, "").trim();
         let systemMsgs = [];
         const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
         let match;
@@ -1276,7 +1356,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 3)
               change = 3;
-            formatAppLog("log", "at pages/chat/chat.vue:828", `❤️ [Status] Affection change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1025", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
             if (change !== 0)
               uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
@@ -1288,7 +1368,7 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:840", `🔥 [Status] Lust change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1038", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
@@ -1301,7 +1381,7 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:853", `📡 [Status] Mode switch to: ${newMode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1054", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
             const modeText = newMode === "face" ? "见面了" : "分开了";
@@ -1313,7 +1393,7 @@ if (uni.restoreGlobal) {
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
           const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:866", `📍 [Status] Moved to: ${newLoc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1068", `📍 [Status] Moved to: ${newLoc}`);
           currentLocation.value = newLoc;
           saveCharacterState(void 0, void 0, void 0, newLoc);
           systemMsgs.push(`移动到：${newLoc}`);
@@ -1323,7 +1403,7 @@ if (uni.restoreGlobal) {
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
           const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:877", `👗 [Status] Clothes changed to: ${newClothes}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1080", `👗 [Status] Clothes changed to: ${newClothes}`);
           currentClothing.value = newClothes;
           saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
           systemMsgs.push(`换装：${newClothes}`);
@@ -1333,7 +1413,7 @@ if (uni.restoreGlobal) {
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
           const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:888", `🎬 [Status] Activity update: ${newAct}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1092", `🎬 [Status] Activity update: ${newAct}`);
           currentActivity.value = newAct;
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
@@ -1343,10 +1423,15 @@ if (uni.restoreGlobal) {
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:899", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1106", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
-          pendingImagePlaceholder = { role: "system", content: "📷 影像显影中... (请稍候)", isSystem: true, id: placeholderId };
+          pendingImagePlaceholder = {
+            role: "system",
+            content: "📷 影像显影中... (请稍候)",
+            isSystem: true,
+            id: placeholderId
+          };
           handleAsyncImageGeneration(imgDesc, placeholderId);
         }
         displayText = displayText.replace(/\[(System|Logic).*?\]/gis, "").trim();
@@ -1363,17 +1448,20 @@ if (uni.restoreGlobal) {
           parts.forEach((part) => {
             let cleanPart = part.trim();
             const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || /^["“”'‘’]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
-            if (!isJunk)
+            if (!isJunk) {
               messageList.value.push({ role: "model", content: cleanPart });
+            }
           });
         }
-        if (pendingImagePlaceholder)
+        if (pendingImagePlaceholder) {
           messageList.value.push(pendingImagePlaceholder);
+        }
         saveHistory();
         if (enableSummary.value) {
           const validMsgCount = messageList.value.filter((m) => !m.isSystem).length;
-          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0)
+          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
             performBackgroundSummary();
+          }
         }
       };
       const scrollToBottom = () => {
@@ -1384,11 +1472,11 @@ if (uni.restoreGlobal) {
           }, 100);
         });
       };
-      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, lastUpdateGameHour, isBackgroundUpdating, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, TIME_SPEED_RATIO, get timeInterval() {
+      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, TIME_SPEED_RATIO, get timeInterval() {
         return timeInterval;
       }, set timeInterval(v) {
         timeInterval = v;
-      }, relationshipStatus, formattedTime, cleanMessageForAI, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, performBackgroundSummary, getTimeTags, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
+      }, relationshipStatus, formattedTime, cleanMessageForAI, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, performBackgroundSummary, getTimeTags, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, getActiveExample, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
         return onLoad;
       }, get onShow() {
         return onShow;
@@ -1400,8 +1488,14 @@ if (uni.restoreGlobal) {
         return onNavigationBarButtonTap;
       }, get saveToGallery() {
         return saveToGallery;
-      }, get GAME_ENGINE_PROMPT() {
-        return GAME_ENGINE_PROMPT;
+      }, get CORE_INSTRUCTION() {
+        return CORE_INSTRUCTION;
+      }, get PERSONALITY_TEMPLATE() {
+        return PERSONALITY_TEMPLATE;
+      }, get AFFECTION_LOGIC() {
+        return AFFECTION_LOGIC;
+      }, get NSFW_STYLE() {
+        return NSFW_STYLE;
       }, get STYLE_PROMPT_MAP() {
         return STYLE_PROMPT_MAP;
       }, get NEGATIVE_PROMPTS() {
@@ -1772,18 +1866,18 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/chat/chat.vue"]]);
+  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/Hbuilderx/AiChat/pages/chat/chat.vue"]]);
   const _sfc_main$4 = {
     __name: "create",
     setup(__props, { expose: __expose }) {
       __expose();
       const FACE_STYLES_MAP = {
-        "cute": "cute face, large sparkling eyes, doe eyes, :3, smile, blushing cheeks, innocent expression, small nose, childlike face, round face, big head small body ratio, ahegao with heart pupils",
-        "cool": "sharp eyes, cold expression, aloof, mature face, narrow eyes, slight smirk, arrogant gaze, long eyelashes, perfect eyebrows, pale skin, intimidating beauty, looking down at viewer",
-        "sexy": "gentle smile, mature beauty, soft motherly expression, kind eyes, slight crow’s feet, wedding ring, long loose hair, warm gaze, slightly lewd, loving gaze, soft lighting on face",
-        "energetic": "bright smile, wide open eyes, sparkling eyes, fang, energetic expression, head tilt, peace sign, wink, ahoge, orange-toned makeup, lively pose, dynamic angle",
-        "emotionless": "expressionless, half-lidded eyes, deadpan, emotionless face, pale skin, blank stare, straight bangs, no smile, monotone, looking blankly at viewer, empty eyes",
-        "yandere": "yandere, crazed smile, psychotic expression, wide eyes with small pupils, blushing madly, shadowed face, black aura, blood on cheek, holding knife, obsessive gaze, tears of joy"
+        "cute": "cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii",
+        "cool": "mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty",
+        "sexy": "mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara",
+        "energetic": "wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe",
+        "emotionless": "pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes",
+        "yandere": "shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes"
       };
       const FACE_LABELS = {
         "cute": "🍭 可爱/幼态",
@@ -1811,16 +1905,6 @@ if (uni.restoreGlobal) {
         maleHair: ["黑色短发", "棕色碎发", "寸头", "中分", "狼尾", "遮眼发"],
         maleBody: ["身材匀称", "肌肉结实", "清瘦", "略胖", "高大威猛", "腹肌明显"],
         malePrivate: ["干净无毛", "修剪整齐", "浓密自然", "尺寸惊人", "青筋暴起"]
-      };
-      const COMFY_WORKFLOW_TEMPLATE2 = {
-        "1": { "inputs": { "ckpt_name": "waiNSFWIllustrious_v140.safetensors" }, "class_type": "CheckpointLoaderSimple", "_meta": { "title": "Checkpoint加载器（简易）" } },
-        "2": { "inputs": { "stop_at_clip_layer": -2, "clip": ["1", 1] }, "class_type": "CLIPSetLastLayer", "_meta": { "title": "设置CLIP最后一层" } },
-        "3": { "inputs": { "text": "", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-        "4": { "inputs": { "text": "multiple views, split screen, 2girls, multiple girls, 2boys, multiple boys, grid, collage, text, signature, watermark, username, blurry, artist name, child, loli, underage, deformed, missing limbs, extra arms, extra legs, fused fingers, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, 3d, realistic, photorealistic", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-        "5": { "inputs": { "seed": 0, "steps": 30, "cfg": 7, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["36", 0] }, "class_type": "KSampler", "_meta": { "title": "K采样器" } },
-        "9": { "inputs": { "tile_size": 512, "overlap": 64, "temporal_size": 64, "temporal_overlap": 8, "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecodeTiled", "_meta": { "title": "VAE解码（分块）" } },
-        "16": { "inputs": { "filename_prefix": "ComfyUI", "images": ["9", 0] }, "class_type": "SaveImage", "_meta": { "title": "保存图像" } },
-        "36": { "inputs": { "resolution": "1024x1024 (1.0)", "batch_size": 1, "width_override": 0, "height_override": 0 }, "class_type": "SDXLEmptyLatentSizePicker+", "_meta": { "title": "SDXL空Latent尺寸选择" } }
       };
       const PERSONALITY_TEMPLATES = {
         "ice_queen": {
@@ -1889,13 +1973,12 @@ if (uni.restoreGlobal) {
         worldId: "",
         location: "",
         occupation: "",
+        worldLore: "",
+        // 👈 【新增】世界观设定
         // 核心外貌数据 (分层存储)
         appearance: "",
-        // 完整 Prompt (用于预览和头像)
         appearanceSafe: "",
-        // 基础肉体 (Face + Body, NO Clothes, NO NSFW)
         appearanceNsfw: "",
-        // 隐私特征 (Nipples, Pubic...)
         faceStyle: "cute",
         charFeatures: {
           hairColor: "",
@@ -1927,6 +2010,10 @@ if (uni.restoreGlobal) {
         maxReplies: 1,
         initialAffection: 10,
         initialLust: 0,
+        // 主动性设置字段
+        allowProactive: false,
+        proactiveInterval: 4,
+        proactiveNotify: false,
         historyLimit: 20,
         enableSummary: false,
         summaryFrequency: 20,
@@ -2078,7 +2165,7 @@ Task: ${prompt}` }]
           }
           uni.showToast({ title: "Prompt 组装完成", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:786", e);
+          formatAppLog("error", "at pages/create/create.vue:791", e);
           formData.value.appearance = `${faceTags}, ${safeChinese}, ${nsfwChinese}, ${clothesChinese}`;
           formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`;
           uni.showToast({ title: "翻译失败，使用原文", icon: "none" });
@@ -2112,7 +2199,7 @@ Task: ${prompt}` }]
         }
       };
       const generateImageFromComfyUI = async (promptText, baseUrl) => {
-        const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE2));
+        const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = promptText;
         workflow["5"].inputs.seed = Math.floor(Math.random() * 999999999999999);
         try {
@@ -2162,7 +2249,7 @@ Task: ${prompt}` }]
             throw new Error("ComfyUI 返回为空");
           }
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:866", e);
+          formatAppLog("error", "at pages/create/create.vue:869", e);
           uni.showModal({ title: "错误", content: e.message || "请求异常", showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2197,8 +2284,12 @@ Task: ${prompt}` }]
       });
       const handleWorldChange = (e) => {
         worldIndex.value = e.detail.value;
-        if (selectedWorld.value)
+        if (selectedWorld.value) {
           formData.value.worldId = selectedWorld.value.id;
+          if (selectedWorld.value.description) {
+            formData.value.worldLore = selectedWorld.value.description;
+          }
+        }
       };
       const handleUserWorldChange = (e) => {
         userWorldIndex.value = e.detail.value;
@@ -2234,6 +2325,7 @@ Task: ${prompt}` }]
               formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
             if (target.settings.userFeatures)
               formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+            formData.value.worldLore = target.settings.worldLore || "";
           }
           if (formData.value.worldId) {
             const idx = worldList.value.findIndex((w) => String(w.id) === String(formData.value.worldId));
@@ -2248,6 +2340,9 @@ Task: ${prompt}` }]
           formData.value.maxReplies = target.maxReplies || 1;
           formData.value.initialAffection = target.initialAffection !== void 0 ? target.initialAffection : 10;
           formData.value.initialLust = target.initialLust !== void 0 ? target.initialLust : 0;
+          formData.value.allowProactive = target.allowProactive || false;
+          formData.value.proactiveInterval = target.proactiveInterval || 4;
+          formData.value.proactiveNotify = target.proactiveNotify || false;
           formData.value.historyLimit = target.historyLimit !== void 0 ? target.historyLimit : 20;
           formData.value.enableSummary = target.enableSummary || false;
           formData.value.summaryFrequency = target.summaryFrequency || 20;
@@ -2268,6 +2363,9 @@ Task: ${prompt}` }]
           maxReplies: formData.value.maxReplies,
           initialAffection: formData.value.initialAffection,
           initialLust: formData.value.initialLust,
+          allowProactive: formData.value.allowProactive,
+          proactiveInterval: formData.value.proactiveInterval,
+          proactiveNotify: formData.value.proactiveNotify,
           historyLimit: formData.value.historyLimit,
           enableSummary: formData.value.enableSummary,
           summaryFrequency: formData.value.summaryFrequency,
@@ -2278,7 +2376,6 @@ Task: ${prompt}` }]
           occupation: formData.value.occupation,
           settings: {
             appearance: formData.value.appearance,
-            // 【关键保存】：保存 Safe 和 NSFW 分层数据
             appearanceSafe: formData.value.appearanceSafe,
             appearanceNsfw: formData.value.appearanceNsfw,
             faceStyle: formData.value.faceStyle,
@@ -2295,7 +2392,9 @@ Task: ${prompt}` }]
             personalitySex: formData.value.personalitySex,
             exampleNormal: formData.value.exampleNormal,
             exampleFlirt: formData.value.exampleFlirt,
-            exampleSex: formData.value.exampleSex
+            exampleSex: formData.value.exampleSex,
+            // 【新增】保存世界观
+            worldLore: formData.value.worldLore
           },
           lastMsg: isEditMode.value ? void 0 : "新角色已创建",
           lastTime: isEditMode.value ? void 0 : "刚刚",
@@ -2365,10 +2464,12 @@ Task: ${prompt}` }]
           }
         });
       };
-      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, COMFY_WORKFLOW_TEMPLATE: COMFY_WORKFLOW_TEMPLATE2, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
+      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
         return onLoad;
       }, get saveToGallery() {
         return saveToGallery;
+      }, get COMFY_WORKFLOW_TEMPLATE() {
+        return COMFY_WORKFLOW_TEMPLATE;
       } };
       Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
       return __returned__;
@@ -2459,6 +2560,28 @@ Task: ${prompt}` }]
                         )
                       ], 40, ["range", "value"])
                     ]),
+                    vue.createElementVNode("view", { class: "textarea-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "🌍 世界观法则 (Lore)"),
+                      vue.createElementVNode("view", {
+                        class: "tips-text",
+                        style: { "font-size": "22rpx", "color": "#999", "margin-bottom": "10rpx" }
+                      }, " 定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。 "),
+                      vue.withDirectives(vue.createElementVNode(
+                        "textarea",
+                        {
+                          class: "textarea",
+                          style: { "height": "180rpx" },
+                          "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.formData.worldLore = $event),
+                          placeholder: "例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。",
+                          maxlength: "-1"
+                        },
+                        null,
+                        512
+                        /* NEED_PATCH */
+                      ), [
+                        [vue.vModelText, $setup.formData.worldLore]
+                      ])
+                    ]),
                     $setup.selectedWorld ? (vue.openBlock(), vue.createElementBlock(
                       vue.Fragment,
                       { key: 0 },
@@ -2469,7 +2592,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.formData.location = $event),
+                              "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.formData.location = $event),
                               placeholder: "输入地址"
                             },
                             null,
@@ -2503,7 +2626,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.formData.occupation = $event),
+                              "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $setup.formData.occupation = $event),
                               placeholder: "输入职业"
                             },
                             null,
@@ -2545,7 +2668,7 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[5] || (_cache[5] = ($event) => $setup.toggleSubSection("charLooks"))
+                  onClick: _cache[6] || (_cache[6] = ($event) => $setup.toggleSubSection("charLooks"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "💃 详细特征 (捏人)"),
                   vue.createElementVNode(
@@ -2941,7 +3064,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea large",
-                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $setup.formData.appearance = $event),
+                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.formData.appearance = $event),
                     placeholder: "1girl, cute face...",
                     maxlength: "-1"
                   },
@@ -2969,7 +3092,7 @@ Task: ${prompt}` }]
                   "input",
                   {
                     class: "input",
-                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.formData.avatar = $event),
+                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.formData.avatar = $event),
                     placeholder: "输入链接 或 点击上方生成"
                   },
                   null,
@@ -3002,7 +3125,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[8] || (_cache[8] = ($event) => $setup.toggleSection("player"))
+            onClick: _cache[9] || (_cache[9] = ($event) => $setup.toggleSection("player"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -3026,7 +3149,7 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[9] || (_cache[9] = ($event) => $setup.toggleSubSection("userWorld"))
+                  onClick: _cache[10] || (_cache[10] = ($event) => $setup.toggleSubSection("userWorld"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "🌍 你的世界"),
                   vue.createElementVNode(
@@ -3069,7 +3192,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $setup.formData.userLocation = $event)
+                              "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.formData.userLocation = $event)
                             },
                             null,
                             512
@@ -3084,7 +3207,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.formData.userOccupation = $event)
+                              "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.formData.userOccupation = $event)
                             },
                             null,
                             512
@@ -3106,7 +3229,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.formData.userLocation = $event)
+                              "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => $setup.formData.userLocation = $event)
                             },
                             null,
                             512
@@ -3121,7 +3244,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => $setup.formData.userOccupation = $event)
+                              "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => $setup.formData.userOccupation = $event)
                             },
                             null,
                             512
@@ -3144,7 +3267,7 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[14] || (_cache[14] = ($event) => $setup.toggleSubSection("userLooks"))
+                  onClick: _cache[15] || (_cache[15] = ($event) => $setup.toggleSubSection("userLooks"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "🧔‍♂️ 你的外貌 (男性特征)"),
                   vue.createElementVNode(
@@ -3251,7 +3374,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea",
-                    "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => $setup.formData.userAppearance = $event),
+                    "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => $setup.formData.userAppearance = $event),
                     placeholder: "1boy, short hair...",
                     maxlength: "-1"
                   },
@@ -3272,7 +3395,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[16] || (_cache[16] = ($event) => $setup.toggleSection("core"))
+            onClick: _cache[17] || (_cache[17] = ($event) => $setup.toggleSection("core"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -3342,7 +3465,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea",
-                    "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => $setup.formData.bio = $event),
+                    "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => $setup.formData.bio = $event),
                     placeholder: "例：她是修仙界的高冷圣女，从小...",
                     maxlength: "-1"
                   },
@@ -3370,7 +3493,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => $setup.formData.personalityNormal = $event),
+                          "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => $setup.formData.personalityNormal = $event),
                           placeholder: "例：冷淡，拒绝触碰...",
                           maxlength: "-1"
                         },
@@ -3387,7 +3510,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => $setup.formData.exampleNormal = $event),
+                          "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => $setup.formData.exampleNormal = $event),
                           placeholder: "例：“离我远点，凡人。”",
                           maxlength: "-1"
                         },
@@ -3412,7 +3535,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => $setup.formData.personalityFlirt = $event),
+                          "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => $setup.formData.personalityFlirt = $event),
                           placeholder: "例：偶尔脸红，允许牵手...",
                           maxlength: "-1"
                         },
@@ -3429,7 +3552,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => $setup.formData.exampleFlirt = $event),
+                          "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.exampleFlirt = $event),
                           placeholder: "例：“也不是不可以啦...”",
                           maxlength: "-1"
                         },
@@ -3454,7 +3577,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.personalitySex = $event),
+                          "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => $setup.formData.personalitySex = $event),
                           placeholder: "例：完全服从，渴望被爱...",
                           maxlength: "-1"
                         },
@@ -3471,7 +3594,7 @@ Task: ${prompt}` }]
                         "textarea",
                         {
                           class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => $setup.formData.exampleSex = $event),
+                          "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => $setup.formData.exampleSex = $event),
                           placeholder: "例：“主人，请尽情使用我吧...”",
                           maxlength: "-1"
                         },
@@ -3495,7 +3618,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[24] || (_cache[24] = ($event) => $setup.toggleSection("init"))
+            onClick: _cache[25] || (_cache[25] = ($event) => $setup.toggleSection("init"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", { class: "section-title" }, "初始状态设置")
@@ -3528,7 +3651,7 @@ Task: ${prompt}` }]
                   max: "100",
                   step: "5",
                   "show-value": "",
-                  onChange: _cache[25] || (_cache[25] = (e) => $setup.formData.initialAffection = e.detail.value)
+                  onChange: _cache[26] || (_cache[26] = (e) => $setup.formData.initialAffection = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", { class: "tip" }, "决定了角色对你情感的起点。")
               ]),
@@ -3555,7 +3678,7 @@ Task: ${prompt}` }]
                   step: "5",
                   "show-value": "",
                   activeColor: "#e056fd",
-                  onChange: _cache[26] || (_cache[26] = (e) => $setup.formData.initialLust = e.detail.value)
+                  onChange: _cache[27] || (_cache[27] = (e) => $setup.formData.initialLust = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", {
                   class: "tip",
@@ -3570,6 +3693,64 @@ Task: ${prompt}` }]
               ]),
               vue.createElementVNode("view", {
                 class: "input-item",
+                style: { "border-top": "1px dashed #eee", "padding-top": "20rpx", "margin-top": "20rpx" }
+              }, [
+                vue.createElementVNode("view", { class: "label-row" }, [
+                  vue.createElementVNode("text", { class: "label" }, "🤖 允许角色主动找我"),
+                  vue.createElementVNode("switch", {
+                    checked: $setup.formData.allowProactive,
+                    onChange: _cache[28] || (_cache[28] = (e) => $setup.formData.allowProactive = e.detail.value),
+                    color: "#007aff"
+                  }, null, 40, ["checked"])
+                ]),
+                $setup.formData.allowProactive ? (vue.openBlock(), vue.createElementBlock(
+                  vue.Fragment,
+                  { key: 0 },
+                  [
+                    vue.createElementVNode("view", {
+                      class: "slider-header",
+                      style: { "margin-top": "20rpx" }
+                    }, [
+                      vue.createElementVNode(
+                        "text",
+                        { class: "label" },
+                        "主动间隔: " + vue.toDisplayString($setup.formData.proactiveInterval) + " 小时",
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    vue.createElementVNode("slider", {
+                      value: $setup.formData.proactiveInterval,
+                      min: "1",
+                      max: "48",
+                      step: "1",
+                      "show-value": "",
+                      activeColor: "#007aff",
+                      onChange: _cache[29] || (_cache[29] = (e) => $setup.formData.proactiveInterval = e.detail.value)
+                    }, null, 40, ["value"]),
+                    vue.createElementVNode("view", { class: "tip" }, "当您离开 App 超过这个时间，角色可能会主动发消息。"),
+                    vue.createElementVNode("view", {
+                      class: "label-row",
+                      style: { "margin-top": "20rpx" }
+                    }, [
+                      vue.createElementVNode("text", { class: "label" }, "🔔 开启系统弹窗通知"),
+                      vue.createElementVNode("switch", {
+                        checked: $setup.formData.proactiveNotify,
+                        onChange: _cache[30] || (_cache[30] = (e) => $setup.formData.proactiveNotify = e.detail.value),
+                        color: "#ff9f43"
+                      }, null, 40, ["checked"])
+                    ]),
+                    $setup.formData.proactiveNotify ? (vue.openBlock(), vue.createElementBlock("view", {
+                      key: 0,
+                      class: "tip"
+                    }, "需在手机设置中允许 App 通知权限。")) : vue.createCommentVNode("v-if", true)
+                  ],
+                  64
+                  /* STABLE_FRAGMENT */
+                )) : vue.createCommentVNode("v-if", true)
+              ]),
+              vue.createElementVNode("view", {
+                class: "input-item",
                 style: { "margin-top": "20rpx" }
               }, [
                 vue.createElementVNode("text", { class: "label" }, "连续回复上限"),
@@ -3578,7 +3759,7 @@ Task: ${prompt}` }]
                   min: "1",
                   max: "5",
                   "show-value": "",
-                  onChange: _cache[27] || (_cache[27] = (e) => $setup.formData.maxReplies = e.detail.value)
+                  onChange: _cache[31] || (_cache[31] = (e) => $setup.formData.maxReplies = e.detail.value)
                 }, null, 40, ["value"])
               ])
             ],
@@ -3591,7 +3772,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[28] || (_cache[28] = ($event) => $setup.toggleSection("memory"))
+            onClick: _cache[32] || (_cache[32] = ($event) => $setup.toggleSection("memory"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -3628,7 +3809,7 @@ Task: ${prompt}` }]
                   step: "2",
                   "show-value": "",
                   activeColor: "#9b59b6",
-                  onChange: _cache[29] || (_cache[29] = (e) => $setup.formData.historyLimit = e.detail.value)
+                  onChange: _cache[33] || (_cache[33] = (e) => $setup.formData.historyLimit = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", { class: "tip" }, "控制AI能“看到”的最近聊天记录条数。")
               ]),
@@ -3642,7 +3823,7 @@ Task: ${prompt}` }]
                 }, "开启长期记忆自动总结"),
                 vue.createElementVNode("switch", {
                   checked: $setup.formData.enableSummary,
-                  onChange: _cache[30] || (_cache[30] = (e) => $setup.formData.enableSummary = e.detail.value),
+                  onChange: _cache[34] || (_cache[34] = (e) => $setup.formData.enableSummary = e.detail.value),
                   color: "#9b59b6"
                 }, null, 40, ["checked"])
               ]),
@@ -3667,7 +3848,7 @@ Task: ${prompt}` }]
                       step: "5",
                       "show-value": "",
                       activeColor: "#9b59b6",
-                      onChange: _cache[31] || (_cache[31] = (e) => $setup.formData.summaryFrequency = e.detail.value)
+                      onChange: _cache[35] || (_cache[35] = (e) => $setup.formData.summaryFrequency = e.detail.value)
                     }, null, 40, ["value"])
                   ]),
                   vue.createElementVNode("view", { class: "textarea-item" }, [
@@ -3676,14 +3857,14 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", {
                         class: "tip",
                         style: { "color": "#9b59b6" },
-                        onClick: _cache[32] || (_cache[32] = ($event) => $setup.formData.summary = "")
+                        onClick: _cache[36] || (_cache[36] = ($event) => $setup.formData.summary = "")
                       }, "清空")
                     ]),
                     vue.withDirectives(vue.createElementVNode(
                       "textarea",
                       {
                         class: "textarea large memory-box",
-                        "onUpdate:modelValue": _cache[33] || (_cache[33] = ($event) => $setup.formData.summary = $event),
+                        "onUpdate:modelValue": _cache[37] || (_cache[37] = ($event) => $setup.formData.summary = $event),
                         maxlength: "-1"
                       },
                       null,
@@ -3710,7 +3891,7 @@ Task: ${prompt}` }]
         }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[34] || (_cache[34] = ($event) => $setup.toggleSection("danger"))
+            onClick: _cache[38] || (_cache[38] = ($event) => $setup.toggleSection("danger"))
           }, [
             vue.createElementVNode("view", {
               class: "section-title",
@@ -3755,50 +3936,41 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/create/create.vue"]]);
+  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/Hbuilderx/AiChat/pages/create/create.vue"]]);
   const _sfc_main$3 = {
     __name: "mine",
     setup(__props, { expose: __expose }) {
       __expose();
-      const LLM_PROVIDERS = [
-        // 1. Gemini: 使用你提供的官方 OpenAI 兼容 Chat 地址作为默认 BaseUrl
-        { label: "Google Gemini", value: "gemini", defaultUrl: "https://generativelanguage.googleapis.com/v1beta/openai" },
-        // 2. 豆包 (火山引擎)
-        { label: "火山引擎 (豆包)", value: "volcengine", defaultUrl: "https://ark.cn-beijing.volces.com/api/v3" },
-        // 3. 硅基流动
-        { label: "硅基流动 (SiliconFlow)", value: "siliconflow", defaultUrl: "https://api.siliconflow.cn/v1" },
-        // 4. OpenAI / 自定义
-        { label: "OpenAI (自定义)", value: "openai", defaultUrl: "https://api.openai.com/v1" }
-      ];
       const DRAWING_STYLES = [
-        { label: "标准日漫", value: "anime", emoji: "📺" },
-        { label: "厚涂风格", value: "impasto", emoji: "🖌️" },
-        { label: "90年代复古", value: "retro", emoji: "📼" },
-        { label: "新海诚风", value: "shinkai", emoji: "☁️" },
-        { label: "暗黑哥特", value: "gothic", emoji: "🦇" },
-        { label: "赛博朋克", value: "cyber", emoji: "🤖" },
-        { label: "水彩柔和", value: "pastel", emoji: "🌸" },
-        { label: "黑白线稿", value: "sketch", emoji: "✏️" }
+        { label: "标准日漫 (Standard)", value: "anime", emoji: "📺" },
+        { label: "厚涂风格 (Impasto)", value: "impasto", emoji: "🖌️" },
+        { label: "90年代复古 (Retro)", value: "retro", emoji: "📼" },
+        { label: "新海诚风 (Scenery)", value: "shinkai", emoji: "☁️" },
+        { label: "暗黑哥特 (Gothic)", value: "gothic", emoji: "🦇" },
+        { label: "赛博朋克 (Cyber)", value: "cyber", emoji: "🤖" },
+        { label: "水彩柔和 (Pastel)", value: "pastel", emoji: "🌸" },
+        { label: "黑白线稿 (Sketch)", value: "sketch", emoji: "✏️" }
       ];
       const userInfo = vue.ref({ name: "我", avatar: "/static/user-avatar.png" });
       const activeSections = vue.ref({ chat: false, image: false, world: false });
-      const llmSchemes = vue.ref([]);
-      const currentSchemeIndex = vue.ref(0);
-      const tempModelList = vue.ref([]);
-      const activeFetchIndex = vue.ref(-1);
+      const toggleSection = (key) => {
+        activeSections.value[key] = !activeSections.value[key];
+      };
+      const apiConfig = vue.ref({
+        baseUrl: "https://generativelanguage.googleapis.com",
+        apiKey: "",
+        model: "",
+        historyLimit: 20
+      });
       const imageConfig = vue.ref({
         provider: "gemini",
         baseUrl: "https://generativelanguage.googleapis.com",
         apiKey: "",
         model: "",
         style: "anime"
+        // 默认为标准日漫
       });
       const worldSettings = vue.ref([]);
-      const currentLlmScheme = vue.computed(() => {
-        if (llmSchemes.value.length === 0)
-          return null;
-        return llmSchemes.value[currentSchemeIndex.value];
-      });
       const imageConfigIndex = vue.computed(() => {
         if (imageConfig.value.provider === "openai")
           return 1;
@@ -3821,218 +3993,104 @@ Task: ${prompt}` }]
         const storedUser = uni.getStorageSync("app_user_info");
         if (storedUser)
           userInfo.value = storedUser;
-        const storedSchemes = uni.getStorageSync("app_llm_schemes");
-        const storedIndex = uni.getStorageSync("app_current_scheme_index");
-        if (storedSchemes && Array.isArray(storedSchemes) && storedSchemes.length > 0) {
-          llmSchemes.value = storedSchemes.map((s) => ({ ...s, isExpanded: false }));
-          currentSchemeIndex.value = storedIndex !== void 0 && storedIndex < storedSchemes.length ? storedIndex : 0;
-        } else {
-          createNewScheme(true);
-        }
+        const storedConfig = uni.getStorageSync("app_api_config");
+        if (storedConfig)
+          apiConfig.value = { ...apiConfig.value, ...storedConfig };
         const storedImgConfig = uni.getStorageSync("app_image_config");
         if (storedImgConfig)
           imageConfig.value = { ...imageConfig.value, ...storedImgConfig };
         const storedWorlds = uni.getStorageSync("app_world_settings");
         if (storedWorlds && Array.isArray(storedWorlds)) {
-          worldSettings.value = storedWorlds.map((w) => ({ ...w, isOpen: false, tempLoc: "", tempJob: "" }));
+          worldSettings.value = storedWorlds.map((w) => ({
+            ...w,
+            isOpen: false,
+            tempLoc: "",
+            tempJob: ""
+          }));
         }
       });
-      const toggleSection = (key) => {
-        activeSections.value[key] = !activeSections.value[key];
-      };
       const goToEdit = () => {
         uni.navigateTo({ url: "/pages/mine/edit-profile" });
       };
       const goToGallery = () => {
         uni.navigateTo({ url: "/pages/mine/gallery" });
       };
-      const createNewScheme = (isInit = false) => {
-        const newScheme = {
-          id: Date.now(),
-          name: isInit ? "默认方案" : `方案 ${llmSchemes.value.length + 1}`,
-          provider: "gemini",
-          // 默认使用 Gemini 的 OpenAI 兼容地址
-          baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-          apiKey: "",
-          model: "",
-          historyLimit: 20,
-          isExpanded: true
-        };
-        if (!isInit)
-          llmSchemes.value.forEach((s) => s.isExpanded = false);
-        llmSchemes.value.push(newScheme);
-        if (isInit)
-          currentSchemeIndex.value = 0;
-      };
-      const selectScheme = (index) => {
-        currentSchemeIndex.value = index;
-      };
-      const toggleSchemeExpand = (index) => {
-        llmSchemes.value[index].isExpanded = !llmSchemes.value[index].isExpanded;
-        tempModelList.value = [];
-        activeFetchIndex.value = -1;
-      };
-      const deleteScheme = (index) => {
-        uni.showModal({
-          title: "确认删除",
-          content: "确定要删除这个API方案吗？",
-          success: (res) => {
-            if (res.confirm) {
-              llmSchemes.value.splice(index, 1);
-              if (index === currentSchemeIndex.value || currentSchemeIndex.value >= llmSchemes.value.length) {
-                currentSchemeIndex.value = 0;
-              }
-              if (llmSchemes.value.length === 0)
-                createNewScheme(true);
-            }
-          }
-        });
-      };
-      const handleProviderChange = (e, index) => {
-        const selectedIdx = e.detail.value;
-        const selected = LLM_PROVIDERS[selectedIdx];
-        const scheme = llmSchemes.value[index];
-        scheme.provider = selected.value;
-        scheme.baseUrl = selected.defaultUrl;
-        scheme.model = "";
-        tempModelList.value = [];
-      };
-      const getProviderLabel = (val) => {
-        const f = LLM_PROVIDERS.find((p) => p.value === val);
-        return f ? f.label : val;
-      };
-      const fetchModels = (index) => {
-        const scheme = llmSchemes.value[index];
-        if (!scheme.apiKey) {
-          uni.showToast({ title: "请先填写 API Key", icon: "none" });
-          return;
-        }
-        uni.showLoading({ title: "获取中...", mask: true });
-        let requestUrl = "";
-        let method = "GET";
-        let header = { "Authorization": `Bearer ${scheme.apiKey}` };
-        if (scheme.provider === "gemini") {
-          requestUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${scheme.apiKey}`;
-          header = {};
-        } else {
-          let baseUrl = scheme.baseUrl;
-          if (baseUrl.endsWith("/"))
-            baseUrl = baseUrl.slice(0, -1);
-          requestUrl = `${baseUrl}/models`;
-        }
-        uni.request({
-          url: requestUrl,
-          method,
-          header,
-          success: (res) => {
-            var _a, _b;
-            uni.hideLoading();
-            formatAppLog("log", "at pages/mine/mine.vue:483", "Fetch Models Result:", res);
-            let models = [];
-            if (scheme.provider === "gemini" && res.data && res.data.models) {
-              models = res.data.models.map((m) => {
-                return m.name.replace("models/", "");
-              });
-            } else if (res.data && Array.isArray(res.data.data)) {
-              models = res.data.data.map((m) => m.id);
-            }
-            if (models.length > 0) {
-              tempModelList.value = models;
-              activeFetchIndex.value = index;
-              uni.showToast({ title: `获取到 ${models.length} 个模型`, icon: "success" });
-            } else {
-              const errMsg = ((_b = (_a = res.data) == null ? void 0 : _a.error) == null ? void 0 : _b.message) || JSON.stringify(res.data);
-              uni.showModal({
-                title: "获取失败",
-                content: `状态码: ${res.statusCode}
-响应: ${errMsg}`,
-                showCancel: false
-              });
-            }
-          },
-          fail: (err) => {
-            uni.hideLoading();
-            uni.showToast({ title: "网络请求失败", icon: "none" });
-            formatAppLog("error", "at pages/mine/mine.vue:516", err);
-          }
-        });
-      };
-      const applyModel = (index, modelName) => {
-        llmSchemes.value[index].model = modelName;
-        tempModelList.value = [];
-      };
       const handleTypeChange = (e) => {
         const idx = e.detail.value;
         if (idx == 0) {
           imageConfig.value.provider = "gemini";
           imageConfig.value.baseUrl = "https://generativelanguage.googleapis.com";
+          if (!imageConfig.value.model)
+            imageConfig.value.model = "gemini-2.0-flash-exp";
         } else if (idx == 1) {
           imageConfig.value.provider = "openai";
           imageConfig.value.baseUrl = "https://api.openai.com/v1";
+          if (!imageConfig.value.model)
+            imageConfig.value.model = "dall-e-3";
         } else if (idx == 2) {
           imageConfig.value.provider = "comfyui";
           imageConfig.value.baseUrl = "";
+          imageConfig.value.model = "";
         }
         activeSections.value.image = true;
       };
       const addNewWorld = () => {
-        worldSettings.value.push({ id: Date.now(), name: "新世界", locations: [], occupations: [], isOpen: true, tempLoc: "", tempJob: "" });
+        worldSettings.value.push({ id: Date.now(), name: "新世界 " + (worldSettings.value.length + 1), locations: ["家中", "公园", "学校"], occupations: ["学生", "上班族"], isOpen: true, tempLoc: "", tempJob: "" });
       };
-      const toggleWorldItem = (idx) => {
-        worldSettings.value[idx].isOpen = !worldSettings.value[idx].isOpen;
+      const toggleWorldItem = (index) => {
+        worldSettings.value[index].isOpen = !worldSettings.value[index].isOpen;
       };
-      const deleteWorld = (idx) => {
-        uni.showModal({ title: "删除", content: "确定删除吗？", success: (res) => {
+      const deleteWorld = (index) => {
+        uni.showModal({ title: "确认删除", content: "确定要删除这个世界设定吗？", success: (res) => {
           if (res.confirm)
-            worldSettings.value.splice(idx, 1);
+            worldSettings.value.splice(index, 1);
         } });
       };
-      const addLocation = (idx) => {
-        const w = worldSettings.value[idx];
-        if (w.tempLoc) {
-          w.locations.push(w.tempLoc);
-          w.tempLoc = "";
+      const addLocation = (index) => {
+        const world = worldSettings.value[index];
+        if (world.tempLoc && world.tempLoc.trim()) {
+          world.locations.push(world.tempLoc.trim());
+          world.tempLoc = "";
         }
       };
-      const removeLocation = (wi, li) => {
-        worldSettings.value[wi].locations.splice(li, 1);
+      const removeLocation = (wIndex, lIndex) => {
+        worldSettings.value[wIndex].locations.splice(lIndex, 1);
       };
-      const addOccupation = (idx) => {
-        const w = worldSettings.value[idx];
-        if (w.tempJob) {
-          w.occupations.push(w.tempJob);
-          w.tempJob = "";
+      const addOccupation = (index) => {
+        const world = worldSettings.value[index];
+        if (world.tempJob && world.tempJob.trim()) {
+          world.occupations.push(world.tempJob.trim());
+          world.tempJob = "";
         }
       };
-      const removeOccupation = (wi, ji) => {
-        worldSettings.value[wi].occupations.splice(ji, 1);
+      const removeOccupation = (wIndex, jIndex) => {
+        worldSettings.value[wIndex].occupations.splice(jIndex, 1);
       };
       const saveAllConfig = () => {
-        if (llmSchemes.value.length === 0) {
-          uni.showToast({ title: "请添加对话方案", icon: "none" });
+        if (!apiConfig.value.apiKey.trim()) {
+          uni.showToast({ title: "对话 Key 不能为空", icon: "none" });
           return;
         }
-        const cleanSchemes = llmSchemes.value.map(({ isExpanded, ...rest }) => {
-          let url = rest.baseUrl.trim();
-          if (url.endsWith("/"))
-            url = url.slice(0, -1);
-          return { ...rest, baseUrl: url };
-        });
-        uni.setStorageSync("app_llm_schemes", cleanSchemes);
-        uni.setStorageSync("app_current_scheme_index", currentSchemeIndex.value);
+        let chatUrl = apiConfig.value.baseUrl.trim();
+        if (chatUrl.endsWith("/"))
+          chatUrl = chatUrl.slice(0, -1);
+        apiConfig.value.baseUrl = chatUrl;
+        uni.setStorageSync("app_api_config", apiConfig.value);
         let imgUrl = imageConfig.value.baseUrl ? imageConfig.value.baseUrl.trim() : "";
         if (imgUrl.endsWith("/"))
           imgUrl = imgUrl.slice(0, -1);
         imageConfig.value.baseUrl = imgUrl;
+        if (!imageConfig.value.style)
+          imageConfig.value.style = "anime";
         uni.setStorageSync("app_image_config", imageConfig.value);
         const cleanWorlds = worldSettings.value.map(({ tempLoc, tempJob, isOpen, ...rest }) => rest);
         uni.setStorageSync("app_world_settings", cleanWorlds);
-        uni.showToast({ title: "保存成功", icon: "success" });
+        uni.showToast({ title: "所有配置已保存", icon: "success" });
         activeSections.value.chat = false;
         activeSections.value.image = false;
         activeSections.value.world = false;
       };
-      const __returned__ = { LLM_PROVIDERS, DRAWING_STYLES, userInfo, activeSections, llmSchemes, currentSchemeIndex, tempModelList, activeFetchIndex, imageConfig, worldSettings, currentLlmScheme, imageConfigIndex, currentProviderLabel, currentStyleLabel, toggleSection, goToEdit, goToGallery, createNewScheme, selectScheme, toggleSchemeExpand, deleteScheme, handleProviderChange, getProviderLabel, fetchModels, applyModel, handleTypeChange, addNewWorld, toggleWorldItem, deleteWorld, addLocation, removeLocation, addOccupation, removeOccupation, saveAllConfig, ref: vue.ref, computed: vue.computed, get onShow() {
+      const __returned__ = { DRAWING_STYLES, userInfo, activeSections, toggleSection, apiConfig, imageConfig, worldSettings, imageConfigIndex, currentProviderLabel, currentStyleLabel, goToEdit, goToGallery, handleTypeChange, addNewWorld, toggleWorldItem, deleteWorld, addLocation, removeLocation, addOccupation, removeOccupation, saveAllConfig, ref: vue.ref, computed: vue.computed, get onShow() {
         return onShow;
       }, CustomTabBar };
       Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
@@ -4085,7 +4143,7 @@ Task: ${prompt}` }]
             vue.createElementVNode(
               "text",
               { class: "group-subtitle" },
-              " 当前使用: " + vue.toDisplayString($setup.currentLlmScheme ? $setup.currentLlmScheme.name : "未选择"),
+              vue.toDisplayString($setup.apiConfig.model || "未设置"),
               1
               /* TEXT */
             )
@@ -4102,191 +4160,78 @@ Task: ${prompt}` }]
           "view",
           { class: "group-content" },
           [
-            vue.createElementVNode("view", { class: "scheme-list" }, [
-              (vue.openBlock(true), vue.createElementBlock(
-                vue.Fragment,
+            vue.createElementVNode("view", { class: "setting-item" }, [
+              vue.createElementVNode("view", { class: "item-label" }, "接口地址"),
+              vue.withDirectives(vue.createElementVNode(
+                "input",
+                {
+                  class: "item-input",
+                  type: "text",
+                  "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => $setup.apiConfig.baseUrl = $event),
+                  placeholder: "例如 https://generativelanguage.googleapis.com"
+                },
                 null,
-                vue.renderList($setup.llmSchemes, (scheme, index) => {
-                  return vue.openBlock(), vue.createElementBlock(
-                    "view",
-                    {
-                      key: scheme.id,
-                      class: vue.normalizeClass(["scheme-card", { "is-active": $setup.currentSchemeIndex === index }])
-                    },
-                    [
-                      vue.createElementVNode("view", {
-                        class: "scheme-card-header",
-                        onClick: ($event) => $setup.toggleSchemeExpand(index)
-                      }, [
-                        vue.createElementVNode("view", {
-                          class: "radio-area",
-                          onClick: vue.withModifiers(($event) => $setup.selectScheme(index), ["stop"])
-                        }, [
-                          vue.createElementVNode("view", { class: "radio-circle" }, [
-                            $setup.currentSchemeIndex === index ? (vue.openBlock(), vue.createElementBlock("view", {
-                              key: 0,
-                              class: "radio-inner"
-                            })) : vue.createCommentVNode("v-if", true)
-                          ])
-                        ], 8, ["onClick"]),
-                        vue.createElementVNode("view", { class: "scheme-info" }, [
-                          vue.createElementVNode(
-                            "text",
-                            { class: "scheme-name" },
-                            vue.toDisplayString(scheme.name),
-                            1
-                            /* TEXT */
-                          ),
-                          vue.createElementVNode(
-                            "text",
-                            { class: "scheme-desc" },
-                            vue.toDisplayString(scheme.model || "未设置模型"),
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        vue.createElementVNode(
-                          "text",
-                          { class: "expand-icon" },
-                          vue.toDisplayString(scheme.isExpanded ? "▲" : "▼"),
-                          1
-                          /* TEXT */
-                        )
-                      ], 8, ["onClick"]),
-                      scheme.isExpanded ? (vue.openBlock(), vue.createElementBlock("view", {
-                        key: 0,
-                        class: "scheme-card-body"
-                      }, [
-                        vue.createElementVNode("view", { class: "setting-item" }, [
-                          vue.createElementVNode("view", { class: "item-label" }, "方案名称"),
-                          vue.withDirectives(vue.createElementVNode("input", {
-                            class: "item-input",
-                            type: "text",
-                            "onUpdate:modelValue": ($event) => scheme.name = $event,
-                            placeholder: "方案别名"
-                          }, null, 8, ["onUpdate:modelValue"]), [
-                            [vue.vModelText, scheme.name]
-                          ])
-                        ]),
-                        vue.createElementVNode("view", { class: "setting-item" }, [
-                          vue.createElementVNode("view", { class: "item-label" }, "厂商预设"),
-                          vue.createElementVNode("picker", {
-                            mode: "selector",
-                            range: $setup.LLM_PROVIDERS,
-                            "range-key": "label",
-                            onChange: (e) => $setup.handleProviderChange(e, index)
-                          }, [
-                            vue.createElementVNode(
-                              "view",
-                              { class: "picker-val" },
-                              vue.toDisplayString($setup.getProviderLabel(scheme.provider)) + " ▾",
-                              1
-                              /* TEXT */
-                            )
-                          ], 40, ["onChange"])
-                        ]),
-                        vue.createElementVNode("view", { class: "setting-item" }, [
-                          vue.createElementVNode("view", { class: "item-label" }, "接口地址"),
-                          vue.withDirectives(vue.createElementVNode("input", {
-                            class: "item-input",
-                            type: "text",
-                            "onUpdate:modelValue": ($event) => scheme.baseUrl = $event,
-                            placeholder: "https://..."
-                          }, null, 8, ["onUpdate:modelValue"]), [
-                            [vue.vModelText, scheme.baseUrl]
-                          ])
-                        ]),
-                        vue.createElementVNode("view", { class: "setting-item" }, [
-                          vue.createElementVNode("view", { class: "item-label" }, "API Key"),
-                          vue.withDirectives(vue.createElementVNode("input", {
-                            class: "item-input",
-                            type: "text",
-                            password: "",
-                            "onUpdate:modelValue": ($event) => scheme.apiKey = $event,
-                            placeholder: "在此粘贴 Key"
-                          }, null, 8, ["onUpdate:modelValue"]), [
-                            [vue.vModelText, scheme.apiKey]
-                          ])
-                        ]),
-                        vue.createElementVNode("view", { class: "setting-item" }, [
-                          vue.createElementVNode("view", { class: "item-label" }, "模型名称"),
-                          vue.createElementVNode("view", { class: "model-input-group" }, [
-                            vue.withDirectives(vue.createElementVNode("input", {
-                              class: "item-input model-manual-input",
-                              type: "text",
-                              "onUpdate:modelValue": ($event) => scheme.model = $event,
-                              placeholder: "输入或刷新获取"
-                            }, null, 8, ["onUpdate:modelValue"]), [
-                              [vue.vModelText, scheme.model]
-                            ]),
-                            vue.createElementVNode("view", {
-                              class: "icon-btn",
-                              onClick: ($event) => $setup.fetchModels(index)
-                            }, "🔄", 8, ["onClick"])
-                          ])
-                        ]),
-                        $setup.tempModelList.length > 0 && $setup.activeFetchIndex === index ? (vue.openBlock(), vue.createElementBlock("view", {
-                          key: 0,
-                          class: "model-select-area"
-                        }, [
-                          vue.createElementVNode("view", { class: "model-tag-title" }, "点击选择模型:"),
-                          vue.createElementVNode("view", { class: "model-tags" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.tempModelList, (m) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: m,
-                                  class: "model-tag",
-                                  onClick: ($event) => $setup.applyModel(index, m)
-                                }, vue.toDisplayString(m), 9, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])) : vue.createCommentVNode("v-if", true),
-                        vue.createElementVNode("view", { class: "setting-item-col" }, [
-                          vue.createElementVNode("view", { class: "item-header" }, [
-                            vue.createElementVNode("text", { class: "item-label" }, "记忆深度"),
-                            vue.createElementVNode(
-                              "text",
-                              { class: "item-value" },
-                              vue.toDisplayString(scheme.historyLimit) + " 条",
-                              1
-                              /* TEXT */
-                            )
-                          ]),
-                          vue.createElementVNode("slider", {
-                            value: scheme.historyLimit,
-                            min: "0",
-                            max: "60",
-                            step: "2",
-                            activeColor: "#007aff",
-                            onChange: (e) => scheme.historyLimit = e.detail.value
-                          }, null, 40, ["value", "onChange"])
-                        ]),
-                        vue.createElementVNode("view", { class: "card-footer" }, [
-                          $setup.llmSchemes.length > 1 ? (vue.openBlock(), vue.createElementBlock("view", {
-                            key: 0,
-                            class: "delete-text",
-                            onClick: ($event) => $setup.deleteScheme(index)
-                          }, "删除此方案", 8, ["onClick"])) : vue.createCommentVNode("v-if", true)
-                        ])
-                      ])) : vue.createCommentVNode("v-if", true)
-                    ],
-                    2
-                    /* CLASS */
-                  );
-                }),
-                128
-                /* KEYED_FRAGMENT */
-              ))
+                512
+                /* NEED_PATCH */
+              ), [
+                [vue.vModelText, $setup.apiConfig.baseUrl]
+              ])
             ]),
-            vue.createElementVNode("button", {
-              class: "add-scheme-btn",
-              onClick: $setup.createNewScheme
-            }, "➕ 添加新方案 API")
+            vue.createElementVNode("view", { class: "setting-item" }, [
+              vue.createElementVNode("view", { class: "item-label" }, "API Key"),
+              vue.withDirectives(vue.createElementVNode(
+                "input",
+                {
+                  class: "item-input",
+                  type: "text",
+                  password: "",
+                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.apiConfig.apiKey = $event),
+                  placeholder: "在此粘贴 Key"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vue.vModelText, $setup.apiConfig.apiKey]
+              ])
+            ]),
+            vue.createElementVNode("view", { class: "setting-item" }, [
+              vue.createElementVNode("view", { class: "item-label" }, "模型名称"),
+              vue.withDirectives(vue.createElementVNode(
+                "input",
+                {
+                  class: "item-input",
+                  type: "text",
+                  "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.apiConfig.model = $event),
+                  placeholder: "例如 gemini-2.0-flash"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vue.vModelText, $setup.apiConfig.model]
+              ])
+            ]),
+            vue.createElementVNode("view", { class: "setting-item-col" }, [
+              vue.createElementVNode("view", { class: "item-header" }, [
+                vue.createElementVNode("text", { class: "item-label" }, "记忆深度"),
+                vue.createElementVNode(
+                  "text",
+                  { class: "item-value" },
+                  vue.toDisplayString($setup.apiConfig.historyLimit) + " 条",
+                  1
+                  /* TEXT */
+                )
+              ]),
+              vue.createElementVNode("slider", {
+                value: $setup.apiConfig.historyLimit,
+                min: "0",
+                max: "60",
+                step: "2",
+                activeColor: "#007aff",
+                onChange: _cache[4] || (_cache[4] = (e) => $setup.apiConfig.historyLimit = e.detail.value)
+              }, null, 40, ["value"])
+            ])
           ],
           512
           /* NEED_PATCH */
@@ -4297,7 +4242,7 @@ Task: ${prompt}` }]
       vue.createElementVNode("view", { class: "setting-group" }, [
         vue.createElementVNode("view", {
           class: "group-header",
-          onClick: _cache[1] || (_cache[1] = ($event) => $setup.toggleSection("image"))
+          onClick: _cache[5] || (_cache[5] = ($event) => $setup.toggleSection("image"))
         }, [
           vue.createElementVNode("view", { class: "group-title-wrapper" }, [
             vue.createElementVNode("view", {
@@ -4353,8 +4298,8 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.imageConfig.baseUrl = $event),
-                      placeholder: "https://generativelanguage.googleapis.com"
+                      "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      placeholder: "例如 https://generativelanguage.googleapis.com"
                     },
                     null,
                     512
@@ -4371,7 +4316,7 @@ Task: ${prompt}` }]
                       class: "item-input",
                       type: "text",
                       password: "",
-                      "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.imageConfig.apiKey = $event),
+                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.imageConfig.apiKey = $event),
                       placeholder: "同上则留空"
                     },
                     null,
@@ -4388,7 +4333,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.imageConfig.model = $event),
+                      "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.imageConfig.model = $event),
                       placeholder: "例如 gemini-2.0-flash-exp"
                     },
                     null,
@@ -4412,8 +4357,8 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $setup.imageConfig.baseUrl = $event),
-                      placeholder: "https://api.openai.com/v1"
+                      "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      placeholder: "例如 https://api.openai.com/v1"
                     },
                     null,
                     512
@@ -4430,7 +4375,7 @@ Task: ${prompt}` }]
                       class: "item-input",
                       type: "text",
                       password: "",
-                      "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $setup.imageConfig.apiKey = $event),
+                      "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $setup.imageConfig.apiKey = $event),
                       placeholder: "sk-..."
                     },
                     null,
@@ -4447,7 +4392,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.imageConfig.model = $event),
+                      "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.imageConfig.model = $event),
                       placeholder: "例如 dall-e-3"
                     },
                     null,
@@ -4464,7 +4409,11 @@ Task: ${prompt}` }]
               vue.Fragment,
               { key: 2 },
               [
-                vue.createElementVNode("view", { class: "setting-tip" }, "填写 Cloudflare Tunnel 公网地址。"),
+                vue.createElementVNode("view", { class: "setting-tip" }, [
+                  vue.createTextVNode(" 填写 Cloudflare Tunnel 的公网地址。"),
+                  vue.createElementVNode("br"),
+                  vue.createTextVNode(" 例如: https://my-comfy.trycloudflare.com ")
+                ]),
                 vue.createElementVNode("view", { class: "setting-item" }, [
                   vue.createElementVNode("view", { class: "item-label" }, "公网地址"),
                   vue.withDirectives(vue.createElementVNode(
@@ -4472,7 +4421,7 @@ Task: ${prompt}` }]
                     {
                       class: "item-input",
                       type: "text",
-                      "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.imageConfig.baseUrl = $event),
+                      "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.imageConfig.baseUrl = $event),
                       placeholder: "https://..."
                     },
                     null,
@@ -4527,7 +4476,7 @@ Task: ${prompt}` }]
       vue.createElementVNode("view", { class: "setting-group" }, [
         vue.createElementVNode("view", {
           class: "group-header",
-          onClick: _cache[9] || (_cache[9] = ($event) => $setup.toggleSection("world"))
+          onClick: _cache[13] || (_cache[13] = ($event) => $setup.toggleSection("world"))
         }, [
           vue.createElementVNode("view", { class: "group-title-wrapper" }, [
             vue.createElementVNode("view", {
@@ -4633,7 +4582,7 @@ Task: ${prompt}` }]
                           vue.withDirectives(vue.createElementVNode("input", {
                             class: "mini-input",
                             "onUpdate:modelValue": ($event) => world.tempLoc = $event,
-                            placeholder: "输入地点"
+                            placeholder: "输入地点 (如: 荒坂塔)"
                           }, null, 8, ["onUpdate:modelValue"]), [
                             [vue.vModelText, world.tempLoc]
                           ]),
@@ -4673,7 +4622,7 @@ Task: ${prompt}` }]
                           vue.withDirectives(vue.createElementVNode("input", {
                             class: "mini-input",
                             "onUpdate:modelValue": ($event) => world.tempJob = $event,
-                            placeholder: "输入职业"
+                            placeholder: "输入职业 (如: 黑客)"
                           }, null, 8, ["onUpdate:modelValue"]), [
                             [vue.vModelText, world.tempJob]
                           ]),
@@ -4714,7 +4663,7 @@ Task: ${prompt}` }]
       vue.createVNode($setup["CustomTabBar"], { current: 1 })
     ]);
   }
-  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/mine/mine.vue"]]);
+  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/mine.vue"]]);
   const _sfc_main$2 = {
     __name: "edit-profile",
     setup(__props, { expose: __expose }) {
@@ -4939,17 +4888,48 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/mine/edit-profile.vue"]]);
+  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/edit-profile.vue"]]);
   const _sfc_main$1 = {
     __name: "gallery",
     setup(__props, { expose: __expose }) {
       __expose();
       const galleryData = vue.ref({});
+      const isSelectMode = vue.ref(false);
+      const selectedSet = vue.ref(/* @__PURE__ */ new Set());
       onShow(() => {
         refreshData();
+        isSelectMode.value = false;
+        selectedSet.value.clear();
       });
       const refreshData = () => {
         galleryData.value = getGalleryData();
+      };
+      const selectedCount = vue.computed(() => selectedSet.value.size);
+      const isSelected = (roleId, index) => {
+        return selectedSet.value.has(`${roleId}-${index}`);
+      };
+      const handleLongPress = (roleId, index) => {
+        if (isSelectMode.value)
+          return;
+        uni.vibrateShort();
+        isSelectMode.value = true;
+        selectedSet.value.add(`${roleId}-${index}`);
+      };
+      const handleItemClick = (roleId, index) => {
+        if (isSelectMode.value) {
+          const key = `${roleId}-${index}`;
+          if (selectedSet.value.has(key)) {
+            selectedSet.value.delete(key);
+          } else {
+            selectedSet.value.add(key);
+          }
+        } else {
+          previewImg(galleryData.value[roleId].images, index);
+        }
+      };
+      const exitSelectMode = () => {
+        isSelectMode.value = false;
+        selectedSet.value.clear();
       };
       const previewImg = (images, index) => {
         const urls = images.map((i) => i.path);
@@ -4958,28 +4938,61 @@ Task: ${prompt}` }]
           current: index
         });
       };
-      const deleteImg = (roleId, index) => {
+      const deleteSelectedImages = () => {
+        if (selectedCount.value === 0)
+          return;
         uni.showModal({
-          title: "删除图片",
-          content: "确定要从本地永久删除这张图片吗？",
+          title: "批量删除",
+          content: `确定要删除这 ${selectedCount.value} 张照片吗？`,
           confirmColor: "#ff4757",
           success: (res) => {
             if (res.confirm) {
-              const success = deleteImage(roleId, index);
-              if (success) {
-                uni.showToast({ title: "已删除", icon: "none" });
-                refreshData();
-              }
+              performBatchDelete();
             }
           }
         });
       };
-      const __returned__ = { galleryData, refreshData, previewImg, deleteImg, ref: vue.ref, get onShow() {
+      const performBatchDelete = () => {
+        uni.showLoading({ title: "删除中..." });
+        try {
+          const deleteMap = {};
+          selectedSet.value.forEach((key) => {
+            const [roleId, idxStr] = key.split("-");
+            const idx = parseInt(idxStr);
+            if (!deleteMap[roleId])
+              deleteMap[roleId] = [];
+            deleteMap[roleId].push(idx);
+          });
+          for (const roleId in deleteMap) {
+            const indices = deleteMap[roleId];
+            indices.sort((a, b) => b - a);
+            const roleData = galleryData.value[roleId];
+            if (roleData && roleData.images) {
+              indices.forEach((idx) => {
+                const path = roleData.images[idx].path;
+                uni.removeSavedFile({
+                  filePath: path,
+                  fail: (e) => formatAppLog("log", "at pages/mine/gallery.vue:161", "物理删除失败(可能文件不在了)", e)
+                });
+                roleData.images.splice(idx, 1);
+              });
+            }
+          }
+          uni.setStorageSync("gallery_save_data", galleryData.value);
+          uni.showToast({ title: "已删除", icon: "success" });
+          exitSelectMode();
+          refreshData();
+        } catch (e) {
+          formatAppLog("error", "at pages/mine/gallery.vue:178", e);
+          uni.showToast({ title: "删除出错", icon: "none" });
+        } finally {
+          uni.hideLoading();
+        }
+      };
+      const __returned__ = { galleryData, isSelectMode, selectedSet, refreshData, selectedCount, isSelected, handleLongPress, handleItemClick, exitSelectMode, previewImg, deleteSelectedImages, performBatchDelete, ref: vue.ref, computed: vue.computed, get onShow() {
         return onShow;
       }, get getGalleryData() {
         return getGalleryData;
-      }, get deleteImage() {
-        return deleteImage;
       } };
       Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
       return __returned__;
@@ -4987,8 +5000,28 @@ Task: ${prompt}` }]
   };
   function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock("view", { class: "gallery-container" }, [
-      Object.keys($setup.galleryData).length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+      $setup.isSelectMode ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 0,
+        class: "nav-header"
+      }, [
+        vue.createElementVNode(
+          "text",
+          { class: "nav-title" },
+          "已选择 " + vue.toDisplayString($setup.selectedCount) + " 张",
+          1
+          /* TEXT */
+        ),
+        vue.createElementVNode("text", {
+          class: "nav-btn",
+          onClick: $setup.exitSelectMode
+        }, "取消")
+      ])) : vue.createCommentVNode("v-if", true),
+      $setup.isSelectMode ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 1,
+        class: "nav-header-placeholder"
+      })) : vue.createCommentVNode("v-if", true),
+      Object.keys($setup.galleryData).length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 2,
         class: "empty-state"
       }, [
         vue.createElementVNode("text", { class: "empty-icon" }, "🖼️"),
@@ -5002,52 +5035,105 @@ Task: ${prompt}` }]
             key: roleId,
             class: "role-section"
           }, [
-            vue.createElementVNode("view", { class: "role-header" }, [
-              vue.createElementVNode(
-                "view",
-                { class: "role-title" },
-                vue.toDisplayString(item.name),
-                1
-                /* TEXT */
-              ),
-              vue.createElementVNode(
-                "view",
-                { class: "role-count" },
-                vue.toDisplayString(item.images.length) + " 张",
-                1
-                /* TEXT */
-              )
-            ]),
-            vue.createElementVNode("view", { class: "grid-layout" }, [
-              (vue.openBlock(true), vue.createElementBlock(
-                vue.Fragment,
-                null,
-                vue.renderList(item.images, (img, index) => {
-                  return vue.openBlock(), vue.createElementBlock("view", {
-                    key: index,
-                    class: "grid-item",
-                    onClick: ($event) => $setup.previewImg(item.images, index),
-                    onLongpress: ($event) => $setup.deleteImg(roleId, index)
-                  }, [
-                    vue.createElementVNode("image", {
-                      src: img.path,
-                      mode: "aspectFill",
-                      class: "grid-img"
-                    }, null, 8, ["src"])
-                  ], 40, ["onClick", "onLongpress"]);
-                }),
-                128
-                /* KEYED_FRAGMENT */
-              ))
-            ])
+            item.images && item.images.length > 0 ? (vue.openBlock(), vue.createElementBlock(
+              vue.Fragment,
+              { key: 0 },
+              [
+                vue.createElementVNode("view", { class: "role-header" }, [
+                  vue.createElementVNode(
+                    "view",
+                    { class: "role-title" },
+                    vue.toDisplayString(item.name),
+                    1
+                    /* TEXT */
+                  ),
+                  vue.createElementVNode(
+                    "view",
+                    { class: "role-count" },
+                    vue.toDisplayString(item.images.length) + " 张",
+                    1
+                    /* TEXT */
+                  )
+                ]),
+                vue.createElementVNode("view", { class: "grid-layout" }, [
+                  (vue.openBlock(true), vue.createElementBlock(
+                    vue.Fragment,
+                    null,
+                    vue.renderList(item.images, (img, index) => {
+                      return vue.openBlock(), vue.createElementBlock("view", {
+                        key: index,
+                        class: "grid-item",
+                        onClick: ($event) => $setup.handleItemClick(roleId, index),
+                        onLongpress: ($event) => $setup.handleLongPress(roleId, index)
+                      }, [
+                        vue.createElementVNode("image", {
+                          src: img.path,
+                          mode: "aspectFill",
+                          class: "grid-img"
+                        }, null, 8, ["src"]),
+                        $setup.isSelectMode ? (vue.openBlock(), vue.createElementBlock("view", {
+                          key: 0,
+                          class: "overlay"
+                        }, [
+                          vue.createElementVNode(
+                            "view",
+                            {
+                              class: vue.normalizeClass(["check-circle", { "checked": $setup.isSelected(roleId, index) }])
+                            },
+                            [
+                              $setup.isSelected(roleId, index) ? (vue.openBlock(), vue.createElementBlock("text", {
+                                key: 0,
+                                class: "check-icon"
+                              }, "✓")) : vue.createCommentVNode("v-if", true)
+                            ],
+                            2
+                            /* CLASS */
+                          )
+                        ])) : vue.createCommentVNode("v-if", true)
+                      ], 40, ["onClick", "onLongpress"]);
+                    }),
+                    128
+                    /* KEYED_FRAGMENT */
+                  ))
+                ])
+              ],
+              64
+              /* STABLE_FRAGMENT */
+            )) : vue.createCommentVNode("v-if", true)
           ]);
         }),
         128
         /* KEYED_FRAGMENT */
-      ))
+      )),
+      $setup.isSelectMode ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 3,
+        style: { "height": "120rpx" }
+      })) : vue.createCommentVNode("v-if", true),
+      vue.createElementVNode(
+        "view",
+        {
+          class: vue.normalizeClass(["bottom-bar", { "show": $setup.isSelectMode }])
+        },
+        [
+          vue.createElementVNode("view", {
+            class: "delete-btn",
+            onClick: $setup.deleteSelectedImages
+          }, [
+            vue.createElementVNode(
+              "text",
+              null,
+              "删除 (" + vue.toDisplayString($setup.selectedCount) + ")",
+              1
+              /* TEXT */
+            )
+          ])
+        ],
+        2
+        /* CLASS */
+      )
     ]);
   }
-  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/pages/mine/gallery.vue"]]);
+  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/gallery.vue"]]);
   __definePage("pages/index/index", PagesIndexIndex);
   __definePage("pages/chat/chat", PagesChatChat);
   __definePage("pages/create/create", PagesCreateCreate);
@@ -5057,15 +5143,61 @@ Task: ${prompt}` }]
   const _sfc_main = {
     onLaunch: function() {
       formatAppLog("log", "at App.vue:4", "App Launch");
+      plus.push.addEventListener("click", function(msg) {
+        if (msg.payload) {
+          try {
+            let data = msg.payload;
+            if (typeof data === "string") {
+              data = JSON.parse(data);
+            }
+            if (data.id) {
+              formatAppLog("log", "at App.vue:19", "🔔 [System] Notification clicked, jumping to chat:", data.id);
+              uni.navigateTo({
+                url: `/pages/chat/chat?id=${data.id}`
+              });
+            }
+          } catch (e) {
+            formatAppLog("error", "at App.vue:26", "Notification payload parse error:", e);
+          }
+        }
+      }, false);
     },
     onShow: function() {
-      formatAppLog("log", "at App.vue:7", "App Show");
+      formatAppLog("log", "at App.vue:33", "App Show");
+      plus.push.clear();
     },
     onHide: function() {
-      formatAppLog("log", "at App.vue:10", "App Hide");
+      formatAppLog("log", "at App.vue:40", "App Hide - Scheduling Notifications for ALL characters");
+      this.scheduleAllNotifications();
+    },
+    methods: {
+      scheduleAllNotifications() {
+        formatAppLog("log", "at App.vue:46", "🔔 [System] Scheduling notifications with staggering...");
+        plus.push.clear();
+        const list = uni.getStorageSync("contact_list") || [];
+        if (list.length === 0)
+          return;
+        const activeRoles = list.filter((r) => r.allowProactive && r.proactiveNotify);
+        activeRoles.forEach((role, index) => {
+          const intervalHours = role.proactiveInterval || 4;
+          const baseDelay = intervalHours * 60 * 60;
+          const staggerMinutes = index * 10;
+          const randomSeconds = Math.floor(Math.random() * 60);
+          const finalDelay = baseDelay + staggerMinutes * 60 + randomSeconds;
+          const content = `${role.name} 发来了一条新消息`;
+          const payload = { id: role.id };
+          const options = {
+            cover: false,
+            delay: finalDelay,
+            title: "AiChat"
+          };
+          plus.push.createMessage(content, JSON.stringify(payload), options);
+          formatAppLog("log", "at App.vue:78", `📅 [Notify] ${role.name}: Scheduled in ${intervalHours}h + ${staggerMinutes}m`);
+        });
+      }
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "C:/Users/ADMINI~1/AppData/Local/Temp/Rar$DRa9800.20369/AiChat/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/Hbuilderx/AiChat/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {

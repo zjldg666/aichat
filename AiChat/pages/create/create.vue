@@ -2,7 +2,6 @@
   <view class="create-container">
     <scroll-view scroll-y class="form-scroll">
       
-      <!-- 1. 基本信息 (保持不变) -->
       <view class="form-section">
         <view class="section-header" @click="toggleSection('basic')">
           <view class="section-title-wrapper">
@@ -18,7 +17,6 @@
             <input class="input" v-model="formData.name" placeholder="例如：林雅婷" />
           </view>
           
-          <!-- 世界观选择 -->
           <view class="sub-group">
               <view class="sub-header" @click="toggleSubSection('charWorld')">
                   <text class="sub-title">🌍 所属世界与身份</text>
@@ -33,6 +31,19 @@
                          </view>
                      </picker>
                   </view>
+				  <view class="textarea-item">
+				                      <text class="label">🌍 世界观法则 (Lore)</text>
+				                      <view class="tips-text" style="font-size:22rpx; color:#999; margin-bottom:10rpx;">
+				                          定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。
+				                      </view>
+				                      <textarea 
+				                          class="textarea" 
+				                          style="height: 180rpx;" 
+				                          v-model="formData.worldLore" 
+				                          placeholder="例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。" 
+				                          maxlength="-1" 
+				                      />
+				                    </view>
                   <template v-if="selectedWorld">
                       <view class="input-item">
                         <text class="label">居住地址</text>
@@ -52,7 +63,6 @@
               </view>
           </view>
 
-          <!-- 详细外貌生成器 -->
           <view class="sub-group">
               <view class="sub-header" @click="toggleSubSection('charLooks')">
                   <text class="sub-title">💃 详细特征 (捏人)</text>
@@ -60,7 +70,6 @@
               </view>
               
               <view v-show="subSections.charLooks" class="sub-content">
-                  <!-- A. 头部与面部 -->
                   <view class="category-block">
                       <text class="block-title">A. 头部与面部</text>
                       <view class="feature-row">
@@ -96,7 +105,6 @@
                       </view>
                   </view>
 
-                  <!-- B. 服装穿搭 -->
                   <view class="category-block">
                       <text class="block-title">B. 服装穿搭</text>
                       <view class="feature-row">
@@ -134,7 +142,6 @@
                       </view>
                   </view>
 
-                  <!-- C. 身体细节 (上身) -->
                   <view class="category-block">
                       <text class="block-title">C. 上身与皮肤</text>
                       <view class="feature-row">
@@ -163,7 +170,6 @@
                       </view>
                   </view>
 
-                  <!-- D. 身体细节 (下身) -->
                   <view class="category-block">
                       <text class="block-title">D. 下身特征</text>
                       <view class="feature-row">
@@ -184,7 +190,6 @@
                       </view>
                   </view>
 
-                  <!-- E. 私密花园 -->
                   <view class="category-block">
                       <text class="block-title" style="color: #ff6b81;">E. 私密花园 (NSFW)</text>
                       <view class="feature-row">
@@ -209,14 +214,12 @@
               </view>
           </view>
 
-          <!-- 最终 Prompt 显示 -->
           <view class="textarea-item">
             <text class="label">固定外貌 Prompt (英文 - 将直接用于生图)</text>
             <textarea class="textarea large" v-model="formData.appearance" placeholder="1girl, cute face..." maxlength="-1" />
             <view class="tip">Chat页面将直接使用此段 Prompt。</view>
           </view>
 
-          <!-- 头像生成 (强制使用 ComfyUI) -->
           <view class="input-item">
             <view class="label-row">
                 <text class="label" style="margin-bottom:0;">头像链接</text>
@@ -231,7 +234,6 @@
         </view>
       </view>
 
-      <!-- 2. 玩家设定 (Player) - 保持不变 -->
       <view class="form-section">
         <view class="section-header" @click="toggleSection('player')">
           <view class="section-title-wrapper">
@@ -312,7 +314,6 @@
         </view>
       </view>
 
-      <!-- 3. 核心人设与剧本 (保持不变) -->
       <view class="form-section">
         <view class="section-header" @click="toggleSection('core')">
           <view class="section-title-wrapper">
@@ -394,21 +395,18 @@
         </view>
       </view>
 
-      <!-- 5. 初始状态 (新增 欲望值) -->
       <view class="form-section">
         <view class="section-header" @click="toggleSection('init')">
           <view class="section-title-wrapper"><view class="section-title">初始状态设置</view></view>
           <text class="arrow-icon">{{ activeSections.init ? '▼' : '▶' }}</text>
         </view>
         <view v-show="activeSections.init" class="section-content">
-             <!-- 好感度 -->
              <view class="input-item">
                   <view class="slider-header"><text class="label">初始好感度 (Affection): {{ formData.initialAffection }}</text></view>
                   <slider :value="formData.initialAffection" min="0" max="100" step="5" show-value @change="(e) => formData.initialAffection = e.detail.value" />
                   <view class="tip">决定了角色对你情感的起点。</view>
              </view>
              
-             <!-- 新增：欲望值 -->
              <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
                   <view class="slider-header">
                       <text class="label" style="color: #e056fd;">初始欲望值 (Lust): {{ formData.initialLust }}</text>
@@ -421,6 +419,27 @@
                   </view>
              </view>
 
+             <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
+                  <view class="label-row">
+                      <text class="label">🤖 允许角色主动找我</text>
+                      <switch :checked="formData.allowProactive" @change="(e) => formData.allowProactive = e.detail.value" color="#007aff"/>
+                  </view>
+                  
+                  <template v-if="formData.allowProactive">
+                      <view class="slider-header" style="margin-top: 20rpx;">
+                          <text class="label">主动间隔: {{ formData.proactiveInterval }} 小时</text>
+                      </view>
+                      <slider :value="formData.proactiveInterval" min="1" max="48" step="1" show-value activeColor="#007aff" @change="(e) => formData.proactiveInterval = e.detail.value" />
+                      <view class="tip">当您离开 App 超过这个时间，角色可能会主动发消息。</view>
+
+                      <view class="label-row" style="margin-top: 20rpx;">
+                          <text class="label">🔔 开启系统弹窗通知</text>
+                          <switch :checked="formData.proactiveNotify" @change="(e) => formData.proactiveNotify = e.detail.value" color="#ff9f43"/>
+                      </view>
+                      <view class="tip" v-if="formData.proactiveNotify">需在手机设置中允许 App 通知权限。</view>
+                  </template>
+             </view>
+
              <view class="input-item" style="margin-top: 20rpx;">
                   <text class="label">连续回复上限</text>
                   <slider :value="formData.maxReplies" min="1" max="5" show-value @change="(e) => formData.maxReplies = e.detail.value" />
@@ -428,7 +447,6 @@
         </view>
       </view>
       
-      <!-- 6. 记忆增强 (保持不变) -->
       <view class="form-section">
           <view class="section-header" @click="toggleSection('memory')">
             <view class="section-title-wrapper"><view class="section-title" style="color: #9b59b6;">记忆增强</view></view>
@@ -458,7 +476,6 @@
           </view>
       </view>
 
-      <!-- 危险操作 (保持不变) -->
       <view class="form-section" v-if="isEditMode">
         <view class="section-header" @click="toggleSection('danger')">
           <view class="section-title" style="color: #ff4757;">危险区域</view>
@@ -482,18 +499,19 @@
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { saveToGallery } from '@/utils/gallery-save.js';
+import { COMFY_WORKFLOW_TEMPLATE } from '@/utils/constants.js';
 
 // =========================================================================
 // 1. 常量定义
 // =========================================================================
 
 const FACE_STYLES_MAP = {
-	'cute': 'cute face, large sparkling eyes, doe eyes, :3, smile, blushing cheeks, innocent expression, small nose, childlike face, round face, big head small body ratio, ahegao with heart pupils',
-	'cool': 'sharp eyes, cold expression, aloof, mature face, narrow eyes, slight smirk, arrogant gaze, long eyelashes, perfect eyebrows, pale skin, intimidating beauty, looking down at viewer',
-	'sexy': 'gentle smile, mature beauty, soft motherly expression, kind eyes, slight crow’s feet, wedding ring, long loose hair, warm gaze, slightly lewd, loving gaze, soft lighting on face',
-	'energetic': 'bright smile, wide open eyes, sparkling eyes, fang, energetic expression, head tilt, peace sign, wink, ahoge, orange-toned makeup, lively pose, dynamic angle',
-	'emotionless': 'expressionless, half-lidded eyes, deadpan, emotionless face, pale skin, blank stare, straight bangs, no smile, monotone, looking blankly at viewer, empty eyes',
-	'yandere': 'yandere, crazed smile, psychotic expression, wide eyes with small pupils, blushing madly, shadowed face, black aura, blood on cheek, holding knife, obsessive gaze, tears of joy'
+	'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
+	'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
+	'sexy': 'mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara',
+	'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
+	'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
+	'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
 };
 
 const FACE_LABELS = {
@@ -523,17 +541,6 @@ const OPTIONS = {
     maleHair: ['黑色短发', '棕色碎发', '寸头', '中分', '狼尾', '遮眼发'],
     maleBody: ['身材匀称', '肌肉结实', '清瘦', '略胖', '高大威猛', '腹肌明显'],
     malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
-};
-
-const COMFY_WORKFLOW_TEMPLATE = {
-    "1": { "inputs": { "ckpt_name": "waiNSFWIllustrious_v140.safetensors" }, "class_type": "CheckpointLoaderSimple", "_meta": { "title": "Checkpoint加载器（简易）" } },
-    "2": { "inputs": { "stop_at_clip_layer": -2, "clip": ["1", 1] }, "class_type": "CLIPSetLastLayer", "_meta": { "title": "设置CLIP最后一层" } },
-    "3": { "inputs": { "text": "", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-    "4": { "inputs": { "text": "multiple views, split screen, 2girls, multiple girls, 2boys, multiple boys, grid, collage, text, signature, watermark, username, blurry, artist name, child, loli, underage, deformed, missing limbs, extra arms, extra legs, fused fingers, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, 3d, realistic, photorealistic", "clip": ["2", 0] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码" } },
-    "5": { "inputs": { "seed": 0, "steps": 30, "cfg": 7, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["36", 0] }, "class_type": "KSampler", "_meta": { "title": "K采样器" } },
-    "9": { "inputs": { "tile_size": 512, "overlap": 64, "temporal_size": 64, "temporal_overlap": 8, "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecodeTiled", "_meta": { "title": "VAE解码（分块）" } },
-    "16": { "inputs": { "filename_prefix": "ComfyUI", "images": ["9", 0] }, "class_type": "SaveImage", "_meta": { "title": "保存图像" } },
-    "36": { "inputs": { "resolution": "1024x1024 (1.0)", "batch_size": 1, "width_override": 0, "height_override": 0 }, "class_type": "SDXLEmptyLatentSizePicker+", "_meta": { "title": "SDXL空Latent尺寸选择" } }
 };
 
 const PERSONALITY_TEMPLATES = {
@@ -600,11 +607,12 @@ const userWorldIndex = ref(-1);
 const formData = ref({
   name: '', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
+  worldLore: '', // 👈 【新增】世界观设定
   
   // 核心外貌数据 (分层存储)
-  appearance: '',      // 完整 Prompt (用于预览和头像)
-  appearanceSafe: '',  // 基础肉体 (Face + Body, NO Clothes, NO NSFW)
-  appearanceNsfw: '',  // 隐私特征 (Nipples, Pubic...)
+  appearance: '',      
+  appearanceSafe: '',  
+  appearanceNsfw: '',  
   
   faceStyle: 'cute', 
   charFeatures: {
@@ -627,6 +635,11 @@ const formData = ref({
   maxReplies: 1, 
   initialAffection: 10,
   initialLust: 0, 
+  
+  // 主动性设置字段
+  allowProactive: false,
+  proactiveInterval: 4,
+  proactiveNotify: false,
   
   historyLimit: 20, enableSummary: false, summaryFrequency: 20, summary: ''
 });
@@ -718,7 +731,6 @@ const generateEnglishPrompt = async () => {
     const f = formData.value.charFeatures;
     const faceTags = FACE_STYLES_MAP[formData.value.faceStyle] || '';
     
-    // 1. 组装 SAFE 部分 (身体、脸、发)
     let safeParts = [];
     if (f.hairColor || f.hairStyle) safeParts.push(`${f.hairColor || ''}${f.hairStyle || ''}`);
     if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
@@ -728,13 +740,11 @@ const generateEnglishPrompt = async () => {
     if (f.hipsLegs) safeParts.push(f.hipsLegs);
     const safeChinese = safeParts.join('，');
 
-    // 2. 组装 NSFW 部分 (隐私部位)
     let nsfwParts = [];
     if (f.nippleColor) nsfwParts.push(`乳头${f.nippleColor}`);
     if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
     const nsfwChinese = nsfwParts.join('，');
 
-    // 3. 组装 Clothing 部分
     let clothesParts = [];
     if (f.clothingStyle) clothesParts.push(`穿着${f.clothingColor || ''}${f.clothingStyle}`);
     else clothesParts.push('穿着日常便服');
@@ -748,7 +758,6 @@ const generateEnglishPrompt = async () => {
     uni.showLoading({ title: '分模块组装中...', mask: true });
 
     try {
-        // 【核心逻辑】：一次性翻译三个部分，用 '|||' 分隔，确保格式化
         const prompt = `Translate these 3 parts from Chinese to Danbooru English tags.
         Separate the parts with "|||".
         
@@ -763,18 +772,14 @@ const generateEnglishPrompt = async () => {
         
         const result = await performLlmRequest(prompt);
         
-        // 拆解结果
         const parts = result.split('|||');
         const safeTags = parts[0] ? parts[0].trim() : '';
         const nsfwTags = parts[1] ? parts[1].trim() : '';
         const clothingTags = parts[2] ? parts[2].trim() : '';
         
-        // 保存分层数据
-        // Safe: 风格 + 身体
         formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
-        // NSFW: 隐私部位
         formData.value.appearanceNsfw = nsfwTags;
-        // 完整版 (用于预览和头像生成): Safe + (如果选了暴露则加NSFW) + Clothing
+        
         if (f.wearStatus === '暴露/H') {
              formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}, ${clothingTags}`;
         } else {
@@ -784,9 +789,8 @@ const generateEnglishPrompt = async () => {
         uni.showToast({ title: 'Prompt 组装完成', icon: 'success' });
     } catch (e) {
         console.error(e);
-        // 降级处理：全塞进去
         formData.value.appearance = `${faceTags}, ${safeChinese}, ${nsfwChinese}, ${clothesChinese}`;
-        formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; // 假数据
+        formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
         uni.showToast({ title: '翻译失败，使用原文', icon: 'none' });
     } finally {
         uni.hideLoading();
@@ -834,6 +838,7 @@ const generateImageFromComfyUI = async (promptText, baseUrl) => {
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: 'GET', sslVerify: false });
             if (historyRes.statusCode === 200 && historyRes.data[promptId]) {
                 const outputs = historyRes.data[promptId].outputs;
+                // 注意：WebP 模式下 ID 可能还是我们设定的 16
                 if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
                     const imgInfo = outputs["16"].images[0];
                     return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
@@ -851,9 +856,7 @@ const generateAvatar = async () => {
       return uni.showToast({ title: '请在[我的]设置中配置 ComfyUI 地址', icon: 'none' });
   }
   uni.showLoading({ title: 'ComfyUI 绘图中...', mask: true });
-  // 头像使用完整的 appearance (包含衣服)
   const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}`;
-  
   try {
       const tempUrl = await generateImageFromComfyUI(avatarPrompt, imgConfig.baseUrl);
       if (tempUrl) {
@@ -898,7 +901,13 @@ onLoad((options) => {
 
 const handleWorldChange = (e) => {
     worldIndex.value = e.detail.value;
-    if (selectedWorld.value) formData.value.worldId = selectedWorld.value.id;
+    if (selectedWorld.value) {
+        formData.value.worldId = selectedWorld.value.id;
+        // 自动填充世界观 (如果预设里有)
+        if (selectedWorld.value.description) {
+            formData.value.worldLore = selectedWorld.value.description;
+        }
+    }
 };
 
 const handleUserWorldChange = (e) => {
@@ -918,7 +927,6 @@ const loadCharacterData = (id) => {
 
     if (target.settings) {
         formData.value.appearance = target.settings.appearance || '';
-        // 【新增】加载分层数据
         formData.value.appearanceSafe = target.settings.appearanceSafe || '';
         formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
         
@@ -938,6 +946,9 @@ const loadCharacterData = (id) => {
         
         if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
         if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+        
+        // 【新增】读取世界观
+        formData.value.worldLore = target.settings.worldLore || '';
     }
     
     if (formData.value.worldId) {
@@ -952,6 +963,10 @@ const loadCharacterData = (id) => {
     formData.value.maxReplies = target.maxReplies || 1;
     formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
     formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
+    
+    formData.value.allowProactive = target.allowProactive || false;
+    formData.value.proactiveInterval = target.proactiveInterval || 4;
+    formData.value.proactiveNotify = target.proactiveNotify || false;
     
     formData.value.historyLimit = target.historyLimit !== undefined ? target.historyLimit : 20;
     formData.value.enableSummary = target.enableSummary || false;
@@ -976,6 +991,10 @@ const saveCharacter = () => {
     initialAffection: formData.value.initialAffection,
     initialLust: formData.value.initialLust, 
     
+    allowProactive: formData.value.allowProactive,
+    proactiveInterval: formData.value.proactiveInterval,
+    proactiveNotify: formData.value.proactiveNotify,
+    
     historyLimit: formData.value.historyLimit, 
     enableSummary: formData.value.enableSummary,
     summaryFrequency: formData.value.summaryFrequency,
@@ -988,7 +1007,6 @@ const saveCharacter = () => {
 
     settings: {
         appearance: formData.value.appearance, 
-        // 【关键保存】：保存 Safe 和 NSFW 分层数据
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         
@@ -1011,6 +1029,9 @@ const saveCharacter = () => {
         exampleNormal: formData.value.exampleNormal,
         exampleFlirt: formData.value.exampleFlirt,
         exampleSex: formData.value.exampleSex,
+        
+        // 【新增】保存世界观
+        worldLore: formData.value.worldLore,
     },
     
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
