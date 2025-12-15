@@ -362,6 +362,13 @@
                <text class="label">⚡ 雷点 (Dislikes)</text>
                <input class="input" v-model="formData.dislikes" placeholder="例：吃辣，被无视，邋遢" />
            </view>
+		   <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
+		      <view style="text-align: center;">
+		          <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ 没灵感？交给 AI</view>
+		          <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">填写完「背景故事」和「喜好」后，点击下方按钮，AI 自动生成 5 阶段演化逻辑。</view>
+		          <button @click="autoGenerateFiveStages" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 一键生成行为与剧本</button>
+		      </view>
+		   </view>
 
            <view class="stage-container">
                <text class="label" style="margin-bottom: 20rpx; display:block;">🎭 5阶段好感度反应 (更细腻的演化)</text>
@@ -693,10 +700,10 @@ const isEditMode = ref(false);
 const targetId = ref(null);
 const currentTemplateKey = ref('');
 
-const activeSections = ref({ basic: true, player: false, core: true, personality: true, init: false, memory: true, danger: false });
+const activeSections = ref({ basic: false, player: false, core: false, personality: false, init: false, memory: false, danger: false });
 const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 
-const subSections = ref({ charWorld: false, charLooks: true, userWorld: false, userLooks: true });
+const subSections = ref({ charWorld: false, charLooks: false, userWorld: false, userLooks: false });
 const toggleSubSection = (key) => { subSections.value[key] = !subSections.value[key]; };
 
 const worldList = ref([]);
@@ -775,7 +782,9 @@ const getCurrentLlmConfig = () => {
     return null;
 };
 
-const performLlmRequest = async (prompt) => {
+// ↓↓↓↓↓↓↓↓↓ 复制下面的代码，替换原有的 performLlmRequest 函数 ↓↓↓↓↓↓↓↓↓
+
+const performLlmRequest = async (prompt, customSystem = null) => {
     const chatConfig = getCurrentLlmConfig();
     if (!chatConfig || !chatConfig.apiKey) {
         throw new Error('未配置 API Key');
@@ -789,12 +798,15 @@ const performLlmRequest = async (prompt) => {
     let headers = { 'Content-Type': 'application/json' };
     let requestData = {};
 
+    // 默认是翻译模式，如果传入了自定义 System Prompt 则使用自定义的
+    const systemInstruction = customSystem || "You are a prompt translator. Output only English tags.";
+
     if (chatConfig.provider === 'gemini') {
         const cleanBase = 'https://generativelanguage.googleapis.com'; 
         targetUrl = `${cleanBase}/v1beta/models/${chatConfig.model}:generateContent?key=${chatConfig.apiKey}`;
         requestData = {
             contents: [{
-                parts: [{ text: `You are a prompt translator. Output only English tags. \nTask: ${prompt}` }]
+                parts: [{ text: `${systemInstruction}\n\nTask: ${prompt}` }]
             }]
         };
     } else {
@@ -803,10 +815,11 @@ const performLlmRequest = async (prompt) => {
         requestData = {
             model: chatConfig.model,
             messages: [
-                { role: "system", content: "You are a prompt translator. Output only English tags." },
+                { role: "system", content: systemInstruction },
                 { role: "user", content: prompt }
             ],
-            max_tokens: 300,
+            // 如果是写人设，给多一点 token，翻译则少一点
+            max_tokens: customSystem ? 1000 : 300,
             stream: false
         };
     }
@@ -1104,6 +1117,77 @@ const loadCharacterData = (id) => {
     formData.value.summaryFrequency = target.summaryFrequency || 20;
     formData.value.summary = target.summary || '';
   }
+};
+
+// ↓↓↓↓↓↓↓↓↓ 复制下面的代码，粘贴在 const saveCharacter 之前 ↓↓↓↓↓↓↓↓↓
+
+// ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 autoGenerateFiveStages 函数 (万能通用版) ↓↓↓↓↓↓↓↓↓
+
+const autoGenerateFiveStages = async () => {
+    if (!formData.value.bio) {
+        return uni.showToast({ title: '请先填写「背景故事」', icon: 'none' });
+    }
+
+    uni.showLoading({ title: 'AI正在解析人设逻辑...', mask: true });
+
+    // 【关键修改】System Prompt：强调“无预设模板”，要求 AI 必须分析背景故事中的“人际关系动态”
+    // 无论是仇人、陌生人、主仆还是旧情人，都由 Bio 决定，绝不强制冷淡或热情。
+    const sysPrompt = `你是一个即兴角色扮演专家。请阅读用户的【背景故事】和【性格】，分析该角色与玩家的"初始关系"及"情感发展逻辑"。
+    Output JSON only. 严禁Markdown。
+    逻辑准则：
+    1. 抛弃一切通用模板。
+    2. 如果设定是仇人，Stage1就是敌对；如果是宠物，Stage1就是粘人；如果是路人，Stage1就是客气。
+    3. Stage5 必须是该角色人设逻辑下的"最高情感形态"（比如病娇是监禁，傲娇是坦诚，奴隶是献身）。`;
+    
+    // 【关键修改】User Prompt：引导 AI 覆盖千奇百怪的情况
+    const userPrompt = `
+    请根据以下设定，推演 5 个阶段的行为逻辑。
+
+    【角色】${formData.value.name || '未命名'}
+    【背景】${formData.value.bio}
+    【性格/口癖】${formData.value.speakingStyle || '未设定'}
+    【喜好/雷点】${formData.value.likes || '未设定'} / ${formData.value.dislikes || '未设定'}
+
+    【生成要求】
+    请生成 JSON 数据，key 为 stage1 到 stage5。
+    - stage1 (初始状态): 基于背景故事，角色刚见到玩家时的自然反应（不用管好感度数值，只看人设逻辑）。
+    - stage2 (熟悉/建立关系): 双方产生交集后的态度变化。
+    - stage3 (好感/转折): 情感质变的转折点。
+    - stage4 (深爱/确立): 确立深厚羁绊。
+    - stage5 (极致/灵魂): 该角色能达到的最高情感强度 (可以是疯狂的、神圣的或肉欲的，取决于人设)。
+
+    【JSON格式（严格遵守）】
+    {
+        "stage1": { "logic": "...", "dialogue": "..." },
+        "stage2": { "logic": "...", "dialogue": "..." },
+        "stage3": { "logic": "...", "dialogue": "..." },
+        "stage4": { "logic": "...", "dialogue": "..." },
+        "stage5": { "logic": "...", "dialogue": "..." }
+    }
+    `;
+
+    try {
+        // 调用 LLM (确保你已经更新了 performLlmRequest 以支持第二个参数)
+        let result = await performLlmRequest(userPrompt, sysPrompt);
+        
+        // 清洗数据
+        result = result.replace(/```json/g, '').replace(/```/g, '').trim();
+        const data = JSON.parse(result);
+
+        // 自动填入
+        if(data.stage1) { formData.value.personalityNormal = data.stage1.logic; formData.value.exampleNormal = data.stage1.dialogue; }
+        if(data.stage2) { formData.value.personalityFriend = data.stage2.logic; formData.value.exampleFriend = data.stage2.dialogue; }
+        if(data.stage3) { formData.value.personalityFlirt = data.stage3.logic; formData.value.exampleFlirt = data.stage3.dialogue; }
+        if(data.stage4) { formData.value.personalityLover = data.stage4.logic; formData.value.exampleLover = data.stage4.dialogue; }
+        if(data.stage5) { formData.value.personalitySex = data.stage5.logic; formData.value.exampleSex = data.stage5.dialogue; }
+
+        uni.showToast({ title: '人设推演完成！', icon: 'success' });
+    } catch (e) {
+        console.error(e);
+        uni.showModal({ title: '生成失败', content: 'AI返回数据异常，请重试。\n' + e.message, showCancel: false });
+    } finally {
+        uni.hideLoading();
+    }
 };
 
 const saveCharacter = () => {

@@ -458,154 +458,135 @@
         suggestionList.value = []; 
     };
 
-    const getReplySuggestions = async () => {
-            if (isLoading.value) return;
-            
-            const config = getCurrentLlmConfig();
-            if (!config || !config.apiKey) {
-                uni.showToast({ title: '请先配置API', icon: 'none' });
-                return;
-            }
+    // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 getReplySuggestions 函数 ↓↓↓↓↓↓↓↓↓
     
-            // 提示文案改成“生成中”，给用户更快的心理预期
-            uni.showLoading({ title: '军师生成中...', mask: true });
-    
-            // 1. 获取上下文 (保持最近 10 条，足够了)
-            const recentContext = messageList.value
-                .slice(-10)
-                .filter(m => !m.isSystem && m.type !== 'image')
-                .map(m => `${m.role === 'user' ? 'Me' : 'Her'}: ${m.content}`)
-                .join('\n');
-    
-            // 2. 准备基础数据
-            const score = currentAffection.value;
-            const lust = currentLust.value;
-            const role = currentRole.value || {};
-            const s = role.settings || {};
-            
-            // 3. 简化版身份注入 (只取核心，减少 Prompt 长度，提高速度)
-            const herJob = role.occupation || s.occupation || "Unknown Job";
-            const herLoc = role.location || s.location || "Unknown Loc";
-            const myJob = s.userOccupation || "Unknown Job";
-            const myLoc = s.userLocation || "Unknown Loc";
-            const myName = userName.value || 'Me';
-    
-            // 4. 简单的关系判断 (直接在 Prompt 里通过字符串拼接，不让 AI 分析)
-            const scenarioDesc = interactionMode.value === 'phone' ? 'Phone' : 'Face-to-Face';
-            
-            // ============================================================
-            // 📊 军师日志 V5.0 (极速版)
-            // ============================================================
-            // 这里的 console.log 是给你看的，不会影响 AI 速度
-            console.log('⚡ 军师启动: 身份/位置注入完毕'); 
-            
-            // 5. 构建 Prompt (核心优化：去除思维链要求，强制 JSON)
-            const coachPrompt = `
-            [System: Text Completion]
-            You are a dating assistant.
-            
-            **Profiles**:
-            - HER: ${chatName.value} (${herJob}) @ ${herLoc}.
-            - ME: ${myName} (${myJob}) @ ${myLoc}.
-            - Relation: Affection ${score}/100.
-            
-            **Context**:
-            ${recentContext}
-            
-            **Task**:
-            Based on the profiles (e.g., neighbors, colleagues), provide 3 short, natural responses for "Me" in Simplified Chinese.
-            
-            **Output Rules (CRITICAL)**:
-            1. Return ONLY a raw JSON Array. 
-            2. NO markdown formatting (no \`\`\`json). 
-            3. NO explanations. 
-            4. Start immediately with '['.
-            
-            **Example**:
-            ["没问题，一会儿见。", "真的吗？太好了！", "晚安。"]
-            `;
-    
-            try {
-                let baseUrl = config.baseUrl || '';
-                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+        const getReplySuggestions = async () => {
+                if (isLoading.value) return;
                 
-                let requestBody = {};
-                let targetUrl = '';
-                let header = { 'Content-Type': 'application/json' };
-    
-                // Gemini 配置
-                if (config.provider === 'gemini') {
-                    const cleanBase = 'https://generativelanguage.googleapis.com';
-                    targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                    requestBody = { 
-                        contents: [{ parts: [{ text: coachPrompt }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    };
-                } else {
-                    // OpenAI 配置
-                    targetUrl = `${baseUrl}/chat/completions`;
-                    header['Authorization'] = `Bearer ${config.apiKey}`;
-                    requestBody = {
-                        model: config.model,
-                        messages: [{ role: "user", content: coachPrompt }],
-                        max_tokens: 200, // 进一步限制 Token，强制 AI 简短
-                        temperature: 0.7,
-                        // 尝试移除 json_object 强制模式，有时对于某些非官方 API，强制模式反而会变慢或报错
-                        // 只要 Prompt 足够强硬，通常没问题
-                    };
+                const config = getCurrentLlmConfig();
+                if (!config || !config.apiKey) {
+                    uni.showToast({ title: '请先配置API', icon: 'none' });
+                    return;
                 }
-    
-                const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+        
+                uni.showLoading({ title: '军师正在分析局势...', mask: true });
+        
+                // 【关键修改 1】上下文获取逻辑：不再无脑过滤 System 消息
+                // 必须让军师看到 "【系统】一夜过去了..." 这种提示，它才知道时间变了
+                const recentContext = messageList.value
+                    .slice(-10) // 取最近 10 条
+                    .filter(m => m.type !== 'image' && (!m.isSystem || m.content.includes('系统') || m.content.includes('过去了'))) 
+                    .map(m => {
+                        if (m.isSystem) return `[System Event]: ${m.content}`; // 标记系统事件
+                        return `${m.role === 'user' ? 'Me' : 'Her'}: ${m.content}`;
+                    })
+                    .join('\n');
+        
+                // 2. 准备基础数据
+                const score = currentAffection.value;
+                const role = currentRole.value || {};
+                const s = role.settings || {};
                 
-                let rawContent = "";
-                if (config.provider === 'gemini') {
-                    rawContent = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                } else {
-                    let data = res.data;
-                    if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                    rawContent = data?.choices?.[0]?.message?.content;
-                }
-    
-                if (rawContent) {
-                    let suggestions = [];
-                    // 极简解析逻辑
-                    try {
-                        // 移除可能存在的 Markdown 和空格
-                        const cleanStr = rawContent.replace(/```json|```/g, '').trim();
-                        // 尝试直接解析
-                        if (cleanStr.startsWith('[')) {
-                             suggestions = JSON.parse(cleanStr);
-                        } else {
-                             // 如果不是 [ 开头，说明 AI 还是废话了，用正则兜底
-                             throw new Error('Not JSON array');
-                        }
-                    } catch (e) {
-                        console.warn('⚡ 正则急救介入');
-                        const regex = /"([^"]*?)"/g;
-                        let match;
-                        while ((match = regex.exec(rawContent)) !== null) {
-                            if (match[1].length > 1 && !match[1].includes('Example')) suggestions.push(match[1]);
-                        }
-                    }
+                const herJob = role.occupation || s.occupation || "Unknown";
+                const myJob = s.userOccupation || "Unknown";
+                const myName = userName.value || 'Me';
+        
+                // 【关键修改 2】Prompt 注入当前时间和状态
+                // 明确告诉 AI 现在几点了，在哪里
+                const coachPrompt = `
+                [System: Text Completion]
+                You are a dating assistant.
+                
+                **Current Status**:
+                - Time: ${formattedTime.value}  (CRITICAL: Notice the time change!)
+                - Mode: ${interactionMode.value === 'phone' ? 'Phone Chat' : 'Face-to-Face'} @ ${currentLocation.value}
+                
+                **Profiles**:
+                - HER: ${chatName.value} (${herJob}).
+                - ME: ${myName} (${myJob}).
+                - Relation: Affection ${score}/100.
+                
+                **Context (Recent 10 messages)**:
+                ${recentContext}
+                
+                **Task**:
+                Provide 3 short, natural, Simplified Chinese responses for "Me" to continue the conversation.
+                If [System Event] indicates time passed (e.g., Morning arrived), say "Good morning".
+                
+                **Output Rules**:
+                1. Return ONLY a raw JSON Array. 
+                2. NO markdown.
+                3. Example: ["早安，昨晚睡得好吗？", "起床了吗？", "新的一天开始了。"]
+                `;
+        
+                try {
+                    let baseUrl = config.baseUrl || '';
+                    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
                     
-                    // 长度截取
-                    if (suggestions.length > 0) {
-                        suggestionList.value = suggestions.slice(0, 3);
+                    let requestBody = {};
+                    let targetUrl = '';
+                    let header = { 'Content-Type': 'application/json' };
+        
+                    if (config.provider === 'gemini') {
+                        const cleanBase = 'https://generativelanguage.googleapis.com';
+                        targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                        requestBody = { 
+                            contents: [{ parts: [{ text: coachPrompt }] }],
+                            generationConfig: { responseMimeType: "application/json" }
+                        };
                     } else {
-                        uni.showToast({ title: '军师休息中', icon: 'none' });
+                        targetUrl = `${baseUrl}/chat/completions`;
+                        header['Authorization'] = `Bearer ${config.apiKey}`;
+                        requestBody = {
+                            model: config.model,
+                            messages: [{ role: "user", content: coachPrompt }],
+                            max_tokens: 200,
+                            temperature: 0.7,
+                        };
                     }
-                } else {
-                    uni.showToast({ title: '无建议', icon: 'none' });
+        
+                    const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+                    
+                    let rawContent = "";
+                    if (config.provider === 'gemini') {
+                        rawContent = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    } else {
+                        let data = res.data;
+                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                        rawContent = data?.choices?.[0]?.message?.content;
+                    }
+        
+                    if (rawContent) {
+                        let suggestions = [];
+                        try {
+                            const cleanStr = rawContent.replace(/```json|```/g, '').trim();
+                            if (cleanStr.startsWith('[')) {
+                                 suggestions = JSON.parse(cleanStr);
+                            } else {
+                                 throw new Error('Not JSON');
+                            }
+                        } catch (e) {
+                            const regex = /"([^"]*?)"/g;
+                            let match;
+                            while ((match = regex.exec(rawContent)) !== null) {
+                                if (match[1].length > 1 && !match[1].includes('Example')) suggestions.push(match[1]);
+                            }
+                        }
+                        
+                        if (suggestions.length > 0) {
+                            suggestionList.value = suggestions.slice(0, 3);
+                        } else {
+                            uni.showToast({ title: '军师暂无计策', icon: 'none' });
+                        }
+                    }
+                } catch (e) {
+                    console.error(e);
+                    uni.showToast({ title: '网络波动', icon: 'none' });
+                } finally {
+                    uni.hideLoading();
                 }
-                
-            } catch (e) {
-                console.error(e);
-                uni.showToast({ title: '网络波动', icon: 'none' });
-            } finally {
-                uni.hideLoading();
-            }
-        };
-		
+            };
+			
     const performBackgroundSummary = async () => {
             const config = getCurrentLlmConfig();
             if (!config || !config.apiKey) return;
@@ -878,460 +859,509 @@
 
 
             // =========================================================================
-            // 发送消息核心 (Token监控 + 世界观 + 5阶段人设 + 身份注入)
-            // =========================================================================
-            const sendMessage = async (isContinue = false, systemOverride = '') => {
-                // 1. 基础校验
-                if (!isContinue && !inputText.value.trim() && !systemOverride) return;
-                if (isLoading.value) return;
+                        // 发送消息核心 (Token监控 + 世界观 + 5阶段人设 + 身份注入)
+                        // =========================================================================
+                        const sendMessage = async (isContinue = false, systemOverride = '') => {
+                            // 1. 基础校验
+                            if (!isContinue && !inputText.value.trim() && !systemOverride) return;
+                            if (isLoading.value) return;
+                            
+                            const config = getCurrentLlmConfig();
+                            if (!config || !config.apiKey) {
+                                uni.showToast({ title: '请配置模型', icon: 'none' });
+                                return;
+                            }
+                            
+                            // 2. 消息上屏
+                            if (!isContinue) {
+                                if (inputText.value.trim()) {
+                                     console.log('🗣️ [Chat] User sent:', inputText.value);
+                                     messageList.value.push({ role: 'user', content: inputText.value });
+                                     inputText.value = '';
+                                } else if (systemOverride && systemOverride.includes('SHUTTER')) {
+                                     messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
+                                }
+                            }
+                            scrollToBottom();
+                            isLoading.value = true;
+                            saveHistory();
+                            
+                            // 3. 准备数据
+                            const score = currentAffection.value;
+                            const lust = currentLust.value;
+                            const role = currentRole.value || {};
+                            const s = role.settings || {};
+                            
+                            // 3.1 获取玩家档案 (补全 User Profile)
+                            const appUser = uni.getStorageSync('app_user_info') || {};
+                            const myJob = s.userOccupation || appUser.occupation || "未知职业";
+                            const myLoc = s.userLocation || appUser.location || "未知地点";
+                            const myLook = s.userAppearance || appUser.appearance || "普通外貌";
+                            const myName = userName.value || appUser.name || 'User';
+                    
+                            // 3.2 获取角色档案 (补全 Char Profile)
+                            const charJob = role.occupation || s.occupation || "未知职业";
+                            const charLoc = role.location || s.location || "未知地点";
+                            const charPersonality = s.personality || "未知性格";
+                            
+                            // 3.3 计算当前性格阶段 (5阶段升级版)
+                            let personalityLabel = "";
+                            let activePersonality = "";
+                            let activeExample = "";
+                            
+                            // 0-20, 21-40, 41-60, 61-80, 81+
+                            if (score <= 20) {
+                                personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
+                                activePersonality = s.personalityNormal || "高冷，保持距离。";
+                                activeExample = s.exampleNormal || "";
+                            } else if (score <= 40) {
+                                personalityLabel = "阶段2: 熟人/朋友 (Friend)";
+                                // 如果没填 stage2，回退到 stage1
+                                activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
+                                activeExample = s.exampleFriend || s.exampleNormal || "";
+                            } else if (score <= 60) {
+                                personalityLabel = "阶段3: 暧昧/心动 (Crush)";
+                                activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
+                                activeExample = s.exampleFlirt || "";
+                            } else if (score <= 80) {
+                                personalityLabel = "阶段4: 热恋/深爱 (Lover)";
+                                // 如果没填 stage4，回退到 stage3
+                                activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
+                                activeExample = s.exampleLover || s.exampleFlirt || "";
+                            } else {
+                                personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
+                                activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
+                                activeExample = s.exampleSex || "";
+                            }
+                    
+                            activePersonality = `[当前阶段: ${personalityLabel}]\n行为逻辑: ${activePersonality}`;
+                    
+                            // 3.4 欲望与特殊规则 (增强版)
+                            let activeRules = "";
+                            // 注入 XP 和雷点，让 AI 知道什么能加 Lust
+                            activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。\n`;
+                            activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。\n`;
+            
+                            if (lust > 80 && score < 60) {
+                                activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**\n虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
+                            } else if (lust < 30) {
+                                activeRules += `当前欲望较低(${lust})。面对调情会感到害羞、迟钝或不知所措，需要更多前戏或氛围铺垫才能提升 Lust。`;
+                            } else {
+                                activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
+                            }
+                    
+                            let nsfwInstruction = "";
+                            const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
+                            if (isIntimate) nsfwInstruction = NSFW_STYLE; 
+                    
+                            const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
+                            
+                            // 4. 构建 Prompt
+                            let prompt = CORE_INSTRUCTION + 
+                                         PERSONALITY_TEMPLATE + 
+                                         AFFECTION_LOGIC + 
+                                         nsfwInstruction + 
+                                         hiddenInstruction;
+                            
+                            const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
+                            const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
+                    
+                            prompt = prompt
+                                // --- 世界观与基础 ---
+                                .replace(/{{world_lore}}/g, worldLoreData) 
+                                .replace(/{{current_time}}/g, formattedTime.value)
+                                .replace(/{{current_location}}/g, currentLocation.value)
+                                .replace(/{{current_activity}}/g, currentActivity.value)
+                                .replace(/{{current_clothes}}/g, currentClothing.value)
+                                .replace(/{{interaction_mode}}/g, interactionMode.value === 'phone' ? 'Phone (手机通讯)' : 'Face (面对面)')
+                                
+                                // --- 角色信息 ---
+                                .replace(/{{char}}/g, chatName.value)
+                                .replace(/{{occupation}}/g, charJob)
+                                .replace(/{{char_location}}/g, charLoc)
+                                .replace(/{{appearance_nsfw}}/g, nsfwData)
+                                .replace(/{{appearance}}/g, s.appearance || "anime character")
+                                .replace(/{{memory}}/g, s.bio || "无")
+                                // 【新增字段注入】
+                                .replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话")
+                                .replace(/{{likes}}/g, s.likes || "未知")
+                                .replace(/{{dislikes}}/g, s.dislikes || "未知")
+                                
+                                // --- 玩家信息 ---
+                                .replace(/{{user}}/g, myName)
+                                .replace(/{{user_occupation}}/g, myJob)
+                                .replace(/{{user_location}}/g, myLoc)
+                                .replace(/{{user_appearance}}/g, myLook)
+                                
+                                // --- 性格与逻辑 ---
+                                .replace(/{{personality_label}}/g, personalityLabel)
+                                .replace(/{{personality_logic}}/g, activePersonality) 
+                                .replace(/{{example}}/g, activeExample)
+                                .replace(/{{current_affection}}/g, currentAffection.value)
+                                .replace(/{{current_lust}}/g, currentLust.value)
+                                .replace(/{{affection_rules}}/g, activeRules); 
+                    
+                            // 5. 截取历史记录
+                            const historyLimit = charHistoryLimit.value; 
+                            let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
+                            if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
+                            
+                            console.log('📝 [LLM] System Prompt (Snippet):', prompt.substring(0, 500) + '...');
+                            
+                            // 6. 自动驾驶指令 (修正版：兼容思维链)
+                            const continuePrompt = `
+                            [System Command: AUTO-DRIVE MODE]
+                            **Situation**: The user is silent/waiting. You need to drive the conversation forward.
+                            **Decision Logic**:
+                            1. **IF your last message was incomplete**: Finish it.
+                            2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
+                            **Output Requirement**: 
+                            You MUST start with [Thought: ...], then output the content.
+                            `;
+                            
+                            // 7. 发起网络请求
+                            let targetUrl = '';
+                            let requestBody = {};
+                            let baseUrl = config.baseUrl || '';
+                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                    
+                            if (config.provider === 'gemini') {
+                                const cleanBase = 'https://generativelanguage.googleapis.com';
+                                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                                
+                                const geminiContents = contextMessages.map(item => {
+                                    const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
+                                    return { role: item.role === 'user' ? 'user' : 'model', parts: [{ text: cleanText }] };
+                                }).filter(item => item.parts[0].text.trim() !== '');
+                                
+                                if (systemOverride) geminiContents.push({ role: 'user', parts: [{ text: systemOverride }] });
+                                else if (isContinue) geminiContents.push({ role: 'user', parts: [{ text: continuePrompt }] });
+                                
+                                requestBody = {
+                                    contents: geminiContents,
+                                    system_instruction: { parts: { text: prompt } },
+                                    safetySettings: [
+                                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                                    ]
+                                };
+                            } else {
+                                targetUrl = `${baseUrl}/chat/completions`;
+                                
+                                // =========================================================
+                                // 修复的核心点：先定义数组，再使用 push
+                                // =========================================================
+                                const openAIMessages = [{ role: "system", content: prompt }];
+                                
+                                contextMessages.forEach(item => {
+                                    const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
+                                    if (cleanText.trim()) openAIMessages.push({ role: item.role === 'model' ? 'assistant' : 'user', content: cleanText });
+                                });
+                                
+                                if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
+                                else if (isContinue) openAIMessages.push({ role: 'user', content: continuePrompt });
+                                
+                                // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换 sendMessage 函数末尾的【强制防呆补丁】 ↓↓↓↓↓↓↓↓↓
+                                
+                                // 【强制防呆补丁】必须放在最后，且必须用 user 身份
+                                openAIMessages.push({
+                                    role: 'user',
+                                    content: `[SYSTEM ENFORCEMENT] Stop. Before you reply, you MUST execute the [Thought] protocol.
+                                Step 1: Write [Thought: (状态: 好感 ${score} | 欲望 ${lust}) ... analysis ...].
+                                Step 2: Write your response.
+                                If you skip Step 1, the system will error.`
+                                });
+                                
+                                // ↑↑↑↑↑↑↑↑↑ 替换结束 ↑↑↑↑↑↑↑↑↑
+                                
+                                requestBody = {
+                                    model: config.model,
+                                    messages: openAIMessages,
+                                    max_tokens: 1500,
+                                    stream: false
+                                };
+                            }
+                            
+                            console.log('📡 [LLM] Requesting:', targetUrl);
+                            
+                            try {
+                                const header = { 'Content-Type': 'application/json' };
+                                if (config.provider !== 'gemini') header['Authorization'] = `Bearer ${config.apiKey}`;
+                                
+                                const res = await uni.request({
+                                    url: targetUrl, method: 'POST', header: header, data: requestBody, sslVerify: false
+                                });
+                    
+                                if (res.statusCode === 200) {
+                                    let rawText = "";
+                                    let tokenLog = "";
+                    
+                                    if (config.provider === 'gemini') {
+                                        rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                                        const usage = res.data?.usageMetadata;
+                                        if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
+                                    } else {
+                                        let data = res.data;
+                                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                                        rawText = data?.choices?.[0]?.message?.content || "";
+                                        const usage = data?.usage;
+                                        if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
+                                    }
+                    
+                                    if (tokenLog) console.log(tokenLog);
+                    
+                                    if (rawText) {
+                                        console.log('📥 [LLM] Raw Response:', rawText.substring(0, 100) + (rawText.length > 100 ? '...' : ''));
+                                        processAIResponse(rawText);
+                                    } else {
+                                        console.warn('⚠️ [LLM] Empty response or Blocked');
+                                        const blockReason = res.data?.promptFeedback?.blockReason;
+                                        if (blockReason) uni.showModal({ title: 'AI 拒绝', content: blockReason, showCancel: false });
+                                        else uni.showToast({ title: '无内容响应', icon: 'none' });
+                                    }
+                                } else {
+                                    console.error("❌ [LLM] API Error", res);
+                                    if (res.statusCode === 429) uni.showToast({ title: '请求太快 (429)', icon: 'none' });
+                                    else uni.showToast({ title: `API错误 ${res.statusCode}`, icon: 'none' });
+                                }
+                            } catch (e) {
+                                console.error('❌ [Network] Request failed:', e);
+                                uni.showToast({ title: '网络错误', icon: 'none' });
+                            } finally {
+                                isLoading.value = false;
+                                scrollToBottom();
+                            }
+                        };
+    
+    // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 processAIResponse 函数 ↓↓↓↓↓↓↓↓↓
+    
+        const processAIResponse = (rawText) => {
+                let displayText = rawText.trim();
+        
+                // =================================================================
+                // 🧠 1. 思维链处理 (智能嵌套解析版)
+                // =================================================================
+                // 解决 [Thought: [状态:...] ...] 嵌套括号导致正则截断的问题
+                const thoughtStart = displayText.indexOf('[Thought');
                 
-                const config = getCurrentLlmConfig();
-                if (!config || !config.apiKey) {
-                    uni.showToast({ title: '请配置模型', icon: 'none' });
-                    return;
-                }
-                
-                // 2. 消息上屏
-                if (!isContinue) {
-                    if (inputText.value.trim()) {
-                         console.log('🗣️ [Chat] User sent:', inputText.value);
-                         messageList.value.push({ role: 'user', content: inputText.value });
-                         inputText.value = '';
-                    } else if (systemOverride && systemOverride.includes('SHUTTER')) {
-                         messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
+                if (thoughtStart !== -1) {
+                    let bracketCount = 0;
+                    let thoughtEnd = -1;
+                    
+                    // 从 [Thought 开始遍历，寻找对应的闭合 ]
+                    for (let i = thoughtStart; i < displayText.length; i++) {
+                        if (displayText[i] === '[') bracketCount++;
+                        else if (displayText[i] === ']') bracketCount--;
+                        
+                        // 当计数器归零时，说明找到了最外层的闭合括号
+                        if (bracketCount === 0) {
+                            thoughtEnd = i;
+                            break;
+                        }
+                    }
+                    
+                    if (thoughtEnd !== -1) {
+                        // 提取完整的思维链
+                        const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
+                        // 提取内容用于日志 (去掉 [Thought: 和最后的 ])
+                        const logContent = fullThought.replace(/^\[Thought:?/, '').slice(0, -1).trim();
+                        
+                        console.log(`🧠 [AI心声]: ${logContent}`);
+                        
+                        // 从正文中彻底移除思维链
+                        displayText = displayText.replace(fullThought, '').trim();
                     }
                 }
-                scrollToBottom();
-                isLoading.value = true;
+        
+                // =================================================================
+                // 🚨 2. 指令清洗
+                // =================================================================
+                
+                // 修复 AI 自创的 LINTYAHOT_IMG
+                displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
+                
+                // 修复圆括号包裹指令
+                displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, '[$1:$2]');
+        
+                // 修复半括号
+                displayText = displayText.replace(/\(IMG:/gi, '[IMG:');
+                displayText = displayText.replace(/\(CLOTHES:/gi, '[CLOTHES:');
+        
+                // 修复中文括号
+                displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
+                
+                // 去除残留逻辑标记
+                displayText = displayText.replace(/\[Logic[\s\S]*?\]/gi, '').trim();
+        
+                // =================================================================
+                // 📥 3. 状态提取
+                // =================================================================
+        
+                let systemMsgs = [];
+        
+                // [AFF] 好感度
+                const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
+                let match;
+                while ((match = affRegex.exec(displayText)) !== null) {
+                    let change = parseInt(match[1], 10);
+                    if (!isNaN(change)) {
+                        if (change > 5) change = 5; 
+                        console.log(`❤️ [Status] Affection change: ${change}`);
+                        saveCharacterState(currentAffection.value + change);
+                        if (change !== 0) uni.showToast({ title: `好感 ${change > 0 ? '+' : ''}${change}`, icon: 'none' });
+                    }
+                }
+                displayText = displayText.replace(affRegex, '');
+        
+                // [LUST] 欲望值
+                const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
+                let lustMatch;
+                while ((lustMatch = lustRegex.exec(displayText)) !== null) {
+                    let change = parseInt(lustMatch[1], 10);
+                    if (!isNaN(change)) {
+                        console.log(`🔥 [Status] Lust change: ${change}`);
+                        saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
+                    }
+                }
+                displayText = displayText.replace(lustRegex, '');
+        
+                // [MOOD] 情绪
+                const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
+                const moodMatch = displayText.match(moodRegex);
+                if (moodMatch) {
+                    const newMood = moodMatch[1].trim();
+                    console.log(`😊 [Status] Mood update: ${newMood}`);
+                    // systemMsgs.push(`心情：${newMood}`); 
+                    displayText = displayText.replace(moodRegex, '');
+                }
+        
+                // [MODE] 交互模式
+                const modeRegex = /\[MODE:?\s*(.*?)\]/i;
+                const modeMatch = displayText.match(modeRegex);
+                if (modeMatch) {
+                    const newModeVal = modeMatch[1].trim().toLowerCase();
+                    let newMode = 'phone';
+                    if (newModeVal.includes('face') || newModeVal.includes('见') || newModeVal.includes('面')) newMode = 'face';
+                    
+                    if (newMode !== interactionMode.value) {
+                        console.log(`📡 [Status] Mode switch to: ${newMode}`);
+                        interactionMode.value = newMode;
+                        saveCharacterState(undefined, undefined, undefined, undefined, undefined, newMode);
+                        const modeText = newMode === 'face' ? '见面了' : '分开了';
+                        systemMsgs.push(`状态更新：${modeText}`);
+                    }
+                    displayText = displayText.replace(modeRegex, '');
+                }
+        
+                // [LOC] 地点
+                const locRegex = /\[LOC:?\s*(.*?)\]/i;
+                const locMatch = displayText.match(locRegex);
+                if (locMatch) {
+                    const newLoc = locMatch[1].trim();
+                    console.log(`📍 [Status] Moved to: ${newLoc}`);
+                    currentLocation.value = newLoc;
+                    saveCharacterState(undefined, undefined, undefined, newLoc);
+                    systemMsgs.push(`移动到：${newLoc}`);
+                    displayText = displayText.replace(locRegex, '');
+                }
+                
+                // [CLOTHES] 换装
+                const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
+                const clothesMatch = displayText.match(clothesRegex);
+                if (clothesMatch) {
+                    const newClothes = clothesMatch[1].trim();
+                    console.log(`👗 [Status] Clothes changed to: ${newClothes}`);
+                    currentClothing.value = newClothes;
+                    saveCharacterState(undefined, undefined, undefined, undefined, newClothes);
+                    systemMsgs.push(`换装：${newClothes}`);
+                    displayText = displayText.replace(clothesRegex, '');
+                }
+                
+                // [ACT] 活动
+                const actRegex = /\[ACT:?\s*(.*?)\]/i;
+                const actMatch = displayText.match(actRegex);
+                if (actMatch) {
+                    const newAct = actMatch[1].trim();
+                    console.log(`🎬 [Status] Activity update: ${newAct}`);
+                    currentActivity.value = newAct; 
+                    saveCharacterState(); 
+                    displayText = displayText.replace(actRegex, '');
+                }
+        
+                // [IMG] 生图
+                const imgRegex = /\[IMG:(.*?)\]/i;
+                const imgMatch = displayText.match(imgRegex);
+                let pendingImagePlaceholder = null;
+                
+                if (imgMatch) {
+                    const imgDesc = imgMatch[1].trim();
+                    console.log(`🖼️ [Status] Image trigger detected: ${imgDesc}`);
+                    displayText = displayText.replace(imgRegex, '');
+                    
+                    const placeholderId = `img-loading-${Date.now()}`;
+                    pendingImagePlaceholder = { 
+                        role: 'system', 
+                        content: '📷 影像显影中... (请稍候)', 
+                        isSystem: true, 
+                        id: placeholderId 
+                    };
+                    
+                    handleAsyncImageGeneration(imgDesc, placeholderId);
+                }
+        
+                // =================================================================
+                // 💬 4. 文本上屏 (包含 ||| 分隔处理)
+                // =================================================================
+        
+                // 清理残留标签
+                displayText = displayText.replace(/\[(System|Logic).*?\]/gis, '').trim();
+                displayText = displayText.replace(/^\[.*?\]\s*/, '');
+                displayText = displayText.replace(/^.*?：\s*/, '');
+                
+                systemMsgs.forEach(txt => { 
+                    messageList.value.push({ role: 'system', content: txt, isSystem: true }); 
+                });
+                
+                if (displayText) {
+                    // 兼容性处理：如果AI没有使用 |||，尝试用换行符分割
+                    // 但如果使用了 |||，则主要依靠 |||
+                    
+                    // 1. 先把换行符转为 ||| (兼容没有遵守规则的情况)
+                    let tempText = displayText.replace(/(\r\n|\n|\r)+/g, '|||');
+                    
+                    // 2. 强制在引号和括号间加 ||| (这是你原版逻辑的精华，防止气泡过长)
+                    tempText = tempText.replace(/([”"])\s*([（(])/g, '$1|||$2');
+                    tempText = tempText.replace(/([)）])\s*([（(])/g, '$1|||$2');
+                    
+                    const parts = tempText.split('|||');
+                    parts.forEach(part => {
+                        let cleanPart = part.trim();
+                        const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || 
+                                       /^["“”'‘’]+$/.test(cleanPart) || 
+                                       cleanPart === '...' || 
+                                       cleanPart.length === 0;
+                                       
+                        if (!isJunk) {
+                            messageList.value.push({ role: 'model', content: cleanPart });
+                        }
+                    });
+                }
+                
+                if (pendingImagePlaceholder) {
+                    messageList.value.push(pendingImagePlaceholder);
+                }
+                
                 saveHistory();
                 
-                // 3. 准备数据
-                const score = currentAffection.value;
-                const lust = currentLust.value;
-                const role = currentRole.value || {};
-                const s = role.settings || {};
-                
-                // 3.1 获取玩家档案 (补全 User Profile)
-                const appUser = uni.getStorageSync('app_user_info') || {};
-                const myJob = s.userOccupation || appUser.occupation || "未知职业";
-                const myLoc = s.userLocation || appUser.location || "未知地点";
-                const myLook = s.userAppearance || appUser.appearance || "普通外貌";
-                const myName = userName.value || appUser.name || 'User';
-        
-                // 3.2 获取角色档案 (补全 Char Profile)
-                const charJob = role.occupation || s.occupation || "未知职业";
-                const charLoc = role.location || s.location || "未知地点";
-                const charPersonality = s.personality || "未知性格";
-                
-                // 3.3 计算当前性格阶段 (5阶段升级版)
-                let personalityLabel = "";
-                let activePersonality = "";
-                let activeExample = "";
-                
-                // 0-20, 21-40, 41-60, 61-80, 81+
-                if (score <= 20) {
-                    personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
-                    activePersonality = s.personalityNormal || "高冷，保持距离。";
-                    activeExample = s.exampleNormal || "";
-                } else if (score <= 40) {
-                    personalityLabel = "阶段2: 熟人/朋友 (Friend)";
-                    // 如果没填 stage2，回退到 stage1
-                    activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
-                    activeExample = s.exampleFriend || s.exampleNormal || "";
-                } else if (score <= 60) {
-                    personalityLabel = "阶段3: 暧昧/心动 (Crush)";
-                    activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
-                    activeExample = s.exampleFlirt || "";
-                } else if (score <= 80) {
-                    personalityLabel = "阶段4: 热恋/深爱 (Lover)";
-                    // 如果没填 stage4，回退到 stage3
-                    activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
-                    activeExample = s.exampleLover || s.exampleFlirt || "";
-                } else {
-                    personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
-                    activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
-                    activeExample = s.exampleSex || "";
-                }
-        
-                activePersonality = `[当前阶段: ${personalityLabel}]\n行为逻辑: ${activePersonality}`;
-        
-                // 3.4 欲望与特殊规则
-                let activeRules = "";
-                if (lust > 80 && score < 60) {
-                    activeRules = `**【特殊状态：Lust Paradox (身心博弈)】**\n虽然好感度不高，但欲望极高。表现出“嘴上拒绝，身体诚实”的反差感。`;
-                } else {
-                    activeRules = `根据人设原型 (${charPersonality}) 进行判定：符合性格/XP加分，冒犯扣分。`;
-                }
-        
-                let nsfwInstruction = "";
-                const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
-                if (isIntimate) nsfwInstruction = NSFW_STYLE; 
-        
-                const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
-                
-                // 4. 构建 Prompt
-                let prompt = CORE_INSTRUCTION + 
-                             PERSONALITY_TEMPLATE + 
-                             AFFECTION_LOGIC + 
-                             nsfwInstruction + 
-                             hiddenInstruction;
-                
-                const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
-                const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
-        
-                prompt = prompt
-                    // --- 世界观与基础 ---
-                    .replace(/{{world_lore}}/g, worldLoreData) 
-                    .replace(/{{current_time}}/g, formattedTime.value)
-                    .replace(/{{current_location}}/g, currentLocation.value)
-                    .replace(/{{current_activity}}/g, currentActivity.value)
-                    .replace(/{{current_clothes}}/g, currentClothing.value)
-                    .replace(/{{interaction_mode}}/g, interactionMode.value === 'phone' ? 'Phone (手机通讯)' : 'Face (面对面)')
-                    
-                    // --- 角色信息 ---
-                    .replace(/{{char}}/g, chatName.value)
-                    .replace(/{{occupation}}/g, charJob)
-                    .replace(/{{char_location}}/g, charLoc)
-                    .replace(/{{appearance_nsfw}}/g, nsfwData)
-                    .replace(/{{appearance}}/g, s.appearance || "anime character")
-                    .replace(/{{memory}}/g, s.bio || "无")
-                    // 【新增字段注入】
-                    .replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话")
-                    .replace(/{{likes}}/g, s.likes || "未知")
-                    .replace(/{{dislikes}}/g, s.dislikes || "未知")
-                    
-                    // --- 玩家信息 ---
-                    .replace(/{{user}}/g, myName)
-                    .replace(/{{user_occupation}}/g, myJob)
-                    .replace(/{{user_location}}/g, myLoc)
-                    .replace(/{{user_appearance}}/g, myLook)
-                    
-                    // --- 性格与逻辑 ---
-                    .replace(/{{personality_label}}/g, personalityLabel)
-                    .replace(/{{personality_logic}}/g, activePersonality) 
-                    .replace(/{{example}}/g, activeExample)
-                    .replace(/{{current_affection}}/g, currentAffection.value)
-                    .replace(/{{current_lust}}/g, currentLust.value)
-                    .replace(/{{affection_rules}}/g, activeRules); 
-        
-                // 5. 截取历史记录
-                const historyLimit = charHistoryLimit.value; 
-                let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
-                if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
-                
-                console.log('📝 [LLM] System Prompt (Snippet):', prompt.substring(0, 500) + '...');
-                
-                // 6. 自动驾驶指令
-                const continuePrompt = `
-                [System Command: AUTO-DRIVE MODE]
-                **Situation**: The user is silent/waiting. You need to drive the conversation forward.
-                **Decision Logic**:
-                1. **IF your last message was incomplete**: Finish it.
-                2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
-                **Output Requirement**: Just output the content.
-                `;
-                
-                // 7. 发起网络请求
-                let targetUrl = '';
-                let requestBody = {};
-                let baseUrl = config.baseUrl || '';
-                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-        
-                if (config.provider === 'gemini') {
-                    const cleanBase = 'https://generativelanguage.googleapis.com';
-                    targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                    
-                    const geminiContents = contextMessages.map(item => {
-                        const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
-                        return { role: item.role === 'user' ? 'user' : 'model', parts: [{ text: cleanText }] };
-                    }).filter(item => item.parts[0].text.trim() !== '');
-                    
-                    if (systemOverride) geminiContents.push({ role: 'user', parts: [{ text: systemOverride }] });
-                    else if (isContinue) geminiContents.push({ role: 'user', parts: [{ text: continuePrompt }] });
-                    
-                    requestBody = {
-                        contents: geminiContents,
-                        system_instruction: { parts: { text: prompt } },
-                        safetySettings: [
-                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                        ]
-                    };
-                } else {
-                    targetUrl = `${baseUrl}/chat/completions`;
-                    
-                    const openAIMessages = [{ role: "system", content: prompt }];
-                    contextMessages.forEach(item => {
-                        const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
-                        if (cleanText.trim()) openAIMessages.push({ role: item.role === 'model' ? 'assistant' : 'user', content: cleanText });
-                    });
-                    
-                    if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
-                    else if (isContinue) openAIMessages.push({ role: 'user', content: continuePrompt });
-                    
-                    requestBody = {
-                        model: config.model,
-                        messages: openAIMessages,
-                        max_tokens: 1500,
-                        stream: false
-                    };
-                }
-                
-                console.log('📡 [LLM] Requesting:', targetUrl);
-                
-                try {
-                    const header = { 'Content-Type': 'application/json' };
-                    if (config.provider !== 'gemini') header['Authorization'] = `Bearer ${config.apiKey}`;
-                    
-                    const res = await uni.request({
-                        url: targetUrl, method: 'POST', header: header, data: requestBody, sslVerify: false
-                    });
-        
-                    if (res.statusCode === 200) {
-                        let rawText = "";
-                        let tokenLog = "";
-        
-                        if (config.provider === 'gemini') {
-                            rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                            const usage = res.data?.usageMetadata;
-                            if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
-                        } else {
-                            let data = res.data;
-                            if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                            rawText = data?.choices?.[0]?.message?.content || "";
-                            const usage = data?.usage;
-                            if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
-                        }
-        
-                        if (tokenLog) console.log(tokenLog);
-        
-                        if (rawText) {
-                            console.log('📥 [LLM] Raw Response:', rawText.substring(0, 100) + (rawText.length > 100 ? '...' : ''));
-                            processAIResponse(rawText);
-                        } else {
-                            console.warn('⚠️ [LLM] Empty response or Blocked');
-                            const blockReason = res.data?.promptFeedback?.blockReason;
-                            if (blockReason) uni.showModal({ title: 'AI 拒绝', content: blockReason, showCancel: false });
-                            else uni.showToast({ title: '无内容响应', icon: 'none' });
-                        }
-                    } else {
-                        console.error("❌ [LLM] API Error", res);
-                        if (res.statusCode === 429) uni.showToast({ title: '请求太快 (429)', icon: 'none' });
-                        else uni.showToast({ title: `API错误 ${res.statusCode}`, icon: 'none' });
+                if (enableSummary.value) {
+                    const validMsgCount = messageList.value.filter(m => !m.isSystem).length;
+                    if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
+                        performBackgroundSummary();
                     }
-                } catch (e) {
-                    console.error('❌ [Network] Request failed:', e);
-                    uni.showToast({ title: '网络错误', icon: 'none' });
-                } finally {
-                    isLoading.value = false;
-                    scrollToBottom();
                 }
             };
-    
-    const processAIResponse = (rawText) => {
-            let displayText = rawText;
-    
-            // =================================================================
-            // 🧠 1. 思维链处理
-            // =================================================================
-            const thoughtRegex = /\[Thought:?([\s\S]*?)\]/i;
-            const thoughtMatch = displayText.match(thoughtRegex);
-            
-            if (thoughtMatch) {
-                const thoughtContent = thoughtMatch[1].trim();
-                console.log(`🧠 [AI心声]: ${thoughtContent}`);
-                displayText = displayText.replace(thoughtRegex, '').trim();
-            }
-    
-            // =================================================================
-            // 🚨 2. 指令清洗
-            // =================================================================
-            
-            // 修复 AI 自创的 LINTYAHOT_IMG
-            displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
-            
-            // 修复圆括号包裹指令
-            displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, '[$1:$2]');
-    
-            // 修复半括号
-            displayText = displayText.replace(/\(IMG:/gi, '[IMG:');
-            displayText = displayText.replace(/\(CLOTHES:/gi, '[CLOTHES:');
-    
-            // 修复中文括号
-            displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
-            
-            // 去除残留逻辑标记
-            displayText = displayText.replace(/\[Logic[\s\S]*?\]/gi, '').trim();
-    
-            // =================================================================
-            // 📥 3. 状态提取
-            // =================================================================
-    
-            let systemMsgs = [];
-    
-            // [AFF] 好感度
-            const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
-            let match;
-            while ((match = affRegex.exec(displayText)) !== null) {
-                let change = parseInt(match[1], 10);
-                if (!isNaN(change)) {
-                    if (change > 5) change = 5; 
-                    console.log(`❤️ [Status] Affection change: ${change}`);
-                    saveCharacterState(currentAffection.value + change);
-                    if (change !== 0) uni.showToast({ title: `好感 ${change > 0 ? '+' : ''}${change}`, icon: 'none' });
-                }
-            }
-            displayText = displayText.replace(affRegex, '');
-    
-            // [LUST] 欲望值
-            const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
-            let lustMatch;
-            while ((lustMatch = lustRegex.exec(displayText)) !== null) {
-                let change = parseInt(lustMatch[1], 10);
-                if (!isNaN(change)) {
-                    console.log(`🔥 [Status] Lust change: ${change}`);
-                    saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
-                }
-            }
-            displayText = displayText.replace(lustRegex, '');
-    
-            // [MOOD] 情绪
-            const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
-            const moodMatch = displayText.match(moodRegex);
-            if (moodMatch) {
-                const newMood = moodMatch[1].trim();
-                console.log(`😊 [Status] Mood update: ${newMood}`);
-                // systemMsgs.push(`心情：${newMood}`); 
-                displayText = displayText.replace(moodRegex, '');
-            }
-    
-            // [MODE] 交互模式
-            const modeRegex = /\[MODE:?\s*(.*?)\]/i;
-            const modeMatch = displayText.match(modeRegex);
-            if (modeMatch) {
-                const newModeVal = modeMatch[1].trim().toLowerCase();
-                let newMode = 'phone';
-                if (newModeVal.includes('face') || newModeVal.includes('见') || newModeVal.includes('面')) newMode = 'face';
-                
-                if (newMode !== interactionMode.value) {
-                    console.log(`📡 [Status] Mode switch to: ${newMode}`);
-                    interactionMode.value = newMode;
-                    saveCharacterState(undefined, undefined, undefined, undefined, undefined, newMode);
-                    const modeText = newMode === 'face' ? '见面了' : '分开了';
-                    systemMsgs.push(`状态更新：${modeText}`);
-                }
-                displayText = displayText.replace(modeRegex, '');
-            }
-    
-            // [LOC] 地点
-            const locRegex = /\[LOC:?\s*(.*?)\]/i;
-            const locMatch = displayText.match(locRegex);
-            if (locMatch) {
-                const newLoc = locMatch[1].trim();
-                console.log(`📍 [Status] Moved to: ${newLoc}`);
-                currentLocation.value = newLoc;
-                saveCharacterState(undefined, undefined, undefined, newLoc);
-                systemMsgs.push(`移动到：${newLoc}`);
-                displayText = displayText.replace(locRegex, '');
-            }
-            
-            // [CLOTHES] 换装
-            const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
-            const clothesMatch = displayText.match(clothesRegex);
-            if (clothesMatch) {
-                const newClothes = clothesMatch[1].trim();
-                console.log(`👗 [Status] Clothes changed to: ${newClothes}`);
-                currentClothing.value = newClothes;
-                saveCharacterState(undefined, undefined, undefined, undefined, newClothes);
-                systemMsgs.push(`换装：${newClothes}`);
-                displayText = displayText.replace(clothesRegex, '');
-            }
-            
-            // [ACT] 活动
-            const actRegex = /\[ACT:?\s*(.*?)\]/i;
-            const actMatch = displayText.match(actRegex);
-            if (actMatch) {
-                const newAct = actMatch[1].trim();
-                console.log(`🎬 [Status] Activity update: ${newAct}`);
-                currentActivity.value = newAct; 
-                saveCharacterState(); 
-                displayText = displayText.replace(actRegex, '');
-            }
-    
-            // [IMG] 生图
-            const imgRegex = /\[IMG:(.*?)\]/i;
-            const imgMatch = displayText.match(imgRegex);
-            let pendingImagePlaceholder = null;
-            
-            if (imgMatch) {
-                const imgDesc = imgMatch[1].trim();
-                console.log(`🖼️ [Status] Image trigger detected: ${imgDesc}`);
-                displayText = displayText.replace(imgRegex, '');
-                
-                const placeholderId = `img-loading-${Date.now()}`;
-                pendingImagePlaceholder = { 
-                    role: 'system', 
-                    content: '📷 影像显影中... (请稍候)', 
-                    isSystem: true, 
-                    id: placeholderId 
-                };
-                
-                handleAsyncImageGeneration(imgDesc, placeholderId);
-            }
-    
-            // =================================================================
-            // 💬 4. 文本上屏 (包含 ||| 分隔处理)
-            // =================================================================
-    
-            // 清理残留标签
-            displayText = displayText.replace(/\[(System|Logic).*?\]/gis, '').trim();
-            displayText = displayText.replace(/^\[.*?\]\s*/, '');
-            displayText = displayText.replace(/^.*?：\s*/, '');
-            
-            systemMsgs.forEach(txt => { 
-                messageList.value.push({ role: 'system', content: txt, isSystem: true }); 
-            });
-            
-            if (displayText) {
-                // 兼容性处理：如果AI没有使用 |||，尝试用换行符分割
-                // 但如果使用了 |||，则主要依靠 |||
-                
-                // 1. 先把换行符转为 ||| (兼容没有遵守规则的情况)
-                let tempText = displayText.replace(/(\r\n|\n|\r)+/g, '|||');
-                
-                // 2. 强制在引号和括号间加 ||| (这是你原版逻辑的精华，防止气泡过长)
-                tempText = tempText.replace(/([”"])\s*([（(])/g, '$1|||$2');
-                tempText = tempText.replace(/([)）])\s*([（(])/g, '$1|||$2');
-                
-                const parts = tempText.split('|||');
-                parts.forEach(part => {
-                    let cleanPart = part.trim();
-                    const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || 
-                                   /^["“”'‘’]+$/.test(cleanPart) || 
-                                   cleanPart === '...' || 
-                                   cleanPart.length === 0;
-                                   
-                    if (!isJunk) {
-                        messageList.value.push({ role: 'model', content: cleanPart });
-                    }
-                });
-            }
-            
-            if (pendingImagePlaceholder) {
-                messageList.value.push(pendingImagePlaceholder);
-            }
-            
-            saveHistory();
-            
-            if (enableSummary.value) {
-                const validMsgCount = messageList.value.filter(m => !m.isSystem).length;
-                if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
-                    performBackgroundSummary();
-                }
-            }
-        };
     const scrollToBottom = () => {
         nextTick(() => {
             scrollIntoView.value = '';
