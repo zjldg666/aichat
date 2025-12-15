@@ -354,12 +354,13 @@ if (uni.restoreGlobal) {
 **FORBIDDEN**: Do NOT start speaking/acting before the analysis is complete.
 
 【动作精简指令 (CRITICAL)】
-括号 "()" 内的动作描写必须 **极度简练**！
-- **字数限制**: 严格控制在 **30字以内**。
-- **内容**: 只写 **微表情** (脸红、咬唇) 或 **关键动作** (撩起裙子、手伸进去)。
-- **禁止**: 禁止连续描写一连串复杂的动作流。禁止描写环境氛围。
-- **反例 (太长)**: (深吸一口气，没有一丝迟疑，立刻用空闲的手抓住毛衣下摆迅速向上掀起，眼神迷离地看着镜头)
-- **正例 (完美)**: (一把掀起毛衣，露出雪白的胸脯，眼神痴迷)
+括号 "()" 内 **严禁写流水账** 或 **心理说明书**！
+- **原则**: 只要结果，不要过程。
+- **字数**: 严格控制在 **20字以内**。
+- **禁止**: 禁止写 "听到...", "感觉到...", "因为...", "仿佛..." 这种解释性长句。
+- **反例 (太长)**: (几乎瘫软地趴伏在地板上，听到他的话却立刻颤抖着翻过身...)
+- **正例 (完美)**: (瘫软在地，剧烈抽搐)
+- **正例 (完美)**: (翻过身，大腿根部甚至在痉挛)
 
 【世界观法则 (World Logic)】
 {{world_lore}}
@@ -398,30 +399,44 @@ if (uni.restoreGlobal) {
 不要在“真空环境”里说话。偶尔（约30%概率）对环境（声音、光线、温度）做出反应。
 
 【视觉指令 (Visual Protocol)】
-- **画面主导权**: 涉及"看/拍/照"或高欲望互动时，输出 [IMG: ...] 描述画面。
+- **即时显影规则 (CRITICAL)**: 
+  一旦 User 明确要求 "看照片", "发图", "看看你", "裸照" 或当前动作具有极强画面感（如跪下含住）：
+  1. **必须** 在当次回复中立刻生成 [IMG: ...]。
+  2. **禁止** 只做动作不发图。
+- **姿势同步 (Pose Sync)**: (CRITICAL)
+  文本中描写的姿势 (如跪下、趴着、张腿)，**必须** 转化为对应的英文 Tag (kneeling, on all fours, spread legs) 显式加入 [IMG]。
+  - 跪下 -> kneeling
+  - 趴着 -> doggystyle / on all fours
+  - 坐着 -> sitting
 - **强制英文**: [IMG] 内必须使用英文单词 (Danbooru Tags)。
-- **镜头运镜法则 (Camera Logic)**: (CRITICAL)
-  请根据 User 和你的**相对物理位置**生成视角 Tag，**严禁**盲目使用默认词：
-  1. **视线 (Eye Contact)**:
-     - 偷拍/未察觉/背对 -> 必须输出 \`looking away\` 或 \`not looking at viewer\`。
-     - 正常对话/自拍 -> \`looking at viewer\`。
-  2. **视角 (Angle)**:
-     - User 在你身后 -> \`view from behind, back view\`。
-     - User 站立/在楼上，你下跪/在楼下 -> \`view from above, high angle\` (俯视)。
-     - User 躺下/在楼下，你站立/在楼上 -> \`view from below, low angle\` (仰视)。
-     - 面对面 -> \`eye level\` (平视)。
-- **偷拍逻辑**: 偷拍必须含 \`candid shot\`。
+- **镜头运镜法则**: 
+  1. **视线**: 偷拍/未察觉 -> \`looking away\`; 正常 -> \`looking at viewer\`。
+  2. **视角**: 
+     - User 站你跪 -> \`view from above, high angle, kneeling\` (强制加 kneeling)。
+     - 面对面 -> \`eye level\`。
 - **状态同步**: [IMG] 内容需与当前衣着一致。衣着改变紧跟 [CLOTHES: ...]。
-- **触发**: "我拍了/咔嚓" -> 强制显影 [IMG:...]。
 
 【生图与隐私 (AI Driven Wardrobe)】
 - 智能显露: 若衣服脱下导致隐私部位(如{{appearance_nsfw}})暴露，必须在 [CLOTHES] 中显式包含该特征词。
 - 格式: 建议先输出 [CLOTHES] (若有变化)，再输出 [IMG]。
 
 【状态管理指令】
-如果情绪变化，请在回复末尾输出 [MOOD: 情绪词]。
-情绪词库: Happy, Angry, Sad, Tired, Horny, Shy, Scared, Peaceful, Nervous, Aroused。
-
+1. **情绪监测**: 如果情绪变化，请在回复末尾输出 [MOOD: 情绪词]。
+   - 词库: Happy, Angry, Sad, Tired, Horny, Shy, Scared, Peaceful, Nervous, Aroused.
+   
+2. **活动状态同步 (CRITICAL)**: 
+   如果你的行为改变了当前的“正在做什么”，**必须**输出 [ACT: 新状态]。
+   - **触发**: 开始洗澡、上床睡觉、开始做爱、吃饭、出门、看电视。
+   - **格式**: [ACT: 洗澡中] 或 [ACT: 做爱中] 或 [ACT: 约会中]。
+   - **示例**: 
+     User: "去洗澡吧" 
+     AI: "好哦..." [ACT: 洗澡中]
+3. **交互模式切换 (CRITICAL)**: 
+   你必须时刻感知 User 和你的物理距离。
+   - **见面触发**: 一旦描述了 "开门", "进屋", "见面", "拥抱" 或开始肢体接触 -> **必须立刻输出 [MODE: Face]**。
+   - **分开触发**: 一旦描述了 "挂电话", "离开", "回家" -> **必须立刻输出 [MODE: Phone]**。
+   - **严禁**: 严禁在明明已经见面做爱的时候，还保持 Phone 模式！
+		
 【回复格式铁律】
 1. **结构**: [Thought: 心理活动...] (换行) 正文内容... [指令]
 2. **正文**: 动作写在括号 '()' 内，使用第三人称。对话用双引号 '""'。
@@ -465,9 +480,19 @@ if (uni.restoreGlobal) {
   const NSFW_STYLE = `
 【NSFW 模式书写铁律 (HIGHEST PRIORITY)】
 当前场景涉及亲密/性互动，必须推翻常规写作习惯：
-1. **拒绝写“小黄文”**：严禁使用“如痴如醉”、“仿佛电流穿过”等廉价修辞。严禁大段心理描写（做爱时无法思考）。
-2. **感官碎片化**：只描写直观的**听觉**（水声、撞击声、喘息）和**触觉**（湿、紧、烫、麻）。用词要直白、粗俗、露骨。
-3. **生图增强 (强制英文)**：在 [IMG: ...] 中**百分百还原**当前场景。但请记住**必须使用英文 Tags**。大胆使用 Danbooru 风格标签 (cum, insertion, pussy, ahegao, messy hair, sweat, flushed face, mouth open, drooling) 来强化画面冲击力。
+
+1. **拒绝小作文 (CRITICAL)**：
+   - **禁止**：严禁写 "仿佛...", "随着...", "感受到一股..." 这种冗长的修辞句。
+   - **强制碎片化**：人在高潮/极度兴奋时无法思考。请使用**短句**。
+   - **反例**: (身体因为巨大的快感而颤抖，眼神迷离地看着你，喉咙里发出呜咽) -> **太长！太假！**
+   - **正例**: (剧烈颤抖，失神翻白眼) -> **完美**。
+   - **正例**: (腰肢猛地绷紧，脚趾蜷缩) -> **完美**。
+
+2. **感官直觉**：
+   - 只描写**听觉**（水声、撞击声）和**视觉结果**（翻白眼、流口水）。
+   - 用词要直白、粗俗、露骨。不要文绉绉。
+
+3. **生图增强**：[IMG: ...] 中必须包含 (cum, insertion, pussy, ahegao, messy hair, sweat, flushed face, drooling) 等重口味 Tag。
 `;
   const STYLE_PROMPT_MAP = {
     "anime": "anime style, cel shading, vibrant colors, clean lines, high quality",
@@ -1140,36 +1165,26 @@ if (uni.restoreGlobal) {
         let aiTags = actionAndSceneDescription;
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-        const storedClothes = currentClothing.value || "";
         let isDuo = /\b(couple|2people|1boy|multiple boys)\b/i.test(aiTags);
         if (!isDuo && interactionMode.value !== "phone") {
-          isDuo = /\b(sex|fuck|penis)\b/i.test(aiTags);
+          isDuo = /\b(sex|fuck|penis|insertion|doggystyle|fellatio|paizuri)\b/i.test(aiTags);
         }
-        const aiDescribedClothes = storedClothes.split(/[\s,]+/).some(
-          (word) => word.length > 3 && aiTags.toLowerCase().includes(word.toLowerCase())
-        );
-        const isNaked = /\b(nude|naked|no clothes)\b/i.test(aiTags);
-        const isChanging = /\b(wearing|dressed in)\b/i.test(aiTags);
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
-        parts.push("masterpiece, best quality, anime style");
+        parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
+        const imgConfig = uni.getStorageSync("app_image_config") || {};
+        const styleSetting = imgConfig.style || "anime";
+        parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"]);
         parts.push(appearanceSafe);
-        if (isNaked || isChanging || aiDescribedClothes) {
-          formatAppLog("log", "at pages/chat/chat.vue:738", "👗 采用 AI 描述的服装/状态");
-        } else {
-          formatAppLog("log", "at pages/chat/chat.vue:740", "👗 AI 未提及衣服，使用系统保底");
-          parts.push(storedClothes);
-        }
+        formatAppLog("log", "at pages/chat/chat.vue:730", "🎨 [极简模式] 信任 AI 描述，不强加系统衣服");
         parts.push(aiTags);
         if (isDuo)
           parts.push(userAppearance.value || "1boy");
         parts.push(getTimeTags());
         let rawPrompt = parts.join(", ");
-        let uniqueTags = [...new Set(
-          rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t)
-        )];
+        let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
         let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:766", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        formatAppLog("log", "at pages/chat/chat.vue:744", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1189,7 +1204,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:783", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:761", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1216,7 +1231,7 @@ if (uni.restoreGlobal) {
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:809", e);
+          formatAppLog("error", "at pages/chat/chat.vue:787", e);
         }
         return null;
       };
@@ -1401,12 +1416,12 @@ if (uni.restoreGlobal) {
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1060", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1061", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1062", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1063", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1065", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1066", "===================================================");
+        formatAppLog("log", "at pages/chat/chat.vue:1038", "============== 📜 DIALOGUE DEBUG LOG ==============");
+        formatAppLog("log", "at pages/chat/chat.vue:1039", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
+        formatAppLog("log", "at pages/chat/chat.vue:1040", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+        formatAppLog("log", "at pages/chat/chat.vue:1041", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
+        formatAppLog("log", "at pages/chat/chat.vue:1043", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
+        formatAppLog("log", "at pages/chat/chat.vue:1044", "===================================================");
         const continuePrompt = `
                             [System Command: AUTO-DRIVE MODE]
                             **Situation**: The user is silent/waiting. You need to drive the conversation forward.
@@ -1468,7 +1483,6 @@ if (uni.restoreGlobal) {
             stream: false
           };
         }
-        formatAppLog("log", "at pages/chat/chat.vue:1136", "📡 [LLM] Requesting:", targetUrl);
         try {
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
@@ -1501,15 +1515,15 @@ if (uni.restoreGlobal) {
               if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1163", "============== 📥 RAW RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1164", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1165", "=============================================");
+            formatAppLog("log", "at pages/chat/chat.vue:1140", "============== 📥 RAW RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1141", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1142", "=============================================");
             if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1167", tokenLog);
+              formatAppLog("log", "at pages/chat/chat.vue:1144", tokenLog);
             if (rawText) {
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1172", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1149", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1517,14 +1531,14 @@ if (uni.restoreGlobal) {
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1178", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1155", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1183", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1160", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1550,7 +1564,7 @@ if (uni.restoreGlobal) {
           if (thoughtEnd !== -1) {
             const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
             const logContent = fullThought.replace(/^\[Thought:?/, "").slice(0, -1).trim();
-            formatAppLog("log", "at pages/chat/chat.vue:1224", `🧠 [AI心声]: ${logContent}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1203", `🧠 [AI心声]: ${logContent}`);
             displayText = displayText.replace(fullThought, "").trim();
           }
         }
@@ -1568,7 +1582,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 5)
               change = 5;
-            formatAppLog("log", "at pages/chat/chat.vue:1264", `❤️ [Status] Affection change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1243", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
             if (change !== 0)
               uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
@@ -1580,7 +1594,7 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:1277", `🔥 [Status] Lust change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1256", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
@@ -1589,7 +1603,7 @@ if (uni.restoreGlobal) {
         const moodMatch = displayText.match(moodRegex);
         if (moodMatch) {
           const newMood = moodMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1288", `😊 [Status] Mood update: ${newMood}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1267", `😊 [Status] Mood update: ${newMood}`);
           displayText = displayText.replace(moodRegex, "");
         }
         const modeRegex = /\[MODE:?\s*(.*?)\]/i;
@@ -1600,11 +1614,9 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1302", `📡 [Status] Mode switch to: ${newMode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1281", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
-            const modeText = newMode === "face" ? "见面了" : "分开了";
-            systemMsgs.push(`状态更新：${modeText}`);
           }
           displayText = displayText.replace(modeRegex, "");
         }
@@ -1612,27 +1624,25 @@ if (uni.restoreGlobal) {
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
           const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1316", `📍 [Status] Moved to: ${newLoc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1297", `📍 [Status] Moved to: ${newLoc}`);
           currentLocation.value = newLoc;
           saveCharacterState(void 0, void 0, void 0, newLoc);
-          systemMsgs.push(`移动到：${newLoc}`);
           displayText = displayText.replace(locRegex, "");
         }
         const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
           const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1328", `👗 [Status] Clothes changed to: ${newClothes}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1312", `👗 [Status] Clothes changed to: ${newClothes}`);
           currentClothing.value = newClothes;
           saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
-          systemMsgs.push(`换装：${newClothes}`);
           displayText = displayText.replace(clothesRegex, "");
         }
         const actRegex = /\[ACT:?\s*(.*?)\]/i;
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
           const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1340", `🎬 [Status] Activity update: ${newAct}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1327", `🎬 [Status] Activity update: ${newAct}`);
           currentActivity.value = newAct;
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
@@ -1642,7 +1652,7 @@ if (uni.restoreGlobal) {
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1353", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1340", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
           pendingImagePlaceholder = {
@@ -2120,6 +2130,7 @@ if (uni.restoreGlobal) {
     __name: "create",
     setup(__props, { expose: __expose }) {
       __expose();
+      const tempClothingTagsForAvatar = vue.ref("");
       const FACE_STYLES_MAP = {
         "cute": "cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii",
         "cool": "mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty",
@@ -2438,7 +2449,7 @@ Task: ${prompt}` }]
         if (!safeChinese && !clothesChinese) {
           return uni.showToast({ title: "请先选择特征", icon: "none" });
         }
-        uni.showLoading({ title: "分模块组装中...", mask: true });
+        uni.showLoading({ title: "生成纯净人设Prompt...", mask: true });
         try {
           const prompt = `Translate these 3 parts from Chinese to Danbooru English tags.
         Separate the parts with "|||".
@@ -2459,15 +2470,17 @@ Task: ${prompt}` }]
           formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ",").trim();
           formData.value.appearanceNsfw = nsfwTags;
           if (f.wearStatus === "暴露/H") {
-            formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}, ${clothingTags}`;
+            formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
           } else {
-            formData.value.appearance = `${formData.value.appearanceSafe}, ${clothingTags}`;
+            formData.value.appearance = `${formData.value.appearanceSafe}`;
           }
-          uni.showToast({ title: "Prompt 组装完成", icon: "success" });
+          tempClothingTagsForAvatar.value = clothingTags;
+          uni.showToast({ title: "Prompt已生成 (不含衣物)", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:916", e);
-          formData.value.appearance = `${faceTags}, ${safeChinese}, ${nsfwChinese}, ${clothesChinese}`;
+          formatAppLog("error", "at pages/create/create.vue:926", e);
+          formData.value.appearance = `${faceTags}, ${safeChinese}`;
           formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`;
+          tempClothingTagsForAvatar.value = clothesChinese;
           uni.showToast({ title: "翻译失败，使用原文", icon: "none" });
         } finally {
           uni.hideLoading();
@@ -2537,7 +2550,8 @@ Task: ${prompt}` }]
           return uni.showToast({ title: "请在[我的]设置中配置 ComfyUI 地址", icon: "none" });
         }
         uni.showLoading({ title: "ComfyUI 绘图中...", mask: true });
-        const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}`;
+        const clothes = tempClothingTagsForAvatar.value || "";
+        const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}, ${clothes}`;
         try {
           const tempUrl = await generateImageFromComfyUI(avatarPrompt, imgConfig.baseUrl);
           if (tempUrl) {
@@ -2549,7 +2563,7 @@ Task: ${prompt}` }]
             throw new Error("ComfyUI 返回为空");
           }
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:994", e);
+          formatAppLog("error", "at pages/create/create.vue:1013", e);
           uni.showModal({ title: "错误", content: e.message || "请求异常", showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2718,7 +2732,7 @@ Task: ${prompt}` }]
           }
           uni.showToast({ title: "人设推演完成！", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:1186", e);
+          formatAppLog("error", "at pages/create/create.vue:1205", e);
           uni.showModal({ title: "生成失败", content: "AI返回数据异常，请重试。\n" + e.message, showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2747,9 +2761,11 @@ Task: ${prompt}` }]
           summary: formData.value.summary,
           location: formData.value.location,
           clothing: clothingStr,
+          // 这里保存初始衣服文字，不影响生图
           worldId: formData.value.worldId,
           occupation: formData.value.occupation,
           settings: {
+            // 保存的是 generateEnglishPrompt 生成的纯净版（不含衣服）
             appearance: formData.value.appearance,
             appearanceSafe: formData.value.appearanceSafe,
             appearanceNsfw: formData.value.appearanceNsfw,
@@ -2768,7 +2784,6 @@ Task: ${prompt}` }]
             exampleNormal: formData.value.exampleNormal,
             exampleFlirt: formData.value.exampleFlirt,
             exampleSex: formData.value.exampleSex,
-            // 【新增】保存世界观
             worldLore: formData.value.worldLore
           },
           lastMsg: isEditMode.value ? void 0 : "新角色已创建",
@@ -2779,7 +2794,6 @@ Task: ${prompt}` }]
           const index = list.findIndex((item) => String(item.id) === String(targetId.value));
           if (index !== -1) {
             list[index] = { ...list[index], ...charData };
-            list[index].affection = formData.value.initialAffection;
             uni.showToast({ title: "修改已保存", icon: "success" });
           }
         } else {
@@ -2839,7 +2853,7 @@ Task: ${prompt}` }]
           }
         });
       };
-      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateFiveStages, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
+      const __returned__ = { tempClothingTagsForAvatar, FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateFiveStages, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
         return onLoad;
       }, get saveToGallery() {
         return saveToGallery;

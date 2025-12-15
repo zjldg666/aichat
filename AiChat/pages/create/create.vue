@@ -555,7 +555,8 @@ import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { saveToGallery } from '@/utils/gallery-save.js';
 import { COMFY_WORKFLOW_TEMPLATE } from '@/utils/constants.js';
-
+// 在 ref 定义区域添加
+const tempClothingTagsForAvatar = ref('');
 // =========================================================================
 // 1. 常量定义
 // =========================================================================
@@ -856,6 +857,7 @@ const generateEnglishPrompt = async () => {
     const f = formData.value.charFeatures;
     const faceTags = FACE_STYLES_MAP[formData.value.faceStyle] || '';
     
+    // 1. 身体特征 (Safe)
     let safeParts = [];
     if (f.hairColor || f.hairStyle) safeParts.push(`${f.hairColor || ''}${f.hairStyle || ''}`);
     if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
@@ -865,11 +867,13 @@ const generateEnglishPrompt = async () => {
     if (f.hipsLegs) safeParts.push(f.hipsLegs);
     const safeChinese = safeParts.join('，');
 
+    // 2. 私密特征 (NSFW)
     let nsfwParts = [];
     if (f.nippleColor) nsfwParts.push(`乳头${f.nippleColor}`);
     if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
     const nsfwChinese = nsfwParts.join('，');
 
+    // 3. 衣服 (Clothes) - 仅用于翻译，不存入 appearance
     let clothesParts = [];
     if (f.clothingStyle) clothesParts.push(`穿着${f.clothingColor || ''}${f.clothingStyle}`);
     else clothesParts.push('穿着日常便服');
@@ -880,7 +884,7 @@ const generateEnglishPrompt = async () => {
         return uni.showToast({ title: '请先选择特征', icon: 'none' });
     }
 
-    uni.showLoading({ title: '分模块组装中...', mask: true });
+    uni.showLoading({ title: '生成纯净人设Prompt...', mask: true });
 
     try {
         const prompt = `Translate these 3 parts from Chinese to Danbooru English tags.
@@ -900,22 +904,30 @@ const generateEnglishPrompt = async () => {
         const parts = result.split('|||');
         const safeTags = parts[0] ? parts[0].trim() : '';
         const nsfwTags = parts[1] ? parts[1].trim() : '';
-        const clothingTags = parts[2] ? parts[2].trim() : '';
+        const clothingTags = parts[2] ? parts[2].trim() : ''; // 衣服只存在这里
         
+        // 【核心修改】appearanceSafe 只包含脸和身体，绝不含衣服
         formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
         formData.value.appearanceNsfw = nsfwTags;
         
+        // 【核心修改】appearance (最终Prompt) 绝对不含衣服！
+        // 这样 Chat 页面就不会因为旧衣服打架了。
         if (f.wearStatus === '暴露/H') {
-             formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}, ${clothingTags}`;
+             formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
         } else {
-             formData.value.appearance = `${formData.value.appearanceSafe}, ${clothingTags}`;
+             formData.value.appearance = `${formData.value.appearanceSafe}`;
         }
 
-        uni.showToast({ title: 'Prompt 组装完成', icon: 'success' });
+        // 【核心修改】把衣服暂存起来，只给头像生成用
+        tempClothingTagsForAvatar.value = clothingTags;
+
+        uni.showToast({ title: 'Prompt已生成 (不含衣物)', icon: 'success' });
     } catch (e) {
         console.error(e);
-        formData.value.appearance = `${faceTags}, ${safeChinese}, ${nsfwChinese}, ${clothesChinese}`;
+        // 降级处理
+        formData.value.appearance = `${faceTags}, ${safeChinese}`; 
         formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
+        tempClothingTagsForAvatar.value = clothesChinese; // 降级时暂存中文
         uni.showToast({ title: '翻译失败，使用原文', icon: 'none' });
     } finally {
         uni.hideLoading();
@@ -980,8 +992,15 @@ const generateAvatar = async () => {
   if (!imgConfig.baseUrl) {
       return uni.showToast({ title: '请在[我的]设置中配置 ComfyUI 地址', icon: 'none' });
   }
+  
   uni.showLoading({ title: 'ComfyUI 绘图中...', mask: true });
-  const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}`;
+  
+  // 【核心修改】生成头像时，临时把衣服拼上去！
+  // 这样头像有衣服，但人设里没衣服。
+  const clothes = tempClothingTagsForAvatar.value || '';
+  // 拼接顺序：画质 + 构图 + 人设(无衣) + 衣服
+  const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}, ${clothes}`;
+  
   try {
       const tempUrl = await generateImageFromComfyUI(avatarPrompt, imgConfig.baseUrl);
       if (tempUrl) {
@@ -1119,7 +1138,7 @@ const loadCharacterData = (id) => {
   }
 };
 
-// ↓↓↓↓↓↓↓↓↓ 复制下面的代码，粘贴在 const saveCharacter 之前 ↓↓↓↓↓↓↓↓↓
+
 
 // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 autoGenerateFiveStages 函数 (万能通用版) ↓↓↓↓↓↓↓↓↓
 
@@ -1194,6 +1213,8 @@ const saveCharacter = () => {
   if (!formData.value.name.trim()) return uni.showToast({ title: '名字不能为空', icon: 'none' });
   let list = uni.getStorageSync('contact_list') || [];
   
+  // 衣服仅作为"初始状态"保存，用于在聊天界面顶部显示"穿着：xxx"
+  // 但不会进入生图 Prompt
   let clothingStr = '便服';
   if (formData.value.charFeatures.clothingStyle) {
       clothingStr = `${formData.value.charFeatures.clothingColor || ''}${formData.value.charFeatures.clothingStyle}`;
@@ -1205,47 +1226,41 @@ const saveCharacter = () => {
     maxReplies: formData.value.maxReplies,
     initialAffection: formData.value.initialAffection,
     initialLust: formData.value.initialLust, 
-    
     allowProactive: formData.value.allowProactive,
     proactiveInterval: formData.value.proactiveInterval,
     proactiveNotify: formData.value.proactiveNotify,
-    
     historyLimit: formData.value.historyLimit, 
     enableSummary: formData.value.enableSummary,
     summaryFrequency: formData.value.summaryFrequency,
     summary: formData.value.summary,
-    
     location: formData.value.location,
-    clothing: clothingStr, 
+    
+    clothing: clothingStr, // 这里保存初始衣服文字，不影响生图
+    
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
 
     settings: {
+        // 保存的是 generateEnglishPrompt 生成的纯净版（不含衣服）
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
-        
         bio: formData.value.bio,
         occupation: formData.value.occupation, 
-        
         userWorldId: formData.value.userWorldId,
         userLocation: formData.value.userLocation,
         userOccupation: formData.value.userOccupation,
         userAppearance: formData.value.userAppearance, 
         userFeatures: formData.value.userFeatures,
-
         personalityNormal: formData.value.personalityNormal,
         personalityFlirt: formData.value.personalityFlirt,
         personalitySex: formData.value.personalitySex,
-        
         exampleNormal: formData.value.exampleNormal,
         exampleFlirt: formData.value.exampleFlirt,
         exampleSex: formData.value.exampleSex,
-        
-        // 【新增】保存世界观
         worldLore: formData.value.worldLore,
     },
     
@@ -1258,7 +1273,8 @@ const saveCharacter = () => {
     const index = list.findIndex(item => String(item.id) === String(targetId.value));
     if (index !== -1) {
         list[index] = { ...list[index], ...charData };
-        list[index].affection = formData.value.initialAffection;
+        // 编辑模式下不重置好感度，除非你想重置
+        // list[index].affection = formData.value.initialAffection; 
         uni.showToast({ title: '修改已保存', icon: 'success' });
     }
   } else {

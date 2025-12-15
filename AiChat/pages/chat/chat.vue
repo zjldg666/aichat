@@ -683,90 +683,68 @@ const getTimeTags = () => {
         return "daytime";
     };
     
-    // pages/chat/chat.vue
-    
+  
+        
         // pages/chat/chat.vue
         
         const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
-            // 1. 获取 AI 的描述 (这是最宝贵的)
             let aiTags = actionAndSceneDescription;
             
-            // 2. 获取系统保底数据
+            // 1. 获取基础数据
             const settings = currentRole.value?.settings || {};
-            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-            const storedClothes = currentClothing.value || "";
+            // 🚨 appearanceSafe: 在 create 页面修改后，这里只包含脸、发型、身材 (不含衣服)
+            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
             
             // =========================================================
-            // 🔍 智能分析 AI 的意图
+            // 🔍 智能分析 (仅保留必要的构图/男主判断)
             // =========================================================
             
-            // A. 构图判断：完全信任 AI 的标签
-            // 如果 AI 说了 1boy/couple，那就是双人；如果没说，系统再根据模式判断一下作为保底
+            // A. 构图判断 (为了决定要不要加 1boy)
             let isDuo = /\b(couple|2people|1boy|multiple boys)\b/i.test(aiTags);
-            
-            // 只有在 AI 没明确说构图，且系统处于非电话模式时，才允许系统补救
             if (!isDuo && interactionMode.value !== 'phone') {
-                // 只有这种模棱两可的情况，才允许正则去猜
-                isDuo = /\b(sex|fuck|penis)\b/i.test(aiTags); 
+                // 如果是非电话模式且涉及性行为，强制双人
+                isDuo = /\b(sex|fuck|penis|insertion|doggystyle|fellatio|paizuri)\b/i.test(aiTags); 
             }
-            
-            // B. 衣服判断：AI 是否已经描述了衣服？
-            // 如果 AI 的描述里包含了当前衣服的关键词（比如 sweater），系统就别重复加了
-            const aiDescribedClothes = storedClothes.split(/[\s,]+/).some(word => 
-                word.length > 3 && aiTags.toLowerCase().includes(word.toLowerCase())
-            );
-            
-            // 裸体或换装检测
-            const isNaked = /\b(nude|naked|no clothes)\b/i.test(aiTags);
-            const isChanging = /\b(wearing|dressed in)\b/i.test(aiTags);
         
             // =========================================================
-            // 🛠️ 组装 Prompt (AI 优先)
+            // 🛠️ 组装 Prompt (极简逻辑：脸 + AI描述)
             // =========================================================
             
             let parts = [];
             
-            // 1. 构图 (Solo/Duo)
+            // 1. 构图与画质
             parts.push(isDuo ? "couple, 2people" : "solo");
-            parts.push("masterpiece, best quality, anime style"); // 基础画质
+            parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
             
-            // 2. 角色长相 (这个还是建议加系统保底，防止 AI 忘了画红眼睛)
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const styleSetting = imgConfig.style || 'anime';
+            parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
+            
+            // 2. 固定样貌 (来自 Create 页面，确保脸不变)
             parts.push(appearanceSafe);
             
-            // 3. 衣服 (最关键的修改：AI 说过了，系统就闭嘴)
-            if (isNaked || isChanging || aiDescribedClothes) {
-                console.log("👗 采用 AI 描述的服装/状态");
-            } else {
-                console.log("👗 AI 未提及衣服，使用系统保底");
-                parts.push(storedClothes);
-            }
-            
-            // 4. AI 的描述 (核心)
+            // 3. AI 的描述 (核心！)
+            // 🚨 彻底移除了 storedClothes 的拼接！
+            // 既然 AI 在 [CLOTHES] 里说换了 towel，那它肯定会在 [IMG] 里写 towel。
+            // 我们直接信任 AI 这一段描述。它写了婚纱就是婚纱，写了毛巾就是毛巾。
+            console.log("🎨 [极简模式] 信任 AI 描述，不强加系统衣服");
             parts.push(aiTags);
             
-            // 5. 男主 (只在双人时加)
+            // 4. 男主 (双人时补全)
             if (isDuo) parts.push(userAppearance.value || "1boy");
             
-            // 6. 环境光影
+            // 5. 光影
             parts.push(getTimeTags());
         
-            // =========================================================
-            // 🧹 清洗与去重 (最后一道防线)
-            // =========================================================
+            // 清洗去重
             let rawPrompt = parts.join(', ');
-            
-            // 分割 -> 去空格 -> Set去重 -> 过滤空项
-            let uniqueTags = [...new Set(
-                rawPrompt.split(/[,，]/)
-                .map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()) // 过滤非英文
-                .filter(t => t)
-            )];
-            
+            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
             let finalPrompt = uniqueTags.join(', ');
-            console.log('🚀 [ComfyUI] Final Prompt:', finalPrompt);
             
+            console.log('🚀 [ComfyUI] Final Prompt:', finalPrompt);
             return finalPrompt;
         };
+		
     const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
@@ -1133,7 +1111,6 @@ const getTimeTags = () => {
                                 };
                             }
                             
-                            console.log('📡 [LLM] Requesting:', targetUrl);
                             
                             try {
                                 const header = { 'Content-Type': 'application/json' };
@@ -1190,231 +1167,243 @@ const getTimeTags = () => {
     
     // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 processAIResponse 函数 ↓↓↓↓↓↓↓↓↓
     
+        // pages/chat/chat.vue
+        
         const processAIResponse = (rawText) => {
-                let displayText = rawText.trim();
+            let displayText = rawText.trim();
         
-                // =================================================================
-                // 🧠 1. 思维链处理 (智能嵌套解析版)
-                // =================================================================
-                // 解决 [Thought: [状态:...] ...] 嵌套括号导致正则截断的问题
-                const thoughtStart = displayText.indexOf('[Thought');
+            // =================================================================
+            // 🧠 1. 思维链处理 (智能嵌套解析版)
+            // =================================================================
+            // 解决 [Thought: [状态:...] ...] 嵌套括号导致正则截断的问题
+            const thoughtStart = displayText.indexOf('[Thought');
+            
+            if (thoughtStart !== -1) {
+                let bracketCount = 0;
+                let thoughtEnd = -1;
                 
-                if (thoughtStart !== -1) {
-                    let bracketCount = 0;
-                    let thoughtEnd = -1;
+                // 从 [Thought 开始遍历，寻找对应的闭合 ]
+                for (let i = thoughtStart; i < displayText.length; i++) {
+                    if (displayText[i] === '[') bracketCount++;
+                    else if (displayText[i] === ']') bracketCount--;
                     
-                    // 从 [Thought 开始遍历，寻找对应的闭合 ]
-                    for (let i = thoughtStart; i < displayText.length; i++) {
-                        if (displayText[i] === '[') bracketCount++;
-                        else if (displayText[i] === ']') bracketCount--;
-                        
-                        // 当计数器归零时，说明找到了最外层的闭合括号
-                        if (bracketCount === 0) {
-                            thoughtEnd = i;
-                            break;
-                        }
-                    }
-                    
-                    if (thoughtEnd !== -1) {
-                        // 提取完整的思维链
-                        const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
-                        // 提取内容用于日志 (去掉 [Thought: 和最后的 ])
-                        const logContent = fullThought.replace(/^\[Thought:?/, '').slice(0, -1).trim();
-                        
-                        console.log(`🧠 [AI心声]: ${logContent}`);
-                        
-                        // 从正文中彻底移除思维链
-                        displayText = displayText.replace(fullThought, '').trim();
+                    // 当计数器归零时，说明找到了最外层的闭合括号
+                    if (bracketCount === 0) {
+                        thoughtEnd = i;
+                        break;
                     }
                 }
-        
-                // =================================================================
-                // 🚨 2. 指令清洗
-                // =================================================================
                 
-                // 修复 AI 自创的 LINTYAHOT_IMG
-                displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
-                
-                // 修复圆括号包裹指令
-                displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, '[$1:$2]');
-        
-                // 修复半括号
-                displayText = displayText.replace(/\(IMG:/gi, '[IMG:');
-                displayText = displayText.replace(/\(CLOTHES:/gi, '[CLOTHES:');
-        
-                // 修复中文括号
-                displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
-                
-                // 去除残留逻辑标记
-                displayText = displayText.replace(/\[Logic[\s\S]*?\]/gi, '').trim();
-        
-                // =================================================================
-                // 📥 3. 状态提取
-                // =================================================================
-        
-                let systemMsgs = [];
-        
-                // [AFF] 好感度
-                const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
-                let match;
-                while ((match = affRegex.exec(displayText)) !== null) {
-                    let change = parseInt(match[1], 10);
-                    if (!isNaN(change)) {
-                        if (change > 5) change = 5; 
-                        console.log(`❤️ [Status] Affection change: ${change}`);
-                        saveCharacterState(currentAffection.value + change);
-                        if (change !== 0) uni.showToast({ title: `好感 ${change > 0 ? '+' : ''}${change}`, icon: 'none' });
-                    }
-                }
-                displayText = displayText.replace(affRegex, '');
-        
-                // [LUST] 欲望值
-                const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
-                let lustMatch;
-                while ((lustMatch = lustRegex.exec(displayText)) !== null) {
-                    let change = parseInt(lustMatch[1], 10);
-                    if (!isNaN(change)) {
-                        console.log(`🔥 [Status] Lust change: ${change}`);
-                        saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
-                    }
-                }
-                displayText = displayText.replace(lustRegex, '');
-        
-                // [MOOD] 情绪
-                const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
-                const moodMatch = displayText.match(moodRegex);
-                if (moodMatch) {
-                    const newMood = moodMatch[1].trim();
-                    console.log(`😊 [Status] Mood update: ${newMood}`);
-                    // systemMsgs.push(`心情：${newMood}`); 
-                    displayText = displayText.replace(moodRegex, '');
-                }
-        
-                // [MODE] 交互模式
-                const modeRegex = /\[MODE:?\s*(.*?)\]/i;
-                const modeMatch = displayText.match(modeRegex);
-                if (modeMatch) {
-                    const newModeVal = modeMatch[1].trim().toLowerCase();
-                    let newMode = 'phone';
-                    if (newModeVal.includes('face') || newModeVal.includes('见') || newModeVal.includes('面')) newMode = 'face';
+                if (thoughtEnd !== -1) {
+                    // 提取完整的思维链
+                    const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
+                    // 提取内容用于日志 (去掉 [Thought: 和最后的 ])
+                    const logContent = fullThought.replace(/^\[Thought:?/, '').slice(0, -1).trim();
                     
-                    if (newMode !== interactionMode.value) {
-                        console.log(`📡 [Status] Mode switch to: ${newMode}`);
-                        interactionMode.value = newMode;
-                        saveCharacterState(undefined, undefined, undefined, undefined, undefined, newMode);
-                        const modeText = newMode === 'face' ? '见面了' : '分开了';
-                        systemMsgs.push(`状态更新：${modeText}`);
+                    console.log(`🧠 [AI心声]: ${logContent}`);
+                    
+                    // 从正文中彻底移除思维链
+                    displayText = displayText.replace(fullThought, '').trim();
+                }
+            }
+        
+            // =================================================================
+            // 🚨 2. 指令清洗
+            // =================================================================
+            
+            // 修复 AI 自创的 LINTYAHOT_IMG
+            displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
+            
+            // 修复圆括号包裹指令
+            displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, '[$1:$2]');
+        
+            // 修复半括号
+            displayText = displayText.replace(/\(IMG:/gi, '[IMG:');
+            displayText = displayText.replace(/\(CLOTHES:/gi, '[CLOTHES:');
+        
+            // 修复中文括号
+            displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
+            
+            // 去除残留逻辑标记
+            displayText = displayText.replace(/\[Logic[\s\S]*?\]/gi, '').trim();
+        
+            // =================================================================
+            // 📥 3. 状态提取
+            // =================================================================
+        
+            let systemMsgs = [];
+        
+            // [AFF] 好感度
+            const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
+            let match;
+            while ((match = affRegex.exec(displayText)) !== null) {
+                let change = parseInt(match[1], 10);
+                if (!isNaN(change)) {
+                    if (change > 5) change = 5; 
+                    console.log(`❤️ [Status] Affection change: ${change}`);
+                    saveCharacterState(currentAffection.value + change);
+                    if (change !== 0) uni.showToast({ title: `好感 ${change > 0 ? '+' : ''}${change}`, icon: 'none' });
+                }
+            }
+            displayText = displayText.replace(affRegex, '');
+        
+            // [LUST] 欲望值
+            const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
+            let lustMatch;
+            while ((lustMatch = lustRegex.exec(displayText)) !== null) {
+                let change = parseInt(lustMatch[1], 10);
+                if (!isNaN(change)) {
+                    console.log(`🔥 [Status] Lust change: ${change}`);
+                    saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
+                }
+            }
+            displayText = displayText.replace(lustRegex, '');
+        
+            // [MOOD] 情绪
+            const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
+            const moodMatch = displayText.match(moodRegex);
+            if (moodMatch) {
+                const newMood = moodMatch[1].trim();
+                console.log(`😊 [Status] Mood update: ${newMood}`);
+                // systemMsgs.push(`心情：${newMood}`);  // 已静默
+                displayText = displayText.replace(moodRegex, '');
+            }
+        
+            // [MODE] 交互模式
+            const modeRegex = /\[MODE:?\s*(.*?)\]/i;
+            const modeMatch = displayText.match(modeRegex);
+            if (modeMatch) {
+                const newModeVal = modeMatch[1].trim().toLowerCase();
+                let newMode = 'phone';
+                if (newModeVal.includes('face') || newModeVal.includes('见') || newModeVal.includes('面')) newMode = 'face';
+                
+                if (newMode !== interactionMode.value) {
+                    console.log(`📡 [Status] Mode switch to: ${newMode}`);
+                    interactionMode.value = newMode;
+                    saveCharacterState(undefined, undefined, undefined, undefined, undefined, newMode);
+                    
+                    // 🚨【静默处理】不再提示 "状态更新：见面了"
+                    // const modeText = newMode === 'face' ? '见面了' : '分开了';
+                    // systemMsgs.push(`状态更新：${modeText}`);
+                }
+                displayText = displayText.replace(modeRegex, '');
+            }
+        
+            // [LOC] 地点
+            const locRegex = /\[LOC:?\s*(.*?)\]/i;
+            const locMatch = displayText.match(locRegex);
+            if (locMatch) {
+                const newLoc = locMatch[1].trim();
+                console.log(`📍 [Status] Moved to: ${newLoc}`);
+                currentLocation.value = newLoc;
+                saveCharacterState(undefined, undefined, undefined, newLoc);
+                
+                // 🚨【静默处理】不再提示 "移动到：xxx"
+                // systemMsgs.push(`移动到：${newLoc}`);
+                
+                displayText = displayText.replace(locRegex, '');
+            }
+            
+            // [CLOTHES] 换装
+            const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
+            const clothesMatch = displayText.match(clothesRegex);
+            if (clothesMatch) {
+                const newClothes = clothesMatch[1].trim();
+                console.log(`👗 [Status] Clothes changed to: ${newClothes}`);
+                currentClothing.value = newClothes;
+                saveCharacterState(undefined, undefined, undefined, undefined, newClothes);
+                
+                // 🚨【静默处理】不再提示 "换装：xxx"
+                // systemMsgs.push(`换装：${newClothes}`);
+                
+                displayText = displayText.replace(clothesRegex, '');
+            }
+            
+            // [ACT] 活动
+            const actRegex = /\[ACT:?\s*(.*?)\]/i;
+            const actMatch = displayText.match(actRegex);
+            if (actMatch) {
+                const newAct = actMatch[1].trim();
+                console.log(`🎬 [Status] Activity update: ${newAct}`);
+                currentActivity.value = newAct; 
+                saveCharacterState(); 
+                displayText = displayText.replace(actRegex, '');
+            }
+        
+            // [IMG] 生图
+            const imgRegex = /\[IMG:(.*?)\]/i;
+            const imgMatch = displayText.match(imgRegex);
+            let pendingImagePlaceholder = null;
+            
+            if (imgMatch) {
+                const imgDesc = imgMatch[1].trim();
+                console.log(`🖼️ [Status] Image trigger detected: ${imgDesc}`);
+                displayText = displayText.replace(imgRegex, '');
+                
+                const placeholderId = `img-loading-${Date.now()}`;
+                pendingImagePlaceholder = { 
+                    role: 'system', 
+                    content: '📷 影像显影中... (请稍候)', 
+                    isSystem: true, 
+                    id: placeholderId 
+                };
+                
+                handleAsyncImageGeneration(imgDesc, placeholderId);
+            }
+        
+            // =================================================================
+            // 💬 4. 文本上屏 (包含 ||| 分隔处理)
+            // =================================================================
+        
+            // 清理残留标签
+            displayText = displayText.replace(/\[(System|Logic).*?\]/gis, '').trim();
+            displayText = displayText.replace(/^\[.*?\]\s*/, '');
+            displayText = displayText.replace(/^.*?：\s*/, '');
+            
+            // 将系统消息推送到屏幕 (现在 systemMsgs 大概率是空的，除非有报错等)
+            systemMsgs.forEach(txt => { 
+                messageList.value.push({ role: 'system', content: txt, isSystem: true }); 
+            });
+            
+            if (displayText) {
+                // 兼容性处理：如果AI没有使用 |||，尝试用换行符分割
+                // 但如果使用了 |||，则主要依靠 |||
+                
+                // 1. 先把换行符转为 ||| (兼容没有遵守规则的情况)
+                let tempText = displayText.replace(/(\r\n|\n|\r)+/g, '|||');
+                
+                // 2. 强制在引号和括号间加 ||| (这是你原版逻辑的精华，防止气泡过长)
+                tempText = tempText.replace(/([”"])\s*([（(])/g, '$1|||$2');
+                tempText = tempText.replace(/([)）])\s*([（(])/g, '$1|||$2');
+                
+                const parts = tempText.split('|||');
+                parts.forEach(part => {
+                    let cleanPart = part.trim();
+                    const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || 
+                                   /^["“”'‘’]+$/.test(cleanPart) || 
+                                   cleanPart === '...' || 
+                                   cleanPart.length === 0;
+                                   
+                    if (!isJunk) {
+                        messageList.value.push({ role: 'model', content: cleanPart });
                     }
-                    displayText = displayText.replace(modeRegex, '');
-                }
-        
-                // [LOC] 地点
-                const locRegex = /\[LOC:?\s*(.*?)\]/i;
-                const locMatch = displayText.match(locRegex);
-                if (locMatch) {
-                    const newLoc = locMatch[1].trim();
-                    console.log(`📍 [Status] Moved to: ${newLoc}`);
-                    currentLocation.value = newLoc;
-                    saveCharacterState(undefined, undefined, undefined, newLoc);
-                    systemMsgs.push(`移动到：${newLoc}`);
-                    displayText = displayText.replace(locRegex, '');
-                }
-                
-                // [CLOTHES] 换装
-                const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
-                const clothesMatch = displayText.match(clothesRegex);
-                if (clothesMatch) {
-                    const newClothes = clothesMatch[1].trim();
-                    console.log(`👗 [Status] Clothes changed to: ${newClothes}`);
-                    currentClothing.value = newClothes;
-                    saveCharacterState(undefined, undefined, undefined, undefined, newClothes);
-                    systemMsgs.push(`换装：${newClothes}`);
-                    displayText = displayText.replace(clothesRegex, '');
-                }
-                
-                // [ACT] 活动
-                const actRegex = /\[ACT:?\s*(.*?)\]/i;
-                const actMatch = displayText.match(actRegex);
-                if (actMatch) {
-                    const newAct = actMatch[1].trim();
-                    console.log(`🎬 [Status] Activity update: ${newAct}`);
-                    currentActivity.value = newAct; 
-                    saveCharacterState(); 
-                    displayText = displayText.replace(actRegex, '');
-                }
-        
-                // [IMG] 生图
-                const imgRegex = /\[IMG:(.*?)\]/i;
-                const imgMatch = displayText.match(imgRegex);
-                let pendingImagePlaceholder = null;
-                
-                if (imgMatch) {
-                    const imgDesc = imgMatch[1].trim();
-                    console.log(`🖼️ [Status] Image trigger detected: ${imgDesc}`);
-                    displayText = displayText.replace(imgRegex, '');
-                    
-                    const placeholderId = `img-loading-${Date.now()}`;
-                    pendingImagePlaceholder = { 
-                        role: 'system', 
-                        content: '📷 影像显影中... (请稍候)', 
-                        isSystem: true, 
-                        id: placeholderId 
-                    };
-                    
-                    handleAsyncImageGeneration(imgDesc, placeholderId);
-                }
-        
-                // =================================================================
-                // 💬 4. 文本上屏 (包含 ||| 分隔处理)
-                // =================================================================
-        
-                // 清理残留标签
-                displayText = displayText.replace(/\[(System|Logic).*?\]/gis, '').trim();
-                displayText = displayText.replace(/^\[.*?\]\s*/, '');
-                displayText = displayText.replace(/^.*?：\s*/, '');
-                
-                systemMsgs.forEach(txt => { 
-                    messageList.value.push({ role: 'system', content: txt, isSystem: true }); 
                 });
-                
-                if (displayText) {
-                    // 兼容性处理：如果AI没有使用 |||，尝试用换行符分割
-                    // 但如果使用了 |||，则主要依靠 |||
-                    
-                    // 1. 先把换行符转为 ||| (兼容没有遵守规则的情况)
-                    let tempText = displayText.replace(/(\r\n|\n|\r)+/g, '|||');
-                    
-                    // 2. 强制在引号和括号间加 ||| (这是你原版逻辑的精华，防止气泡过长)
-                    tempText = tempText.replace(/([”"])\s*([（(])/g, '$1|||$2');
-                    tempText = tempText.replace(/([)）])\s*([（(])/g, '$1|||$2');
-                    
-                    const parts = tempText.split('|||');
-                    parts.forEach(part => {
-                        let cleanPart = part.trim();
-                        const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || 
-                                       /^["“”'‘’]+$/.test(cleanPart) || 
-                                       cleanPart === '...' || 
-                                       cleanPart.length === 0;
-                                       
-                        if (!isJunk) {
-                            messageList.value.push({ role: 'model', content: cleanPart });
-                        }
-                    });
+            }
+            
+            if (pendingImagePlaceholder) {
+                messageList.value.push(pendingImagePlaceholder);
+            }
+            
+            saveHistory();
+            
+            if (enableSummary.value) {
+                const validMsgCount = messageList.value.filter(m => !m.isSystem).length;
+                if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
+                    performBackgroundSummary();
                 }
-                
-                if (pendingImagePlaceholder) {
-                    messageList.value.push(pendingImagePlaceholder);
-                }
-                
-                saveHistory();
-                
-                if (enableSummary.value) {
-                    const validMsgCount = messageList.value.filter(m => !m.isSystem).length;
-                    if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
-                        performBackgroundSummary();
-                    }
-                }
-            };
+            }
+        };
+		
     const scrollToBottom = () => {
         nextTick(() => {
             scrollIntoView.value = '';
