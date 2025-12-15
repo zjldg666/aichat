@@ -672,53 +672,101 @@
             }
         };
 
-    const getTimeTags = () => {
+const getTimeTags = () => {
         const date = new Date(currentTime.value);
         const hour = date.getHours();
-        if (hour >= 5 && hour < 7) return "early morning, sunrise, warm lighting";
-        if (hour >= 7 && hour < 16) return "daytime, bright sunlight, natural lighting";
-        if (hour >= 16 && hour < 19) return "sunset, dusk, golden hour";
-        if (hour >= 19 || hour < 5) return "night, dark, moonlight, cinematic lighting";
+        // 已移除 warm lighting, cinematic lighting 等光影词，仅保留时间
+        if (hour >= 5 && hour < 7) return "early morning";
+        if (hour >= 7 && hour < 16) return "daytime";
+        if (hour >= 16 && hour < 19) return "sunset";
+        if (hour >= 19 || hour < 5) return "night";
         return "daytime";
     };
     
     // pages/chat/chat.vue
     
+        // pages/chat/chat.vue
+        
         const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
-            console.log('🎨 [Image] Raw Tags from AI:', actionAndSceneDescription);
+            // 1. 获取 AI 的描述 (这是最宝贵的)
+            let aiTags = actionAndSceneDescription;
             
+            // 2. 获取系统保底数据
             const settings = currentRole.value?.settings || {};
             const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-            const userDesc = userAppearance.value || "1boy, short hair"; 
+            const storedClothes = currentClothing.value || "";
             
-            // 清理可能残留的标记
-            let cleanTagsFromAI = actionAndSceneDescription.replace(/COUPLE_ON/gi, '');
-            const isDuo = actionAndSceneDescription.includes('COUPLE_ON') || /couple|2people|sex|fuck|penis/i.test(actionAndSceneDescription);
+            // =========================================================
+            // 🔍 智能分析 AI 的意图
+            // =========================================================
             
-            const clothingAndNsfwTags = currentClothing.value;
+            // A. 构图判断：完全信任 AI 的标签
+            // 如果 AI 说了 1boy/couple，那就是双人；如果没说，系统再根据模式判断一下作为保底
+            let isDuo = /\b(couple|2people|1boy|multiple boys)\b/i.test(aiTags);
             
-            // 🚨【关键修改】只保留人数标签，彻底移除 looking at viewer / single view 等构图干扰
-            const compositionTag = isDuo ? "couple, 2people" : "solo"; 
-                
-            const imgConfig = uni.getStorageSync('app_image_config') || {};
-            const styleSetting = imgConfig.style || 'anime';
-            const styleTags = STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime'];
-            const timeTags = getTimeTags();
-    
-            // 组装顺序：人数 -> 画质 -> 风格 -> 人物外观 -> 衣服 -> 【AI的动态描述】 -> 时间光影
-            let finalPrompt = `${compositionTag}, masterpiece, best quality, ${styleTags}, ${appearanceSafe}, ${clothingAndNsfwTags}, ${cleanTagsFromAI}`;
+            // 只有在 AI 没明确说构图，且系统处于非电话模式时，才允许系统补救
+            if (!isDuo && interactionMode.value !== 'phone') {
+                // 只有这种模棱两可的情况，才允许正则去猜
+                isDuo = /\b(sex|fuck|penis)\b/i.test(aiTags); 
+            }
             
-            if (isDuo) finalPrompt += `, ${userDesc}`;
-            finalPrompt += `, ${timeTags}`;
-    
-            // 清洗逗号
-            let cleanPrompt = finalPrompt.replace(/，/g, ',').replace(/[^\x00-\x7F]+/g, '');
-            cleanPrompt = cleanPrompt.replace(/\s+/g, ' ').replace(/,\s*,/g, ',').replace(/,+/g, ',');
+            // B. 衣服判断：AI 是否已经描述了衣服？
+            // 如果 AI 的描述里包含了当前衣服的关键词（比如 sweater），系统就别重复加了
+            const aiDescribedClothes = storedClothes.split(/[\s,]+/).some(word => 
+                word.length > 3 && aiTags.toLowerCase().includes(word.toLowerCase())
+            );
             
-            console.log('🚀 [ComfyUI] Final Prompt Sending:', cleanPrompt);
-            return cleanPrompt;
+            // 裸体或换装检测
+            const isNaked = /\b(nude|naked|no clothes)\b/i.test(aiTags);
+            const isChanging = /\b(wearing|dressed in)\b/i.test(aiTags);
+        
+            // =========================================================
+            // 🛠️ 组装 Prompt (AI 优先)
+            // =========================================================
+            
+            let parts = [];
+            
+            // 1. 构图 (Solo/Duo)
+            parts.push(isDuo ? "couple, 2people" : "solo");
+            parts.push("masterpiece, best quality, anime style"); // 基础画质
+            
+            // 2. 角色长相 (这个还是建议加系统保底，防止 AI 忘了画红眼睛)
+            parts.push(appearanceSafe);
+            
+            // 3. 衣服 (最关键的修改：AI 说过了，系统就闭嘴)
+            if (isNaked || isChanging || aiDescribedClothes) {
+                console.log("👗 采用 AI 描述的服装/状态");
+            } else {
+                console.log("👗 AI 未提及衣服，使用系统保底");
+                parts.push(storedClothes);
+            }
+            
+            // 4. AI 的描述 (核心)
+            parts.push(aiTags);
+            
+            // 5. 男主 (只在双人时加)
+            if (isDuo) parts.push(userAppearance.value || "1boy");
+            
+            // 6. 环境光影
+            parts.push(getTimeTags());
+        
+            // =========================================================
+            // 🧹 清洗与去重 (最后一道防线)
+            // =========================================================
+            let rawPrompt = parts.join(', ');
+            
+            // 分割 -> 去空格 -> Set去重 -> 过滤空项
+            let uniqueTags = [...new Set(
+                rawPrompt.split(/[,，]/)
+                .map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()) // 过滤非英文
+                .filter(t => t)
+            )];
+            
+            let finalPrompt = uniqueTags.join(', ');
+            console.log('🚀 [ComfyUI] Final Prompt:', finalPrompt);
+            
+            return finalPrompt;
         };
-
     const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
@@ -875,7 +923,7 @@
                             // 2. 消息上屏
                             if (!isContinue) {
                                 if (inputText.value.trim()) {
-                                     console.log('🗣️ [Chat] User sent:', inputText.value);
+                                     // console.log('🗣️ [Chat] User sent:', inputText.value); // 旧日志，已合并到下方
                                      messageList.value.push({ role: 'user', content: inputText.value });
                                      inputText.value = '';
                                 } else if (systemOverride && systemOverride.includes('SHUTTER')) {
@@ -898,7 +946,7 @@
                             const myLoc = s.userLocation || appUser.location || "未知地点";
                             const myLook = s.userAppearance || appUser.appearance || "普通外貌";
                             const myName = userName.value || appUser.name || 'User';
-                    
+                        
                             // 3.2 获取角色档案 (补全 Char Profile)
                             const charJob = role.occupation || s.occupation || "未知职业";
                             const charLoc = role.location || s.location || "未知地点";
@@ -933,15 +981,15 @@
                                 activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
                                 activeExample = s.exampleSex || "";
                             }
-                    
+                        
                             activePersonality = `[当前阶段: ${personalityLabel}]\n行为逻辑: ${activePersonality}`;
-                    
+                        
                             // 3.4 欲望与特殊规则 (增强版)
                             let activeRules = "";
                             // 注入 XP 和雷点，让 AI 知道什么能加 Lust
                             activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。\n`;
                             activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。\n`;
-            
+                        
                             if (lust > 80 && score < 60) {
                                 activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**\n虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
                             } else if (lust < 30) {
@@ -949,12 +997,12 @@
                             } else {
                                 activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
                             }
-                    
+                        
                             let nsfwInstruction = "";
                             const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
                             if (isIntimate) nsfwInstruction = NSFW_STYLE; 
-                    
-                            const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
+                            
+                            const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'. If activity changes, append [ACT: new status].]`;
                             
                             // 4. 构建 Prompt
                             let prompt = CORE_INSTRUCTION + 
@@ -965,7 +1013,7 @@
                             
                             const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
                             const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
-                    
+                        
                             prompt = prompt
                                 // --- 世界观与基础 ---
                                 .replace(/{{world_lore}}/g, worldLoreData) 
@@ -1000,15 +1048,24 @@
                                 .replace(/{{current_affection}}/g, currentAffection.value)
                                 .replace(/{{current_lust}}/g, currentLust.value)
                                 .replace(/{{affection_rules}}/g, activeRules); 
-                    
+                        
                             // 5. 截取历史记录
                             const historyLimit = charHistoryLimit.value; 
                             let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
                             if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
                             
-                            console.log('📝 [LLM] System Prompt (Snippet):', prompt.substring(0, 500) + '...');
+                            // =========================================================================
+                            // 📝 【新增】 完整对话日志打印 (Debug Log) - 看这里排查问题！
+                            // =========================================================================
+                            console.log('============== 📜 DIALOGUE DEBUG LOG ==============');
+                            console.log('1. 🎭 User Profile:', { name: myName, job: myJob, loc: myLoc });
+                            console.log('2. 💃 Char Profile:', { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+                            console.log('3. 💬 Recent Context (Sent to AI):', contextMessages.map(m => `[${m.role}]: ${m.content}`).join('\n'));
                             
-                            // 6. 自动驾驶指令 (修正版：兼容思维链)
+                            console.log('5. 📥 Current Input:', isContinue ? '[Auto-Drive/Continue]' : (inputText.value || systemOverride));
+                            console.log('===================================================');
+                        
+                            // 6. 自动驾驶指令
                             const continuePrompt = `
                             [System Command: AUTO-DRIVE MODE]
                             **Situation**: The user is silent/waiting. You need to drive the conversation forward.
@@ -1024,7 +1081,7 @@
                             let requestBody = {};
                             let baseUrl = config.baseUrl || '';
                             if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                    
+                        
                             if (config.provider === 'gemini') {
                                 const cleanBase = 'https://generativelanguage.googleapis.com';
                                 targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
@@ -1050,9 +1107,6 @@
                             } else {
                                 targetUrl = `${baseUrl}/chat/completions`;
                                 
-                                // =========================================================
-                                // 修复的核心点：先定义数组，再使用 push
-                                // =========================================================
                                 const openAIMessages = [{ role: "system", content: prompt }];
                                 
                                 contextMessages.forEach(item => {
@@ -1063,9 +1117,6 @@
                                 if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
                                 else if (isContinue) openAIMessages.push({ role: 'user', content: continuePrompt });
                                 
-                                // ↓↓↓↓↓↓↓↓↓ 复制此代码，替换 sendMessage 函数末尾的【强制防呆补丁】 ↓↓↓↓↓↓↓↓↓
-                                
-                                // 【强制防呆补丁】必须放在最后，且必须用 user 身份
                                 openAIMessages.push({
                                     role: 'user',
                                     content: `[SYSTEM ENFORCEMENT] Stop. Before you reply, you MUST execute the [Thought] protocol.
@@ -1073,8 +1124,6 @@
                                 Step 2: Write your response.
                                 If you skip Step 1, the system will error.`
                                 });
-                                
-                                // ↑↑↑↑↑↑↑↑↑ 替换结束 ↑↑↑↑↑↑↑↑↑
                                 
                                 requestBody = {
                                     model: config.model,
@@ -1093,11 +1142,11 @@
                                 const res = await uni.request({
                                     url: targetUrl, method: 'POST', header: header, data: requestBody, sslVerify: false
                                 });
-                    
+                        
                                 if (res.statusCode === 200) {
                                     let rawText = "";
                                     let tokenLog = "";
-                    
+                        
                                     if (config.provider === 'gemini') {
                                         rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
                                         const usage = res.data?.usageMetadata;
@@ -1109,11 +1158,15 @@
                                         const usage = data?.usage;
                                         if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
                                     }
-                    
+                        
+                                    // 【新增】打印 AI 返回的原始数据，方便看是否包含了指令
+                                    console.log('============== 📥 RAW RESPONSE ==============');
+                                    console.log(rawText);
+                                    console.log('=============================================');
+                        
                                     if (tokenLog) console.log(tokenLog);
-                    
+                        
                                     if (rawText) {
-                                        console.log('📥 [LLM] Raw Response:', rawText.substring(0, 100) + (rawText.length > 100 ? '...' : ''));
                                         processAIResponse(rawText);
                                     } else {
                                         console.warn('⚠️ [LLM] Empty response or Blocked');

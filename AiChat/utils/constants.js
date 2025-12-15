@@ -14,11 +14,11 @@ export const STYLE_PROMPT_MAP = {
 
 // 2. 负面提示词 (Negative Prompt)
 export const NEGATIVE_PROMPTS = {
-    // 【关键修改】去掉了开头的 "nsfw"，增加了去马赛克和手部修复词
-    SOLO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, 2girls, 2boys, multiple girls, multiple boys, couple, censor, mosaic, bar, blurry",
+    // 单人模式
+    SOLO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, 2girls, 2boys, multiple girls, multiple boys, couple, multiple views, split screen, censor, mosaic, bar, blurry",
     
-    // 双人模式
-    DUO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, multiple views, grid, collage, censor, mosaic, bar, blurry"
+    // 双人模式 (允许出现 boy/couple，但依然禁止 child/loli 和 马赛克)
+    DUO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, multiple views, grid, collage, split screen, censor, mosaic, bar, blurry"
 };
 
 // 3. ComfyUI 工作流模板

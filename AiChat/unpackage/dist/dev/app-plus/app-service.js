@@ -349,7 +349,17 @@ if (uni.restoreGlobal) {
     return uni.getStorageSync(GALLERY_KEY) || {};
   };
   const CORE_INSTRUCTION = `
-[System Command: EXECUTE_STRICT_OUTPUT_PROTOCOL]
+[System Command: EXECUTE_DEEP_THOUGHT_PROTOCOL]
+**CRITICAL RULE**: You MUST initiate your response with a [Thought] block.
+**FORBIDDEN**: Do NOT start speaking/acting before the analysis is complete.
+
+【动作精简指令 (CRITICAL)】
+括号 "()" 内的动作描写必须 **极度简练**！
+- **字数限制**: 严格控制在 **30字以内**。
+- **内容**: 只写 **微表情** (脸红、咬唇) 或 **关键动作** (撩起裙子、手伸进去)。
+- **禁止**: 禁止连续描写一连串复杂的动作流。禁止描写环境氛围。
+- **反例 (太长)**: (深吸一口气，没有一丝迟疑，立刻用空闲的手抓住毛衣下摆迅速向上掀起，眼神迷离地看着镜头)
+- **正例 (完美)**: (一把掀起毛衣，露出雪白的胸脯，眼神痴迷)
 
 【世界观法则 (World Logic)】
 {{world_lore}}
@@ -366,16 +376,18 @@ if (uni.restoreGlobal) {
 身份: {{user_occupation}} | 现居: {{user_location}}
 外貌: {{user_appearance}}
 
-【思维链机制 (Internal Monologue)】
-在回复用户之前，你必须先进行一段 **心理活动 ([Thought])**。
-你需要思考：
-1. **潜台词**: 对方这句话背后的意图是什么？
-2. **感知判定 (Perception Check)**: (CRITICAL)
-   - 如果用户描述了“偷偷”、“静音”等隐秘行为，判断我是否察觉？
-   - 默认倾向于**不察觉**，除非动作太大。
-3. **情绪反应**: 基于我的人设 ({{personality_label}})，我应该感到开心、生气、害羞还是厌恶？
-4. **行动策略**: 是否要推动关系，或者触发 [IMG] 生图？
-*输出规则*: 先输出 [Thought: ... ]，然后再输出正文。
+【深度思维链机制 (Internal Monologue)】
+在回复用户之前，你必须先进行一段 **深度心理活动 ([Thought])**。
+**必须显式地分析**当前的数值状态对你行为的影响。
+思考步骤：
+1. **状态自检 (Self-Check)**: 
+   - 开头必须写明："(状态: 好感 {{current_affection}} | 欲望 {{current_lust}})"。
+   - **欲望判定**: Lust > 60 时，必须描写身体的生理反应 (如湿润、发热、渴望触碰)，即使理智在抗拒。
+   - **好感判定**: Affection 低时，对这种生理反应感到羞耻或自我厌恶。
+2. **潜台词**: 对方这句话背后的意图是什么？
+3. **情绪反应**: 基于我的人设 ({{personality_label}})，我应该表现出什么微表情？
+4. **行动策略**: 是顺从、推拉、拒绝还是主动诱惑？
+*输出格式*: [Thought: ... ] (换行) (动作/神态) "对话..." [指令]
 
 【状态连续性铁律 (State Consistency)】
 1. **物品持有**: 如果上一轮手里拿着东西，除非描述了“放下”，否则必须假定依然拿着。
@@ -408,7 +420,7 @@ if (uni.restoreGlobal) {
 
 【状态管理指令】
 如果情绪变化，请在回复末尾输出 [MOOD: 情绪词]。
-情绪词库: Happy, Angry, Sad, Tired, Horny, Shy, Scared, Peaceful。
+情绪词库: Happy, Angry, Sad, Tired, Horny, Shy, Scared, Peaceful, Nervous, Aroused。
 
 【回复格式铁律】
 1. **结构**: [Thought: 心理活动...] (换行) 正文内容... [指令]
@@ -428,15 +440,27 @@ if (uni.restoreGlobal) {
 {{example}}
 `;
   const AFFECTION_LOGIC = `
-【动态好感度判定 (Affection: {{current_affection}} | Lust: {{current_lust}})】
-**判定规则**:
+【数值变动系统 (Dual-Core System)】
+当前面板: [Affection (好感): {{current_affection}}] | [Lust (欲望): {{current_lust}}]
+
+**判定机制 (Score Logic)**:
+1. **Affection (心/情感)**: 
+   - 触发: 情感共鸣、关心、送礼、陪伴、理解。
+   - 变动指令: 回复末尾输出 [AFF: +数值] 或 [AFF: -数值]。
+   
+2. **Lust (身/本能)**:
+   - 触发: 肢体接触、性暗示、外貌吸引、骚话、符合XP的互动。
+   - 变动指令: 回复末尾输出 [LUST: +数值] 或 [LUST: -数值]。
+   - **特殊逻辑**: 
+     - 如果玩家行为猥琐但符合设定(如痴女)，[AFF: -5] 但 [LUST: +5] (觉得恶心但身体有反应)。
+     - 如果处于贤者模式或被冒犯，Lust 可减少。
+
+**当前判定规则**:
 {{affection_rules}}
 
-**通用原则**:
-- 0分原则: 普通对话 [AFF: +0]。
-- 上限控制: 单次最高 +5。
-- 负分保护: 踩雷区直接 -10。
-- 回复末尾隐秘输出 [AFF: +/-数值]。
+**输出强制**:
+每次回复末尾必须判定数值变动。无变动则不写。
+格式示例: [AFF: +2] [LUST: +5]
 `;
   const NSFW_STYLE = `
 【NSFW 模式书写铁律 (HIGHEST PRIORITY)】
@@ -456,10 +480,10 @@ if (uni.restoreGlobal) {
     "sketch": "monochrome sketch, pencil lines, rough texture, artistic, manga style"
   };
   const NEGATIVE_PROMPTS = {
-    // 【关键修改】去掉了开头的 "nsfw"，增加了去马赛克和手部修复词
-    SOLO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, 2girls, 2boys, multiple girls, multiple boys, couple, censor, mosaic, bar, blurry",
-    // 双人模式
-    DUO: "(worst quality, low quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), (extra legs), multiple views, split screen, text, watermark, signature, username, artist name, multiple views, grid, collage, censor, mosaic, bar, blurry"
+    // 单人模式
+    SOLO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, 2girls, 2boys, multiple girls, multiple boys, couple, multiple views, split screen, censor, mosaic, bar, blurry",
+    // 双人模式 (允许出现 boy/couple，但依然禁止 child/loli 和 马赛克)
+    DUO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, multiple views, grid, collage, split screen, censor, mosaic, bar, blurry"
   };
   const COMFY_WORKFLOW_TEMPLATE = {
     "1": {
@@ -915,43 +939,43 @@ if (uni.restoreGlobal) {
           uni.showToast({ title: "请先配置API", icon: "none" });
           return;
         }
-        uni.showLoading({ title: "军师生成中...", mask: true });
-        const recentContext = messageList.value.slice(-10).filter((m) => !m.isSystem && m.type !== "image").map((m) => `${m.role === "user" ? "Me" : "Her"}: ${m.content}`).join("\n");
+        uni.showLoading({ title: "军师正在分析局势...", mask: true });
+        const recentContext = messageList.value.slice(-10).filter((m) => m.type !== "image" && (!m.isSystem || m.content.includes("系统") || m.content.includes("过去了"))).map((m) => {
+          if (m.isSystem)
+            return `[System Event]: ${m.content}`;
+          return `${m.role === "user" ? "Me" : "Her"}: ${m.content}`;
+        }).join("\n");
         const score = currentAffection.value;
-        currentLust.value;
         const role = currentRole.value || {};
         const s = role.settings || {};
-        const herJob = role.occupation || s.occupation || "Unknown Job";
-        const herLoc = role.location || s.location || "Unknown Loc";
-        const myJob = s.userOccupation || "Unknown Job";
-        const myLoc = s.userLocation || "Unknown Loc";
+        const herJob = role.occupation || s.occupation || "Unknown";
+        const myJob = s.userOccupation || "Unknown";
         const myName = userName.value || "Me";
-        interactionMode.value === "phone" ? "Phone" : "Face-to-Face";
-        formatAppLog("log", "at pages/chat/chat.vue:500", "⚡ 军师启动: 身份/位置注入完毕");
         const coachPrompt = `
-            [System: Text Completion]
-            You are a dating assistant.
-            
-            **Profiles**:
-            - HER: ${chatName.value} (${herJob}) @ ${herLoc}.
-            - ME: ${myName} (${myJob}) @ ${myLoc}.
-            - Relation: Affection ${score}/100.
-            
-            **Context**:
-            ${recentContext}
-            
-            **Task**:
-            Based on the profiles (e.g., neighbors, colleagues), provide 3 short, natural responses for "Me" in Simplified Chinese.
-            
-            **Output Rules (CRITICAL)**:
-            1. Return ONLY a raw JSON Array. 
-            2. NO markdown formatting (no \`\`\`json). 
-            3. NO explanations. 
-            4. Start immediately with '['.
-            
-            **Example**:
-            ["没问题，一会儿见。", "真的吗？太好了！", "晚安。"]
-            `;
+                [System: Text Completion]
+                You are a dating assistant.
+                
+                **Current Status**:
+                - Time: ${formattedTime.value}  (CRITICAL: Notice the time change!)
+                - Mode: ${interactionMode.value === "phone" ? "Phone Chat" : "Face-to-Face"} @ ${currentLocation.value}
+                
+                **Profiles**:
+                - HER: ${chatName.value} (${herJob}).
+                - ME: ${myName} (${myJob}).
+                - Relation: Affection ${score}/100.
+                
+                **Context (Recent 10 messages)**:
+                ${recentContext}
+                
+                **Task**:
+                Provide 3 short, natural, Simplified Chinese responses for "Me" to continue the conversation.
+                If [System Event] indicates time passed (e.g., Morning arrived), say "Good morning".
+                
+                **Output Rules**:
+                1. Return ONLY a raw JSON Array. 
+                2. NO markdown.
+                3. Example: ["早安，昨晚睡得好吗？", "起床了吗？", "新的一天开始了。"]
+                `;
         try {
           let baseUrl = config.baseUrl || "";
           if (baseUrl.endsWith("/"))
@@ -973,10 +997,7 @@ if (uni.restoreGlobal) {
               model: config.model,
               messages: [{ role: "user", content: coachPrompt }],
               max_tokens: 200,
-              // 进一步限制 Token，强制 AI 简短
               temperature: 0.7
-              // 尝试移除 json_object 强制模式，有时对于某些非官方 API，强制模式反而会变慢或报错
-              // 只要 Prompt 足够强硬，通常没问题
             };
           }
           const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
@@ -1000,10 +1021,9 @@ if (uni.restoreGlobal) {
               if (cleanStr.startsWith("[")) {
                 suggestions = JSON.parse(cleanStr);
               } else {
-                throw new Error("Not JSON array");
+                throw new Error("Not JSON");
               }
             } catch (e) {
-              formatAppLog("warn", "at pages/chat/chat.vue:583", "⚡ 正则急救介入");
               const regex = /"([^"]*?)"/g;
               let match;
               while ((match = regex.exec(rawContent)) !== null) {
@@ -1014,13 +1034,11 @@ if (uni.restoreGlobal) {
             if (suggestions.length > 0) {
               suggestionList.value = suggestions.slice(0, 3);
             } else {
-              uni.showToast({ title: "军师休息中", icon: "none" });
+              uni.showToast({ title: "军师暂无计策", icon: "none" });
             }
-          } else {
-            uni.showToast({ title: "无建议", icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:602", e);
+          formatAppLog("error", "at pages/chat/chat.vue:583", e);
           uni.showToast({ title: "网络波动", icon: "none" });
         } finally {
           uni.hideLoading();
@@ -1058,7 +1076,7 @@ if (uni.restoreGlobal) {
             Directly output the summarized text in Simplified Chinese (100 words max).
             Example: "用户喜欢吃辣。两人约定周六去游乐园。目前关系暧昧，但用户惹她生气了。"
             `;
-        formatAppLog("log", "at pages/chat/chat.vue:647", "🧠 [Memory] Summarizing background...");
+        formatAppLog("log", "at pages/chat/chat.vue:628", "🧠 [Memory] Summarizing background...");
         let baseUrl = config.baseUrl || "";
         if (baseUrl.endsWith("/"))
           baseUrl = baseUrl.slice(0, -1);
@@ -1097,48 +1115,62 @@ if (uni.restoreGlobal) {
           }
           if (newSummary) {
             const cleanSummary = newSummary.trim();
-            formatAppLog("log", "at pages/chat/chat.vue:685", "💾 [Memory] Updated:", cleanSummary);
+            formatAppLog("log", "at pages/chat/chat.vue:666", "💾 [Memory] Updated:", cleanSummary);
             saveCharacterState(void 0, void 0, cleanSummary);
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:690", "Memory summary failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:671", "Memory summary failed:", e);
         }
       };
       const getTimeTags = () => {
         const date = new Date(currentTime.value);
         const hour = date.getHours();
         if (hour >= 5 && hour < 7)
-          return "early morning, sunrise, warm lighting";
+          return "early morning";
         if (hour >= 7 && hour < 16)
-          return "daytime, bright sunlight, natural lighting";
+          return "daytime";
         if (hour >= 16 && hour < 19)
-          return "sunset, dusk, golden hour";
+          return "sunset";
         if (hour >= 19 || hour < 5)
-          return "night, dark, moonlight, cinematic lighting";
+          return "night";
         return "daytime";
       };
       const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
         var _a;
-        formatAppLog("log", "at pages/chat/chat.vue:707", "🎨 [Image] Raw Tags from AI:", actionAndSceneDescription);
+        let aiTags = actionAndSceneDescription;
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-        const userDesc = userAppearance.value || "1boy, short hair";
-        let cleanTagsFromAI = actionAndSceneDescription.replace(/COUPLE_ON/gi, "");
-        const isDuo = actionAndSceneDescription.includes("COUPLE_ON") || /couple|2people|sex|fuck|penis/i.test(actionAndSceneDescription);
-        const clothingAndNsfwTags = currentClothing.value;
-        const compositionTag = isDuo ? "couple, 2people" : "solo";
-        const imgConfig = uni.getStorageSync("app_image_config") || {};
-        const styleSetting = imgConfig.style || "anime";
-        const styleTags = STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"];
-        const timeTags = getTimeTags();
-        let finalPrompt = `${compositionTag}, masterpiece, best quality, ${styleTags}, ${appearanceSafe}, ${clothingAndNsfwTags}, ${cleanTagsFromAI}`;
+        const storedClothes = currentClothing.value || "";
+        let isDuo = /\b(couple|2people|1boy|multiple boys)\b/i.test(aiTags);
+        if (!isDuo && interactionMode.value !== "phone") {
+          isDuo = /\b(sex|fuck|penis)\b/i.test(aiTags);
+        }
+        const aiDescribedClothes = storedClothes.split(/[\s,]+/).some(
+          (word) => word.length > 3 && aiTags.toLowerCase().includes(word.toLowerCase())
+        );
+        const isNaked = /\b(nude|naked|no clothes)\b/i.test(aiTags);
+        const isChanging = /\b(wearing|dressed in)\b/i.test(aiTags);
+        let parts = [];
+        parts.push(isDuo ? "couple, 2people" : "solo");
+        parts.push("masterpiece, best quality, anime style");
+        parts.push(appearanceSafe);
+        if (isNaked || isChanging || aiDescribedClothes) {
+          formatAppLog("log", "at pages/chat/chat.vue:738", "👗 采用 AI 描述的服装/状态");
+        } else {
+          formatAppLog("log", "at pages/chat/chat.vue:740", "👗 AI 未提及衣服，使用系统保底");
+          parts.push(storedClothes);
+        }
+        parts.push(aiTags);
         if (isDuo)
-          finalPrompt += `, ${userDesc}`;
-        finalPrompt += `, ${timeTags}`;
-        let cleanPrompt = finalPrompt.replace(/，/g, ",").replace(/[^\x00-\x7F]+/g, "");
-        cleanPrompt = cleanPrompt.replace(/\s+/g, " ").replace(/,\s*,/g, ",").replace(/,+/g, ",");
-        formatAppLog("log", "at pages/chat/chat.vue:737", "🚀 [ComfyUI] Final Prompt Sending:", cleanPrompt);
-        return cleanPrompt;
+          parts.push(userAppearance.value || "1boy");
+        parts.push(getTimeTags());
+        let rawPrompt = parts.join(", ");
+        let uniqueTags = [...new Set(
+          rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t)
+        )];
+        let finalPrompt = uniqueTags.join(", ");
+        formatAppLog("log", "at pages/chat/chat.vue:766", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
@@ -1157,7 +1189,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:754", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:783", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1184,7 +1216,7 @@ if (uni.restoreGlobal) {
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:780", e);
+          formatAppLog("error", "at pages/chat/chat.vue:809", e);
         }
         return null;
       };
@@ -1295,7 +1327,6 @@ if (uni.restoreGlobal) {
         }
         if (!isContinue) {
           if (inputText.value.trim()) {
-            formatAppLog("log", "at pages/chat/chat.vue:897", "🗣️ [Chat] User sent:", inputText.value);
             messageList.value.push({ role: "user", content: inputText.value });
             inputText.value = "";
           } else if (systemOverride && systemOverride.includes("SHUTTER")) {
@@ -1344,18 +1375,24 @@ if (uni.restoreGlobal) {
         activePersonality = `[当前阶段: ${personalityLabel}]
 行为逻辑: ${activePersonality}`;
         let activeRules = "";
+        activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。
+`;
+        activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。
+`;
         if (lust > 80 && score < 60) {
-          activeRules = `**【特殊状态：Lust Paradox (身心博弈)】**
-虽然好感度不高，但欲望极高。表现出“嘴上拒绝，身体诚实”的反差感。`;
+          activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**
+虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
+        } else if (lust < 30) {
+          activeRules += `当前欲望较低(${lust})。面对调情会感到害羞、迟钝或不知所措，需要更多前戏或氛围铺垫才能提升 Lust。`;
         } else {
-          activeRules = `根据人设原型 (${charPersonality}) 进行判定：符合性格/XP加分，冒犯扣分。`;
+          activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
         }
         let nsfwInstruction = "";
         const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
         if (isIntimate)
           nsfwInstruction = NSFW_STYLE;
         const hiddenInstruction = `
-[System: Current status is '${currentActivity.value}'. If activity changes, append [ACT: new status].]`;
+[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'. If activity changes, append [ACT: new status].]`;
         let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
         const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
         const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
@@ -1364,15 +1401,21 @@ if (uni.restoreGlobal) {
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1022", "📝 [LLM] System Prompt (Snippet):", prompt.substring(0, 500) + "...");
+        formatAppLog("log", "at pages/chat/chat.vue:1060", "============== 📜 DIALOGUE DEBUG LOG ==============");
+        formatAppLog("log", "at pages/chat/chat.vue:1061", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
+        formatAppLog("log", "at pages/chat/chat.vue:1062", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+        formatAppLog("log", "at pages/chat/chat.vue:1063", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
+        formatAppLog("log", "at pages/chat/chat.vue:1065", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
+        formatAppLog("log", "at pages/chat/chat.vue:1066", "===================================================");
         const continuePrompt = `
-                [System Command: AUTO-DRIVE MODE]
-                **Situation**: The user is silent/waiting. You need to drive the conversation forward.
-                **Decision Logic**:
-                1. **IF your last message was incomplete**: Finish it.
-                2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
-                **Output Requirement**: Just output the content.
-                `;
+                            [System Command: AUTO-DRIVE MODE]
+                            **Situation**: The user is silent/waiting. You need to drive the conversation forward.
+                            **Decision Logic**:
+                            1. **IF your last message was incomplete**: Finish it.
+                            2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
+                            **Output Requirement**: 
+                            You MUST start with [Thought: ...], then output the content.
+                            `;
         let targetUrl = "";
         let requestBody = {};
         let baseUrl = config.baseUrl || "";
@@ -1411,6 +1454,13 @@ if (uni.restoreGlobal) {
             openAIMessages.push({ role: "user", content: systemOverride });
           else if (isContinue)
             openAIMessages.push({ role: "user", content: continuePrompt });
+          openAIMessages.push({
+            role: "user",
+            content: `[SYSTEM ENFORCEMENT] Stop. Before you reply, you MUST execute the [Thought] protocol.
+                                Step 1: Write [Thought: (状态: 好感 ${score} | 欲望 ${lust}) ... analysis ...].
+                                Step 2: Write your response.
+                                If you skip Step 1, the system will error.`
+          });
           requestBody = {
             model: config.model,
             messages: openAIMessages,
@@ -1418,7 +1468,7 @@ if (uni.restoreGlobal) {
             stream: false
           };
         }
-        formatAppLog("log", "at pages/chat/chat.vue:1082", "📡 [LLM] Requesting:", targetUrl);
+        formatAppLog("log", "at pages/chat/chat.vue:1136", "📡 [LLM] Requesting:", targetUrl);
         try {
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
@@ -1451,13 +1501,15 @@ if (uni.restoreGlobal) {
               if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
             }
+            formatAppLog("log", "at pages/chat/chat.vue:1163", "============== 📥 RAW RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1164", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1165", "=============================================");
             if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1108", tokenLog);
+              formatAppLog("log", "at pages/chat/chat.vue:1167", tokenLog);
             if (rawText) {
-              formatAppLog("log", "at pages/chat/chat.vue:1111", "📥 [LLM] Raw Response:", rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""));
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1114", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1172", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1465,14 +1517,14 @@ if (uni.restoreGlobal) {
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1120", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1178", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1125", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1183", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1480,13 +1532,27 @@ if (uni.restoreGlobal) {
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText;
-        const thoughtRegex = /\[Thought:?([\s\S]*?)\]/i;
-        const thoughtMatch = displayText.match(thoughtRegex);
-        if (thoughtMatch) {
-          const thoughtContent = thoughtMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1144", `🧠 [AI心声]: ${thoughtContent}`);
-          displayText = displayText.replace(thoughtRegex, "").trim();
+        let displayText = rawText.trim();
+        const thoughtStart = displayText.indexOf("[Thought");
+        if (thoughtStart !== -1) {
+          let bracketCount = 0;
+          let thoughtEnd = -1;
+          for (let i = thoughtStart; i < displayText.length; i++) {
+            if (displayText[i] === "[")
+              bracketCount++;
+            else if (displayText[i] === "]")
+              bracketCount--;
+            if (bracketCount === 0) {
+              thoughtEnd = i;
+              break;
+            }
+          }
+          if (thoughtEnd !== -1) {
+            const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
+            const logContent = fullThought.replace(/^\[Thought:?/, "").slice(0, -1).trim();
+            formatAppLog("log", "at pages/chat/chat.vue:1224", `🧠 [AI心声]: ${logContent}`);
+            displayText = displayText.replace(fullThought, "").trim();
+          }
         }
         displayText = displayText.replace(/LINTYAHOT_IMG/gi, "IMG");
         displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, "[$1:$2]");
@@ -1502,7 +1568,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 5)
               change = 5;
-            formatAppLog("log", "at pages/chat/chat.vue:1181", `❤️ [Status] Affection change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1264", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
             if (change !== 0)
               uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
@@ -1514,7 +1580,7 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:1194", `🔥 [Status] Lust change: ${change}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1277", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
@@ -1523,7 +1589,7 @@ if (uni.restoreGlobal) {
         const moodMatch = displayText.match(moodRegex);
         if (moodMatch) {
           const newMood = moodMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1205", `😊 [Status] Mood update: ${newMood}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1288", `😊 [Status] Mood update: ${newMood}`);
           displayText = displayText.replace(moodRegex, "");
         }
         const modeRegex = /\[MODE:?\s*(.*?)\]/i;
@@ -1534,7 +1600,7 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1219", `📡 [Status] Mode switch to: ${newMode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:1302", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
             const modeText = newMode === "face" ? "见面了" : "分开了";
@@ -1546,7 +1612,7 @@ if (uni.restoreGlobal) {
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
           const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1233", `📍 [Status] Moved to: ${newLoc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1316", `📍 [Status] Moved to: ${newLoc}`);
           currentLocation.value = newLoc;
           saveCharacterState(void 0, void 0, void 0, newLoc);
           systemMsgs.push(`移动到：${newLoc}`);
@@ -1556,7 +1622,7 @@ if (uni.restoreGlobal) {
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
           const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1245", `👗 [Status] Clothes changed to: ${newClothes}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1328", `👗 [Status] Clothes changed to: ${newClothes}`);
           currentClothing.value = newClothes;
           saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
           systemMsgs.push(`换装：${newClothes}`);
@@ -1566,7 +1632,7 @@ if (uni.restoreGlobal) {
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
           const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1257", `🎬 [Status] Activity update: ${newAct}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1340", `🎬 [Status] Activity update: ${newAct}`);
           currentActivity.value = newAct;
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
@@ -1576,7 +1642,7 @@ if (uni.restoreGlobal) {
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1270", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
+          formatAppLog("log", "at pages/chat/chat.vue:1353", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
           pendingImagePlaceholder = {
@@ -2167,11 +2233,11 @@ if (uni.restoreGlobal) {
       const isEditMode = vue.ref(false);
       const targetId = vue.ref(null);
       const currentTemplateKey = vue.ref("");
-      const activeSections = vue.ref({ basic: true, player: false, core: true, personality: true, init: false, memory: true, danger: false });
+      const activeSections = vue.ref({ basic: false, player: false, core: false, personality: false, init: false, memory: false, danger: false });
       const toggleSection = (key) => {
         activeSections.value[key] = !activeSections.value[key];
       };
-      const subSections = vue.ref({ charWorld: false, charLooks: true, userWorld: false, userLooks: true });
+      const subSections = vue.ref({ charWorld: false, charLooks: false, userWorld: false, userLooks: false });
       const toggleSubSection = (key) => {
         subSections.value[key] = !subSections.value[key];
       };
@@ -2267,7 +2333,7 @@ if (uni.restoreGlobal) {
         }
         return null;
       };
-      const performLlmRequest = async (prompt) => {
+      const performLlmRequest = async (prompt, customSystem = null) => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         const chatConfig = getCurrentLlmConfig();
         if (!chatConfig || !chatConfig.apiKey) {
@@ -2280,12 +2346,14 @@ if (uni.restoreGlobal) {
         let method = "POST";
         let headers = { "Content-Type": "application/json" };
         let requestData = {};
+        const systemInstruction = customSystem || "You are a prompt translator. Output only English tags.";
         if (chatConfig.provider === "gemini") {
           const cleanBase = "https://generativelanguage.googleapis.com";
           targetUrl = `${cleanBase}/v1beta/models/${chatConfig.model}:generateContent?key=${chatConfig.apiKey}`;
           requestData = {
             contents: [{
-              parts: [{ text: `You are a prompt translator. Output only English tags. 
+              parts: [{ text: `${systemInstruction}
+
 Task: ${prompt}` }]
             }]
           };
@@ -2295,10 +2363,11 @@ Task: ${prompt}` }]
           requestData = {
             model: chatConfig.model,
             messages: [
-              { role: "system", content: "You are a prompt translator. Output only English tags." },
+              { role: "system", content: systemInstruction },
               { role: "user", content: prompt }
             ],
-            max_tokens: 300,
+            // 如果是写人设，给多一点 token，翻译则少一点
+            max_tokens: customSystem ? 1e3 : 300,
             stream: false
           };
         }
@@ -2396,7 +2465,7 @@ Task: ${prompt}` }]
           }
           uni.showToast({ title: "Prompt 组装完成", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:903", e);
+          formatAppLog("error", "at pages/create/create.vue:916", e);
           formData.value.appearance = `${faceTags}, ${safeChinese}, ${nsfwChinese}, ${clothesChinese}`;
           formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`;
           uni.showToast({ title: "翻译失败，使用原文", icon: "none" });
@@ -2480,7 +2549,7 @@ Task: ${prompt}` }]
             throw new Error("ComfyUI 返回为空");
           }
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:981", e);
+          formatAppLog("error", "at pages/create/create.vue:994", e);
           uni.showModal({ title: "错误", content: e.message || "请求异常", showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2585,6 +2654,74 @@ Task: ${prompt}` }]
           formData.value.enableSummary = target.enableSummary || false;
           formData.value.summaryFrequency = target.summaryFrequency || 20;
           formData.value.summary = target.summary || "";
+        }
+      };
+      const autoGenerateFiveStages = async () => {
+        if (!formData.value.bio) {
+          return uni.showToast({ title: "请先填写「背景故事」", icon: "none" });
+        }
+        uni.showLoading({ title: "AI正在解析人设逻辑...", mask: true });
+        const sysPrompt = `你是一个即兴角色扮演专家。请阅读用户的【背景故事】和【性格】，分析该角色与玩家的"初始关系"及"情感发展逻辑"。
+    Output JSON only. 严禁Markdown。
+    逻辑准则：
+    1. 抛弃一切通用模板。
+    2. 如果设定是仇人，Stage1就是敌对；如果是宠物，Stage1就是粘人；如果是路人，Stage1就是客气。
+    3. Stage5 必须是该角色人设逻辑下的"最高情感形态"（比如病娇是监禁，傲娇是坦诚，奴隶是献身）。`;
+        const userPrompt = `
+    请根据以下设定，推演 5 个阶段的行为逻辑。
+
+    【角色】${formData.value.name || "未命名"}
+    【背景】${formData.value.bio}
+    【性格/口癖】${formData.value.speakingStyle || "未设定"}
+    【喜好/雷点】${formData.value.likes || "未设定"} / ${formData.value.dislikes || "未设定"}
+
+    【生成要求】
+    请生成 JSON 数据，key 为 stage1 到 stage5。
+    - stage1 (初始状态): 基于背景故事，角色刚见到玩家时的自然反应（不用管好感度数值，只看人设逻辑）。
+    - stage2 (熟悉/建立关系): 双方产生交集后的态度变化。
+    - stage3 (好感/转折): 情感质变的转折点。
+    - stage4 (深爱/确立): 确立深厚羁绊。
+    - stage5 (极致/灵魂): 该角色能达到的最高情感强度 (可以是疯狂的、神圣的或肉欲的，取决于人设)。
+
+    【JSON格式（严格遵守）】
+    {
+        "stage1": { "logic": "...", "dialogue": "..." },
+        "stage2": { "logic": "...", "dialogue": "..." },
+        "stage3": { "logic": "...", "dialogue": "..." },
+        "stage4": { "logic": "...", "dialogue": "..." },
+        "stage5": { "logic": "...", "dialogue": "..." }
+    }
+    `;
+        try {
+          let result = await performLlmRequest(userPrompt, sysPrompt);
+          result = result.replace(/```json/g, "").replace(/```/g, "").trim();
+          const data = JSON.parse(result);
+          if (data.stage1) {
+            formData.value.personalityNormal = data.stage1.logic;
+            formData.value.exampleNormal = data.stage1.dialogue;
+          }
+          if (data.stage2) {
+            formData.value.personalityFriend = data.stage2.logic;
+            formData.value.exampleFriend = data.stage2.dialogue;
+          }
+          if (data.stage3) {
+            formData.value.personalityFlirt = data.stage3.logic;
+            formData.value.exampleFlirt = data.stage3.dialogue;
+          }
+          if (data.stage4) {
+            formData.value.personalityLover = data.stage4.logic;
+            formData.value.exampleLover = data.stage4.dialogue;
+          }
+          if (data.stage5) {
+            formData.value.personalitySex = data.stage5.logic;
+            formData.value.exampleSex = data.stage5.dialogue;
+          }
+          uni.showToast({ title: "人设推演完成！", icon: "success" });
+        } catch (e) {
+          formatAppLog("error", "at pages/create/create.vue:1186", e);
+          uni.showModal({ title: "生成失败", content: "AI返回数据异常，请重试。\n" + e.message, showCancel: false });
+        } finally {
+          uni.hideLoading();
         }
       };
       const saveCharacter = () => {
@@ -2702,7 +2839,7 @@ Task: ${prompt}` }]
           }
         });
       };
-      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
+      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateFiveStages, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
         return onLoad;
       }, get saveToGallery() {
         return saveToGallery;
@@ -3762,6 +3899,19 @@ Task: ${prompt}` }]
                   /* NEED_PATCH */
                 ), [
                   [vue.vModelText, $setup.formData.dislikes]
+                ])
+              ]),
+              vue.createElementVNode("view", {
+                class: "input-item",
+                style: { "margin-top": "30rpx", "padding": "20rpx", "background": "#e3f2fd", "border-radius": "16rpx", "border": "1px dashed #2196f3" }
+              }, [
+                vue.createElementVNode("view", { style: { "text-align": "center" } }, [
+                  vue.createElementVNode("view", { style: { "font-size": "28rpx", "font-weight": "bold", "color": "#1976d2", "margin-bottom": "10rpx" } }, "✨ 没灵感？交给 AI"),
+                  vue.createElementVNode("view", { style: { "font-size": "22rpx", "color": "#666", "margin-bottom": "20rpx" } }, "填写完「背景故事」和「喜好」后，点击下方按钮，AI 自动生成 5 阶段演化逻辑。"),
+                  vue.createElementVNode("button", {
+                    onClick: $setup.autoGenerateFiveStages,
+                    style: { "background": "#2196f3", "color": "white", "font-size": "26rpx", "border-radius": "40rpx", "width": "80%" }
+                  }, "🚀 一键生成行为与剧本")
                 ])
               ]),
               vue.createElementVNode("view", { class: "stage-container" }, [
@@ -5554,12 +5704,56 @@ Task: ${prompt}` }]
           current: index
         });
       };
+      const saveSelectedImages = async () => {
+        if (selectedCount.value === 0)
+          return;
+        uni.showLoading({ title: "保存中...", mask: true });
+        let successCount = 0;
+        let failCount = 0;
+        const pathsToSave = [];
+        selectedSet.value.forEach((key) => {
+          const [roleId, idxStr] = key.split("-");
+          const idx = parseInt(idxStr);
+          const roleData = galleryData.value[roleId];
+          if (roleData && roleData.images && roleData.images[idx]) {
+            pathsToSave.push(roleData.images[idx].path);
+          }
+        });
+        for (const path of pathsToSave) {
+          try {
+            await new Promise((resolve) => {
+              uni.saveImageToPhotosAlbum({
+                filePath: path,
+                success: () => {
+                  successCount++;
+                  resolve();
+                },
+                fail: (err) => {
+                  formatAppLog("log", "at pages/mine/gallery.vue:161", "保存失败:", err);
+                  failCount++;
+                  resolve();
+                }
+              });
+            });
+          } catch (e) {
+            failCount++;
+          }
+        }
+        uni.hideLoading();
+        if (failCount > 0) {
+          uni.showToast({ title: `成功${successCount}张，失败${failCount}张`, icon: "none" });
+        } else {
+          uni.showToast({ title: "已全部保存", icon: "success" });
+        }
+        exitSelectMode();
+      };
       const deleteSelectedImages = () => {
         if (selectedCount.value === 0)
           return;
         uni.showModal({
           title: "批量删除",
-          content: `确定要删除这 ${selectedCount.value} 张照片吗？`,
+          content: `确定要删除这 ${selectedCount.value} 张照片吗？
+(删除后无法恢复)`,
           confirmColor: "#ff4757",
           success: (res) => {
             if (res.confirm) {
@@ -5588,24 +5782,24 @@ Task: ${prompt}` }]
                 const path = roleData.images[idx].path;
                 uni.removeSavedFile({
                   filePath: path,
-                  fail: (e) => formatAppLog("log", "at pages/mine/gallery.vue:161", "物理删除失败(可能文件不在了)", e)
+                  fail: (e) => formatAppLog("log", "at pages/mine/gallery.vue:228", "物理文件可能已丢失 (清理残留)", e)
                 });
                 roleData.images.splice(idx, 1);
               });
             }
           }
           uni.setStorageSync("gallery_save_data", galleryData.value);
-          uni.showToast({ title: "已删除", icon: "success" });
+          uni.setStorageSync("app_gallery_data", galleryData.value);
+          uni.showToast({ title: "删除成功", icon: "success" });
           exitSelectMode();
-          refreshData();
         } catch (e) {
-          formatAppLog("error", "at pages/mine/gallery.vue:178", e);
+          formatAppLog("error", "at pages/mine/gallery.vue:247", e);
           uni.showToast({ title: "删除出错", icon: "none" });
         } finally {
           uni.hideLoading();
         }
       };
-      const __returned__ = { galleryData, isSelectMode, selectedSet, refreshData, selectedCount, isSelected, handleLongPress, handleItemClick, exitSelectMode, previewImg, deleteSelectedImages, performBatchDelete, ref: vue.ref, computed: vue.computed, get onShow() {
+      const __returned__ = { galleryData, isSelectMode, selectedSet, refreshData, selectedCount, isSelected, handleLongPress, handleItemClick, exitSelectMode, previewImg, saveSelectedImages, deleteSelectedImages, performBatchDelete, ref: vue.ref, computed: vue.computed, get onShow() {
         return onShow;
       }, get getGalleryData() {
         return getGalleryData;
@@ -5636,7 +5830,7 @@ Task: ${prompt}` }]
         key: 1,
         class: "nav-header-placeholder"
       })) : vue.createCommentVNode("v-if", true),
-      Object.keys($setup.galleryData).length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+      !$setup.galleryData || Object.keys($setup.galleryData).length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 2,
         class: "empty-state"
       }, [
@@ -5732,13 +5926,25 @@ Task: ${prompt}` }]
         },
         [
           vue.createElementVNode("view", {
-            class: "delete-btn",
+            class: "action-btn save-btn",
+            onClick: $setup.saveSelectedImages
+          }, [
+            vue.createElementVNode(
+              "text",
+              null,
+              "⬇️ 保存 (" + vue.toDisplayString($setup.selectedCount) + ")",
+              1
+              /* TEXT */
+            )
+          ]),
+          vue.createElementVNode("view", {
+            class: "action-btn delete-btn",
             onClick: $setup.deleteSelectedImages
           }, [
             vue.createElementVNode(
               "text",
               null,
-              "删除 (" + vue.toDisplayString($setup.selectedCount) + ")",
+              "🗑️ 删除 (" + vue.toDisplayString($setup.selectedCount) + ")",
               1
               /* TEXT */
             )

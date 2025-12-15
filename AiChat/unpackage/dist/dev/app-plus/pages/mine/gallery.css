@@ -153,31 +153,57 @@
   font-weight: bold;
 }
 
-/* 底部删除栏 */
+/* 底部栏 (Flex布局) */
 .bottom-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   background-color: #2c2c2c;
-  padding: 0.625rem 0;
+  padding: 0.625rem 0.9375rem;
   padding-bottom: calc(0.625rem + constant(safe-area-inset-bottom));
   padding-bottom: calc(0.625rem + env(safe-area-inset-bottom));
   transform: translateY(100%);
   transition: transform 0.3s ease;
   z-index: 100;
+  /* 双按钮并排 */
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.9375rem;
   border-top: 1px solid #333;
 }
 .bottom-bar.show {
   transform: translateY(0);
 }
-.delete-btn {
-  background-color: #ff4757;
-  color: #fff;
-  padding: 0.5rem 2.5rem;
+
+/* 通用按钮样式 */
+.action-btn {
+  flex: 1;
+  height: 2.5rem;
   border-radius: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.9375rem;
   font-weight: bold;
+  color: #fff;
+}
+
+/* 蓝色保存按钮 */
+.save-btn {
+  background-color: #007aff;
+  box-shadow: 0 0.125rem 0.375rem rgba(0, 122, 255, 0.3);
+}
+.save-btn:active {
+  background-color: #0062cc;
+}
+
+/* 红色删除按钮 */
+.delete-btn {
+  background-color: #ff4757;
+  box-shadow: 0 0.125rem 0.375rem rgba(255, 71, 87, 0.3);
+}
+.delete-btn:active {
+  background-color: #e0404e;
 }
