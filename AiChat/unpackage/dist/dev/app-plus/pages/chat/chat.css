@@ -450,3 +450,59 @@ to {
   display: flex;
   align-items: center;
 }
+.info-row[data-v-0a633310] {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  /* 让高度拉伸对齐 */
+  margin-top: 0.3125rem;
+}
+.location-box[data-v-0a633310] {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+  margin-right: 0.625rem;
+  transition: all 0.3s;
+}
+.phone-mode[data-v-0a633310] {
+  background-color: #f0f3f5;
+  color: #555;
+  border: 1px solid #e1e4e8;
+}
+.face-mode[data-v-0a633310] {
+  background-color: #e3f2fd;
+  color: #007aff;
+  border: 1px solid #bbdefb;
+}
+.location-icon[data-v-0a633310] {
+  font-size: 1.125rem;
+  margin-right: 0.5rem;
+}
+.status-content[data-v-0a633310] {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.location-text[data-v-0a633310] {
+  font-size: 0.6875rem;
+  font-weight: bold;
+  opacity: 0.9;
+}
+.activity-text[data-v-0a633310] {
+  font-size: 0.625rem;
+  opacity: 0.7;
+  margin-top: 0.0625rem;
+}
+.time-box[data-v-0a633310] {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #555;
+  background-color: #f8f8f8;
+  padding: 0 0.625rem;
+  /* 调整内边距 */
+  border-radius: 0.5rem;
+  border: 1px solid #eee;
+}

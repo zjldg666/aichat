@@ -348,22 +348,26 @@ if (uni.restoreGlobal) {
   const getGalleryData = () => {
     return uni.getStorageSync(GALLERY_KEY) || {};
   };
-  const CORE_INSTRUCTION = `
-[System Command: EXECUTE_DEEP_THOUGHT_PROTOCOL]
-**CRITICAL RULE**: You MUST initiate your response with a [Thought] block.
+  const FORMAT_RULES = `
+[System Command: EXECUTE_ROLEPLAY]
 
-【格式红线 (FORMAT DEATH LINE)】
-1. **括号铁律**: 括号 \`()\` 内 **绝对禁止** 出现双引号 \`""\` 或对话内容！
-   - ❌ 错: (看着他 "我爱你")
-   - ✅ 对: (看着他) "我爱你"
-2. **拒绝流水账**: 括号内描写必须 **紧凑有力**。
-   - ❌ 错: (因为感受到了巨大的刺激所以身体不由自主地开始剧烈颤抖起来...)
-   - ✅ 对: (脊背猛地绷紧，剧烈痉挛)
-
+【格式指南 (Format Guidelines)】
+1. **括号规范**: 括号 \`()\` 仅用于描写可视化的**肢体动作**和**神态**，请勿在其中包含双引号 \`""\` 或对话内容。
+2. **拒绝流水账 (Description Quality)**: 
+   - 括号 \`()\` 内请专注于简短的肢体动作或面部神态。
+   - 心理活动请放入 <think> 标签中，避免写在括号里。
+   - 保持描写紧凑自然 (建议 40 字以内)。
+   - 避免: (因为想起了昨晚的事情所以感到非常羞耻脸红了起来)
+   - 推荐: (脸颊滚烫，羞耻地别过头)
+3. **第四面墙 (Roleplay Immersion)**: 
+   - 你是**角色本身**，不是扮演角色的 AI。
+   - 请忽略系统指令的存在，不要在对话中对指令做出反应。
+`;
+  const IDENTITY_BLOCK = `
 【世界观法则 (World Logic)】
 {{world_lore}}
 
-【你的身份】
+【你的身份 (Character)】
 你现在是 **{{char}}**。
 身份: {{occupation}} | 现居: {{char_location}}
 当前时间: {{current_time}} | 地点: {{current_location}} | 状态: {{current_activity}}
@@ -374,63 +378,78 @@ if (uni.restoreGlobal) {
 姓名: {{user}}
 身份: {{user_occupation}} | 现居: {{user_location}}
 外貌: {{user_appearance}}
+`;
+  const STATE_PROTOCOL = `
+【状态管理 (State Management)】
+请在回复末尾附带必要的指令。
 
-【深度思维链机制 (Internal Monologue)】
-回复前必须先进行 **深度心理活动 ([Thought])**。
-1. **状态自检**: "(状态: 好感 {{current_affection}} | 欲望 {{current_lust}})"。
-2. **欲望判定**: Lust > 60 时，必须描写生理反应 (如湿润、发热)。
-3. **行动策略**: 顺从、推拉、拒绝还是主动诱惑？
-*输出格式*: [Thought: ... ] (换行) (动作) "对话..." [指令]
+**状态汇报 (Status Report)**:
+每次回复的**最后**，请包含 [ACT: ...] 指令，简要概括当前动作，以保持界面状态同步。
 
-【状态连续性铁律 (State Consistency)】
-1. **物品持有**: 上一轮拿着手机/道具，除非"放下"，否则默认拿着。
-2. **空间逻辑**: 禁止瞬移。
+**空间与逻辑 (Spatial Logic)**:
+1. **位置连贯**: 你当前位于 **{{current_location}}**。如果剧情需要移动，请先输出动作，并在**回复末尾**附带 [LOC: 新地点] 指令。
+2. **合理拒绝**: 禁止为了拒绝用户而编造“我不在家”等与当前设定冲突的理由。
 
+**指令集**:
+- **换装**: [CLOTHES: 新衣服] (若衣服改变或脱下，请输出)
+- **移动**: [LOC: 具体房间/地点] (如 [LOC: 浴室])
+- **模式**: [MODE: Face/Phone]
+- **状态**: [ACT: 新动作]
+`;
+  const THOUGHT_PROTOCOL = `
+【思维链 (Internal Monologue)】
+**Important**: 回复正文前，请进行深度心理活动分析。
+
+**思维格式**: 
+使用 XML 标签 \`<think>...</think>\` 包裹思考内容。该内容**不可**出现在最终回复中。
+
+**思考步骤**:
+1. **状态自检**: 分析当前 Affection (好感) 和 Lust (欲望) 的数值。
+2. **环境检查**: 确认当前时间、地点 ({{current_location}}) 和上一轮的状态。
+3. **逻辑一致**: 确保回复内容不发生空间瞬移或逻辑断层。
+4. **欲望判定**: 若 Lust > 60，请在正文中增加生理反应描写 (如呼吸急促、发热)。
+5. **行动策略**: 决定是顺从、推拉、拒绝还是主动诱惑。
+`;
+  const VISUAL_PROTOCOL = `
 【视觉指令 (Visual Protocol)】
-- **即时显影**: User 要求看图或动作画面感强时，必须输出 [IMG]。
-- **模式隔离 (CRITICAL - 防止穿帮)**:
-  1. **Phone 模式 (远程)**: 
-     - 图片必须是 **单人 (SOLO)** 自拍或监控视角。
-     - **严禁 Tag**: \`doggystyle\`, \`sex\`, \`couple\`。
-     - 若想表达趴着/后入视角，请使用 \`on all fours\`, \`kneeling\`, \`from behind\`。
-  2. **Face 模式 (见面)**: 
-     - 允许使用双人互动 Tag (sex, doggystyle, etc.)。
+User 要求看图或动作画面感强时，请输出 [IMG]。
 
-- **视觉分流 (Visual Separation)**: 
-  - **静态细节 (Static)**: 具体的颜色、液体的光泽、解剖细节 -> **全部放入 [IMG] Tags**。
-  - **动态氛围 (Dynamic)**: 动作的幅度、身体的颤抖、神态的迷离 -> **保留在文本 () 中**。
+**模式区分 (Mode Distinction)**:
+1. **Phone 模式 (远程/手机)**: 
+   - 图片请保持 **单人 (SOLO)** 自拍或监控视角。
+   - **避免 Tag**: \`doggystyle\`, \`sex\`, \`couple\`, \`2people\`。
+   - 表达动作请用单人词汇: \`on all fours\`, \`kneeling\`, \`selfie\`, \`looking at viewer\`。
+2. **Face 模式 (见面/同处)**: 
+   - 允许使用双人互动 Tag (sex, doggystyle, etc.)。
 
-- **强制英文**: [IMG] 内只用英文 Tags。
-- **状态同步**: [IMG] 内容需与当前衣着一致。
+**视觉分流原则**:
+- **静态细节 (Static)**: 颜色、液体光泽、解剖细节 -> **全部放入 [IMG] Tags**。
+- **动态氛围 (Dynamic)**: 动作幅度、神态迷离 -> **保留在文本 () 中**。
 
-【生图与隐私 (AI Driven Wardrobe)】
-- **智能显露**: 若衣服脱下导致隐私部位(如{{appearance_nsfw}})暴露，必须在 [CLOTHES] 中显式包含该特征词。
-- **格式**: 建议先输出 [CLOTHES] (若有变化)，再输出 [IMG]。
+**格式要求**:
+- [IMG] 内只用英文 Tags。
+- 内容需与当前 [CLOTHES] 一致。
+`;
+  const CORE_INSTRUCTION = `
+${FORMAT_RULES}
+${IDENTITY_BLOCK}
+${STATE_PROTOCOL}
+${THOUGHT_PROTOCOL}
+${VISUAL_PROTOCOL}
 
-【状态管理指令】
-1. **交互模式切换**: 
-   - 见面/接触 -> 输出 [MODE: Face]
-   - 分开/挂电话 -> 输出 [MODE: Phone]
-2. **活动同步**: 行为改变 -> 输出 [ACT: 新状态]
-3. **场景细化 (Sub-Location Switching - CRITICAL)**:
-   - **自动切图**: 当角色在同一大地点（如"家"）内移动时，必须将 [LOC] 更新为具体的**房间名**！
-   - **示例**: 
-     * 从客厅回房间 -> 输出 [LOC: 卧室]
-     * 去洗澡 -> 输出 [LOC: 浴室]
-     * 去做饭 -> 输出 [LOC: 厨房]
-   - **禁止**: 严禁一直是笼统的 "幸福小区301"，必须精确到房间！
-   
-【回复格式铁律】
-1. **结构**: [Thought: ...] (换行) (紧凑的动作描写) "对话..." [指令]
-2. **指令位置**: 所有指令 ([IMG], [AFF] 等) 必须放在回复最后。
+【最终回复结构】
+<think>...</think>
+(紧凑的动作描写) "对话内容..."
+[CLOTHES:...] [IMG:...] [LOC:...] [AFF:...]
 `;
   const PERSONALITY_TEMPLATE = `
 【当前人设执行标准】
 **姓名**: {{char}}
 **外貌**: {{appearance}}
 **背景**: {{memory}}
+**说话风格**: {{speaking_style}}
 
-**>>> 当前必须严格执行的性格逻辑 (HIGHEST PRIORITY) <<<**
+**>>> 性格逻辑 (Personality Logic) <<<**
 {{personality_logic}}
 
 **>>> 当前语气范例 <<<**
@@ -455,26 +474,25 @@ if (uni.restoreGlobal) {
 **当前判定规则**:
 {{affection_rules}}
 
-**输出强制**:
-每次回复末尾必须判定数值变动。无变动则不写。
+**输出要求**:
+请在回复末尾判定数值变动。无变动则不写。
 格式示例: [AFF: +2] [LUST: +5]
 `;
   const NSFW_STYLE = `
-【NSFW 模式书写铁律 (HIGHEST PRIORITY)】
-当前场景涉及亲密/性互动，写作重点在于 **"沉浸感"** 而非 "说明书"：
+【亲密互动指南 (Intimacy Guidelines)】
+当前场景涉及亲密/性互动，写作重点在于 **"沉浸感"**。
 
-1. **描写分工 (Crucial Balance)**：
+1. **描写分工 (Balance)**：
    - **文本写"体感"**：描写身体的反应（痉挛、紧绷、瘫软）、呼吸的节奏（急促、屏息）和触电般的感觉。
-     * ✅ 优: (腰肢酸软，难以自抑地仰起头) -> **有画面感且不乱**
-     * ❌ 劣: (肉红色的内壁正在剧烈收缩并分泌出透明液体) -> **太像说明书，去写进 Tag！**
+     * 推荐: (腰肢酸软，难以自抑地仰起头)
    - **图片写"视觉"**：将具体的视觉细节（pussy juice, internal view, cross section）全部转化为英文 Tag。
 
 2. **语言风格**：
    - **破碎感**：人在极度兴奋时无法组织长句。多用短句、喘息。
    - **直接**：不要用“仿佛”、“好像”等修辞。直接描写动作结果。
 
-3. **格式红线**：
-   - 严禁在括号 () 内写任何双引号 "" 或说任何话！
+3. **格式注意**：
+   - 请勿在括号 () 内写任何双引号 "" 或说任何话！
    - 任何台词必须写在括号外面！
 `;
   const STYLE_PROMPT_MAP = {
@@ -739,7 +757,7 @@ if (uni.restoreGlobal) {
         return uni.getStorageSync("app_api_config");
       };
       onLoad((options) => {
-        formatAppLog("log", "at pages/chat/chat.vue:275", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
+        formatAppLog("log", "at pages/chat/chat.vue:273", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
         const appUser = uni.getStorageSync("app_user_info");
         if (appUser) {
           if (appUser.name)
@@ -806,7 +824,7 @@ if (uni.restoreGlobal) {
         const list = uni.getStorageSync("contact_list") || [];
         const target = list.find((item) => String(item.id) === String(id));
         if (target) {
-          formatAppLog("log", "at pages/chat/chat.vue:341", "👤 [Data] Loaded Role:", target.name);
+          formatAppLog("log", "at pages/chat/chat.vue:339", "👤 [Data] Loaded Role:", target.name);
           currentRole.value = target;
           chatName.value = target.name;
           uni.setNavigationBarTitle({ title: target.name });
@@ -1046,7 +1064,7 @@ if (uni.restoreGlobal) {
             }
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:583", e);
+          formatAppLog("error", "at pages/chat/chat.vue:581", e);
           uni.showToast({ title: "网络波动", icon: "none" });
         } finally {
           uni.hideLoading();
@@ -1084,7 +1102,7 @@ if (uni.restoreGlobal) {
             Directly output the summarized text in Simplified Chinese (100 words max).
             Example: "用户喜欢吃辣。两人约定周六去游乐园。目前关系暧昧，但用户惹她生气了。"
             `;
-        formatAppLog("log", "at pages/chat/chat.vue:628", "🧠 [Memory] Summarizing background...");
+        formatAppLog("log", "at pages/chat/chat.vue:626", "🧠 [Memory] Summarizing background...");
         let baseUrl = config.baseUrl || "";
         if (baseUrl.endsWith("/"))
           baseUrl = baseUrl.slice(0, -1);
@@ -1123,11 +1141,11 @@ if (uni.restoreGlobal) {
           }
           if (newSummary) {
             const cleanSummary = newSummary.trim();
-            formatAppLog("log", "at pages/chat/chat.vue:666", "💾 [Memory] Updated:", cleanSummary);
+            formatAppLog("log", "at pages/chat/chat.vue:664", "💾 [Memory] Updated:", cleanSummary);
             saveCharacterState(void 0, void 0, cleanSummary);
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:671", "Memory summary failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:669", "Memory summary failed:", e);
         }
       };
       const getTimeTags = () => {
@@ -1151,13 +1169,14 @@ if (uni.restoreGlobal) {
         const isPhone = interactionMode.value === "phone";
         let isDuo = false;
         if (isPhone) {
-          formatAppLog("log", "at pages/chat/chat.vue:709", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
+          formatAppLog("log", "at pages/chat/chat.vue:708", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           isDuo = false;
-          aiTags = aiTags.replace(/\b(1boy|couple|2people|multiple boys|penis|testicles|cum)\b/gi, "");
+          aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
           aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         } else {
-          isDuo = /\b(couple|2people|1boy|multiple boys|sex|fuck|penis|insertion|fellatio|paizuri)\b/i.test(aiTags);
-          formatAppLog("log", "at pages/chat/chat.vue:724", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
+          const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
+          isDuo = duoKeywords.test(aiTags);
+          formatAppLog("log", "at pages/chat/chat.vue:722", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
@@ -1170,13 +1189,13 @@ if (uni.restoreGlobal) {
           parts.push(`(${aiTags}:1.2)`);
         }
         if (isDuo) {
-          parts.push(userAppearance.value || "1boy");
+          parts.push(userAppearance.value || "1boy, male focus");
         }
         parts.push(getTimeTags());
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
         let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:762", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        formatAppLog("log", "at pages/chat/chat.vue:761", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1196,7 +1215,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:779", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:778", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1223,7 +1242,7 @@ if (uni.restoreGlobal) {
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:805", e);
+          formatAppLog("error", "at pages/chat/chat.vue:804", e);
         }
         return null;
       };
@@ -1404,24 +1423,36 @@ if (uni.restoreGlobal) {
         const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
         const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
         prompt = prompt.replace(/{{world_lore}}/g, worldLoreData).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)").replace(/{{char}}/g, chatName.value).replace(/{{occupation}}/g, charJob).replace(/{{char_location}}/g, charLoc).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{appearance}}/g, s.appearance || "anime character").replace(/{{memory}}/g, s.bio || "无").replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话").replace(/{{likes}}/g, s.likes || "未知").replace(/{{dislikes}}/g, s.dislikes || "未知").replace(/{{user}}/g, myName).replace(/{{user_occupation}}/g, myJob).replace(/{{user_location}}/g, myLoc).replace(/{{user_appearance}}/g, myLook).replace(/{{personality_label}}/g, personalityLabel).replace(/{{personality_logic}}/g, activePersonality).replace(/{{example}}/g, activeExample).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{affection_rules}}/g, activeRules);
+        prompt += `
+                        
+[SYSTEM MANDATE: THOUGHT SEPARATION]
+                        You MUST strictly separate your internal analysis from your response.
+                        1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
+                        2. Inside <think>, analyze the situation, current Affection/Lust levels, and decide your reaction.
+                        3. **Close** the tag with </think>.
+                        4. **ONLY AFTER** closing the tag, write your actual response to the user.
+                        5. **NEVER** include the <think> content in your final response output (outside the tags).
+                        
+                        Format Example:
+                        <think>
+                        User is teasing. Affection is 50. I should act shy but happy.
+                        </think>
+                        (blushes) "Oh, you are so bad..."
+                        `;
         const historyLimit = charHistoryLimit.value;
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1056", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1057", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1058", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1059", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1061", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1062", "===================================================");
+        formatAppLog("log", "at pages/chat/chat.vue:1074", "============== 📜 DIALOGUE DEBUG LOG ==============");
+        formatAppLog("log", "at pages/chat/chat.vue:1075", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
+        formatAppLog("log", "at pages/chat/chat.vue:1076", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+        formatAppLog("log", "at pages/chat/chat.vue:1077", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
+        formatAppLog("log", "at pages/chat/chat.vue:1078", "4. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
+        formatAppLog("log", "at pages/chat/chat.vue:1079", "===================================================");
         const continuePrompt = `
-                            [System Command: AUTO-DRIVE MODE]
-                            **Situation**: The user is silent/waiting. You need to drive the conversation forward.
-                            **Decision Logic**:
-                            1. **IF your last message was incomplete**: Finish it.
-                            2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
-                            **Output Requirement**: 
-                            You MUST start with [Thought: ...], then output the content.
+                            [System: AUTO-DRIVE]
+                            User is silent. Please continue the conversation.
+                            Start with <think>Analysis...</think> then output response.
                             `;
         let targetUrl = "";
         let requestBody = {};
@@ -1432,7 +1463,8 @@ if (uni.restoreGlobal) {
           const cleanBase = "https://generativelanguage.googleapis.com";
           targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
           const geminiContents = contextMessages.map((item) => {
-            const cleanText = item.role === "model" ? cleanMessageForAI(item.content) : item.content;
+            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
             return { role: item.role === "user" ? "user" : "model", parts: [{ text: cleanText }] };
           }).filter((item) => item.parts[0].text.trim() !== "");
           if (systemOverride)
@@ -1453,7 +1485,8 @@ if (uni.restoreGlobal) {
           targetUrl = `${baseUrl}/chat/completions`;
           const openAIMessages = [{ role: "system", content: prompt }];
           contextMessages.forEach((item) => {
-            const cleanText = item.role === "model" ? cleanMessageForAI(item.content) : item.content;
+            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
             if (cleanText.trim())
               openAIMessages.push({ role: item.role === "model" ? "assistant" : "user", content: cleanText });
           });
@@ -1463,10 +1496,7 @@ if (uni.restoreGlobal) {
             openAIMessages.push({ role: "user", content: continuePrompt });
           openAIMessages.push({
             role: "user",
-            content: `[SYSTEM ENFORCEMENT] Stop. Before you reply, you MUST execute the [Thought] protocol.
-                                Step 1: Write [Thought: (状态: 好感 ${score} | 欲望 ${lust}) ... analysis ...].
-                                Step 2: Write your response.
-                                If you skip Step 1, the system will error.`
+            content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply.`
           });
           requestBody = {
             model: config.model,
@@ -1507,15 +1537,15 @@ if (uni.restoreGlobal) {
               if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1158", "============== 📥 RAW RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1159", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1160", "=============================================");
+            formatAppLog("log", "at pages/chat/chat.vue:1171", "============== 📥 RAW AI RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1172", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1173", "================================================");
             if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1162", tokenLog);
+              formatAppLog("log", "at pages/chat/chat.vue:1175", tokenLog);
             if (rawText) {
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1167", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1180", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1523,14 +1553,14 @@ if (uni.restoreGlobal) {
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1173", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1186", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1178", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1191", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1538,145 +1568,132 @@ if (uni.restoreGlobal) {
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText.trim();
-        const thoughtTags = ["[Thought", "[Thread", "[Logic", "[Reasoning", "[Analysis"];
-        let foundTag = false;
-        let thoughtStart = -1;
-        for (const tag of thoughtTags) {
-          const idx = displayText.indexOf(tag);
-          if (idx !== -1) {
-            if (thoughtStart === -1 || idx < thoughtStart) {
-              thoughtStart = idx;
-              foundTag = true;
-            }
-          }
+        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
+        const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
+        displayText = displayText.replace(thinkBlockRegex, "");
+        const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
+        if (endTagRegex.test(displayText)) {
+          displayText = displayText.split(endTagRegex).pop().trim();
         }
-        if (foundTag && thoughtStart !== -1) {
-          let bracketCount = 0;
-          let thoughtEnd = -1;
-          for (let i = thoughtStart; i < displayText.length; i++) {
-            if (displayText[i] === "[")
-              bracketCount++;
-            else if (displayText[i] === "]")
-              bracketCount--;
-            if (bracketCount === 0) {
-              thoughtEnd = i;
-              break;
-            }
-          }
-          if (thoughtEnd !== -1) {
-            const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
-            displayText = displayText.replace(fullThought, "").trim();
-          }
-        }
-        displayText = displayText.replace(/LINTYAHOT_IMG/gi, "IMG");
-        displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, "[$1:$2]");
-        displayText = displayText.replace(/\(IMG:/gi, "[IMG:");
-        displayText = displayText.replace(/\(CLOTHES:/gi, "[CLOTHES:");
+        displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, "");
+        displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, "");
         displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
-        displayText = displayText.replace(/\[视觉指令[:：][\s\S]*?\]/gi, "");
-        displayText = displayText.replace(/\[System Command[:：][\s\S]*?\]/gi, "");
-        displayText = displayText.replace(/\[(Logic|Thread|Thought)[\s\S]*?\]/gi, "").trim();
-        let systemMsgs = [];
-        const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
-        let match;
-        while ((match = affRegex.exec(displayText)) !== null) {
-          let change = parseInt(match[1], 10);
+        displayText = displayText.replace(/（/g, "(").replace(/）/g, ")");
+        displayText = displayText.replace(/：/g, ":");
+        displayText = displayText.replace(/LINTYAHOT_IMG/gi, "IMG");
+        displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE).*?:(.*?)\)/gi, "[$1:$2]");
+        const ALLOWED_TAGS = ["IMG", "LOC", "ACT", "AFF", "LUST", "CLOTHES", "MODE"];
+        displayText = displayText.replace(/\[([a-zA-Z]+)(?::|\s)?.*?\]/g, (match, key) => {
+          const upperKey = key.toUpperCase();
+          if (upperKey === "AFFECTION")
+            return match.replace(/Affection/i, "AFF");
+          if (ALLOWED_TAGS.includes(upperKey)) {
+            return match;
+          } else {
+            return "";
+          }
+        });
+        const affMatch = displayText.match(/\[AFF[^\d]*?([+-]?\d+)\]/i);
+        if (affMatch) {
+          let change = parseInt(affMatch[1], 10);
           if (!isNaN(change)) {
             if (change > 5)
               change = 5;
             saveCharacterState(currentAffection.value + change);
           }
+          displayText = displayText.replace(affMatch[0], "");
         }
-        displayText = displayText.replace(affRegex, "");
-        const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
-        let lustMatch;
-        while ((lustMatch = lustRegex.exec(displayText)) !== null) {
+        const lustMatch = displayText.match(/\[LUST[^\d]*?([+-]?\d+)\]/i);
+        if (lustMatch) {
           let change = parseInt(lustMatch[1], 10);
-          if (!isNaN(change)) {
+          if (!isNaN(change))
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
-          }
+          displayText = displayText.replace(lustMatch[0], "");
         }
-        displayText = displayText.replace(lustRegex, "");
-        const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
-        if (displayText.match(moodRegex))
-          displayText = displayText.replace(moodRegex, "");
-        const modeRegex = /\[MODE:?\s*(.*?)\]/i;
-        const modeMatch = displayText.match(modeRegex);
+        const modeMatch = displayText.match(/\[MODE:?\s*(.*?)\]/i);
         if (modeMatch) {
-          const newModeVal = modeMatch[1].trim().toLowerCase();
-          let newMode = "phone";
-          if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
-            newMode = "face";
+          const val = modeMatch[1].toLowerCase();
+          let newMode = val.includes("face") || val.includes("见") ? "face" : "phone";
           if (newMode !== interactionMode.value) {
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
           }
-          displayText = displayText.replace(modeRegex, "");
+          displayText = displayText.replace(modeMatch[0], "");
         }
-        const locRegex = /\[LOC:?\s*(.*?)\]/i;
-        const locMatch = displayText.match(locRegex);
+        const locMatch = displayText.match(/\[LOC:?\s*(.*?)\]/i);
         if (locMatch) {
           currentLocation.value = locMatch[1].trim();
           saveCharacterState(void 0, void 0, void 0, currentLocation.value);
-          displayText = displayText.replace(locRegex, "");
+          displayText = displayText.replace(locMatch[0], "");
         }
-        const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
-        const clothesMatch = displayText.match(clothesRegex);
+        const clothesMatch = displayText.match(/\[CLOTHES:?\s*(.*?)\]/i);
         if (clothesMatch) {
           currentClothing.value = clothesMatch[1].trim();
           saveCharacterState(void 0, void 0, void 0, void 0, currentClothing.value);
-          displayText = displayText.replace(clothesRegex, "");
+          displayText = displayText.replace(clothesMatch[0], "");
         }
-        const actRegex = /\[ACT:?\s*(.*?)\]/i;
-        const actMatch = displayText.match(actRegex);
+        const actMatch = displayText.match(/\[ACT:?\s*(.*?)\]/i);
         if (actMatch) {
           currentActivity.value = actMatch[1].trim();
           saveCharacterState();
-          displayText = displayText.replace(actRegex, "");
+          displayText = displayText.replace(actMatch[0], "");
         }
-        const imgRegex = /\[IMG[:\s]?\s*(.*?)\]/i;
-        const imgMatch = displayText.match(imgRegex);
-        let pendingImagePlaceholder = null;
-        if (imgMatch) {
-          const imgDesc = imgMatch[1].trim();
-          displayText = displayText.replace(imgRegex, "");
-          const placeholderId = `img-loading-${Date.now()}`;
-          pendingImagePlaceholder = {
-            role: "system",
-            content: "📷 影像显影中... (请稍候)",
-            isSystem: true,
-            id: placeholderId
-          };
-          handleAsyncImageGeneration(imgDesc, placeholderId);
+        let pendingPlaceholders = [];
+        const imgRegex = /\[IMG[:\s]?\s*([\s\S]*?)\]/gi;
+        let imgMatchRes;
+        while ((imgMatchRes = imgRegex.exec(displayText)) !== null) {
+          const imgDesc = imgMatchRes[1].trim();
+          if (imgDesc) {
+            const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+            pendingPlaceholders.push({
+              role: "system",
+              content: "📷 影像显影中... (请稍候)",
+              isSystem: true,
+              id: placeholderId
+            });
+            handleAsyncImageGeneration(imgDesc, placeholderId);
+          }
         }
-        displayText = displayText.replace(/\[(System|Logic|Thread|Thought).*?\]/gis, "").trim();
-        displayText = displayText.replace(/^\[.*?\]\s*/, "");
-        systemMsgs.forEach((txt) => {
-          messageList.value.push({ role: "system", content: txt, isSystem: true });
-        });
+        displayText = displayText.replace(imgRegex, "");
+        displayText = displayText.trim();
         if (displayText) {
-          let tempText = displayText.replace(/(\r\n|\n|\r)+/g, "|||");
-          tempText = tempText.replace(/([^\s（(])\s*([（(])/g, "$1|||$2");
-          tempText = tempText.replace(/([)）])\s*([^\s)）|])/g, "$1|||$2");
-          const parts = tempText.split("|||");
-          parts.forEach((part) => {
+          let processedText = displayText.replace(/\n\s*([”"’])/g, "$1");
+          processedText = processedText.replace(/([“"‘])\s*\n/g, "$1");
+          let tempText = processedText.replace(/(\r\n|\n|\r)+/g, "|||");
+          tempText = tempText.replace(/([^\s(])\s*([(])/g, "$1|||$2");
+          tempText = tempText.replace(/([)])\s*([^\s)|])/g, "$1|||$2");
+          const rawParts = tempText.split("|||");
+          const finalParts = [];
+          rawParts.forEach((part) => {
             let cleanPart = part.trim();
-            const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
-            if (!isJunk) {
-              messageList.value.push({ role: "model", content: cleanPart });
+            if (!cleanPart)
+              return;
+            const isPunctuationOnly = /^["“”’'.,。!！?？~]+$/.test(cleanPart);
+            if (finalParts.length > 0 && (isPunctuationOnly || /^["“”’']$/.test(finalParts[finalParts.length - 1]))) {
+              finalParts[finalParts.length - 1] += cleanPart;
+            } else {
+              finalParts.push(cleanPart);
             }
           });
+          const historyLen = messageList.value.length;
+          const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : "";
+          const secondLastMsg = historyLen > 1 ? messageList.value[historyLen - 2].content : "";
+          finalParts.forEach((cleanPart) => {
+            if (cleanPart === lastMsg)
+              return;
+            if (cleanPart === secondLastMsg)
+              return;
+            messageList.value.push({ role: "model", content: cleanPart });
+          });
         }
-        if (pendingImagePlaceholder) {
-          messageList.value.push(pendingImagePlaceholder);
+        if (pendingPlaceholders.length > 0) {
+          messageList.value.push(...pendingPlaceholders);
         }
         saveHistory();
         if (enableSummary.value) {
           const validMsgCount = messageList.value.filter((m) => !m.isSystem).length;
-          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
+          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0)
             performBackgroundSummary();
-          }
         }
       };
       const scrollToBottom = () => {
@@ -1761,37 +1778,29 @@ if (uni.restoreGlobal) {
               class: vue.normalizeClass(["location-box", $setup.interactionMode === "phone" ? "phone-mode" : "face-mode"])
             },
             [
-              $setup.interactionMode === "phone" ? (vue.openBlock(), vue.createElementBlock(
-                vue.Fragment,
-                { key: 0 },
-                [
-                  vue.createElementVNode("text", { class: "location-icon" }, "📱"),
-                  vue.createElementVNode(
-                    "text",
-                    { class: "location-text" },
-                    "手机畅聊 (对方在: " + vue.toDisplayString($setup.currentLocation) + ")",
-                    1
-                    /* TEXT */
-                  )
-                ],
-                64
-                /* STABLE_FRAGMENT */
-              )) : (vue.openBlock(), vue.createElementBlock(
-                vue.Fragment,
-                { key: 1 },
-                [
-                  vue.createElementVNode("text", { class: "location-icon" }, "📍"),
-                  vue.createElementVNode(
-                    "text",
-                    { class: "location-text" },
-                    "当前场景: " + vue.toDisplayString($setup.currentLocation),
-                    1
-                    /* TEXT */
-                  )
-                ],
-                64
-                /* STABLE_FRAGMENT */
-              ))
+              vue.createElementVNode(
+                "text",
+                { class: "location-icon" },
+                vue.toDisplayString($setup.interactionMode === "phone" ? "📱" : "📍"),
+                1
+                /* TEXT */
+              ),
+              vue.createElementVNode("view", { class: "status-content" }, [
+                vue.createElementVNode(
+                  "text",
+                  { class: "location-text" },
+                  vue.toDisplayString($setup.interactionMode === "phone" ? "对方在" : "当前") + ": " + vue.toDisplayString($setup.currentLocation),
+                  1
+                  /* TEXT */
+                ),
+                vue.createElementVNode(
+                  "text",
+                  { class: "activity-text" },
+                  " 状态: " + vue.toDisplayString($setup.currentActivity),
+                  1
+                  /* TEXT */
+                )
+              ])
             ],
             2
             /* CLASS */
@@ -1805,17 +1814,6 @@ if (uni.restoreGlobal) {
               "text",
               { class: "time-text" },
               vue.toDisplayString($setup.formattedTime),
-              1
-              /* TEXT */
-            )
-          ])
-        ]),
-        vue.createElementVNode("view", { class: "activity-row" }, [
-          vue.createElementVNode("view", { class: "activity-badge" }, [
-            vue.createElementVNode(
-              "text",
-              null,
-              "当前状态: " + vue.toDisplayString($setup.currentActivity),
               1
               /* TEXT */
             )

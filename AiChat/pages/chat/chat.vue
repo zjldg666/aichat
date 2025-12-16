@@ -1,6 +1,7 @@
 <template>
   <view class="chat-container">
     <view class="status-bar-wrapper">
+      
       <view class="affection-box">
         <text class="heart-icon">❤️</text>
         <view class="progress-inner">
@@ -14,26 +15,22 @@
      
       <view class="info-row">
         <view class="location-box" :class="interactionMode === 'phone' ? 'phone-mode' : 'face-mode'">
-          <template v-if="interactionMode === 'phone'">
-            <text class="location-icon">📱</text>
-            <text class="location-text">手机畅聊 (对方在: {{ currentLocation }})</text>
-          </template>
-          <template v-else>
-            <text class="location-icon">📍</text>
-            <text class="location-text">当前场景: {{ currentLocation }}</text>
-          </template>
+          <text class="location-icon">{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
+          
+          <view class="status-content">
+            <text class="location-text">
+              {{ interactionMode === 'phone' ? '对方在' : '当前' }}: {{ currentLocation }}
+            </text>
+            <text class="activity-text">
+              状态: {{ currentActivity }}
+            </text>
+          </view>
         </view>
        
         <view class="time-box" @click="showTimeSettingPanel = true">
           <text class="time-icon">📅</text>
-          <text class="time-text">{{ formattedTime }} </text>
+          <text class="time-text">{{ formattedTime }}</text>
         </view>
-      </view>
-
-      <view class="activity-row">
-          <view class="activity-badge">
-              <text>当前状态: {{ currentActivity }}</text>
-          </view>
       </view>
     </view>
 
@@ -48,6 +45,7 @@
                {{ msg.content }} 🔄
             </text>
           </view>
+          
           <template v-else>
             <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
            
@@ -672,7 +670,7 @@
             }
         };
 
-const getTimeTags = () => {
+  const getTimeTags = () => {
         const date = new Date(currentTime.value);
         const hour = date.getHours();
         // 已移除 warm lighting, cinematic lighting 等光影词，仅保留时间
@@ -689,38 +687,38 @@ const getTimeTags = () => {
         
         // pages/chat/chat.vue
         
+        // pages/chat/chat.vue
+        
         const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
             let aiTags = actionAndSceneDescription || "";
             
             // 1. 获取基础数据
             const settings = currentRole.value?.settings || {};
-            // 确保 appearanceSafe 里只含脸和身材 (无衣服)
             const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
             
             // =========================================================
-            // 🔍 核心修改：完全依赖 interactionMode (角色对话决定的状态)
+            // 🔍 核心修改：增强双人关键词检测
             // =========================================================
             
             const isPhone = interactionMode.value === 'phone';
             let isDuo = false;
         
             if (isPhone) {
-                // 【模式 A：电话/聊天】 -> 🔒 绝对单人规则
+                // 【模式 A：电话/聊天】 -> 🔒 绝对单人
                 console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
                 isDuo = false;
         
-                // 🧹 净化：既然是电话，必须把可能导致出现男人的词洗掉
-                // 防止 AI 产生幻觉输出 "1boy" 或 "couple" 导致画面里出现鬼影
-                aiTags = aiTags.replace(/\b(1boy|couple|2people|multiple boys|penis|testicles|cum)\b/gi, "");
-                
-                // ⚠️ 特殊处理：doggystyle 在绘画模型里通常自带男人
-                // 为了保住“单人”底线，将其替换为单纯的姿势词
+                // 🧹 净化：清洗男性词汇
+                aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
+                // 修正姿势词
                 aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         
             } else {
                 // 【模式 B：见面/同处】 -> 🔓 开放规则
-                // 检查 AI 的描述里是否有双人互动的词
-                isDuo = /\b(couple|2people|1boy|multiple boys|sex|fuck|penis|insertion|fellatio|paizuri)\b/i.test(aiTags); 
+                // 🚨 修复：增加对 man, men, male, holding 等词的检测
+                const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
+                isDuo = duoKeywords.test(aiTags);
+                
                 console.log(`📍 [生图模式] 见面互动中 -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
             }
         
@@ -730,7 +728,7 @@ const getTimeTags = () => {
             
             let parts = [];
             
-            // 1. 构图 (根据上面的判断)
+            // 1. 构图
             parts.push(isDuo ? "couple, 2people" : "solo");
             parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
             
@@ -738,17 +736,18 @@ const getTimeTags = () => {
             const styleSetting = imgConfig.style || 'anime';
             parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
             
-            // 2. 固定样貌
+            // 2. 固定样貌 (女主)
             parts.push(appearanceSafe);
             
-            // 3. AI 的描述 (增加权重，确保动作执行)
+            // 3. AI 的描述
             if (aiTags) {
                 parts.push(`(${aiTags}:1.2)`);
             }
             
             // 4. 男主 (仅在判定为双人时才添加)
             if (isDuo) {
-                parts.push(userAppearance.value || "1boy");
+                // 如果用户没设置外貌，默认给个通用帅哥词，防止出现不可名状的怪物
+                parts.push(userAppearance.value || "1boy, male focus");
             }
             
             // 5. 光影
@@ -902,9 +901,9 @@ const getTimeTags = () => {
     };
 
 
-            // =========================================================================
-                        // 发送消息核心 (Token监控 + 世界观 + 5阶段人设 + 身份注入)
-                        // =========================================================================
+        
+                        // pages/chat/chat.vue
+                        
                         const sendMessage = async (isContinue = false, systemOverride = '') => {
                             // 1. 基础校验
                             if (!isContinue && !inputText.value.trim() && !systemOverride) return;
@@ -919,7 +918,7 @@ const getTimeTags = () => {
                             // 2. 消息上屏
                             if (!isContinue) {
                                 if (inputText.value.trim()) {
-                                     // console.log('🗣️ [Chat] User sent:', inputText.value); // 旧日志，已合并到下方
+                                     // console.log('🗣️ [Chat] User sent:', inputText.value); 
                                      messageList.value.push({ role: 'user', content: inputText.value });
                                      inputText.value = '';
                                 } else if (systemOverride && systemOverride.includes('SHUTTER')) {
@@ -1045,31 +1044,45 @@ const getTimeTags = () => {
                                 .replace(/{{current_lust}}/g, currentLust.value)
                                 .replace(/{{affection_rules}}/g, activeRules); 
                         
+                            // =========================================================================
+                            // 🚀 【关键修改】强制注入 XML 思考协议
+                            // =========================================================================
+                            prompt += `
+                        \n[SYSTEM MANDATE: THOUGHT SEPARATION]
+                        You MUST strictly separate your internal analysis from your response.
+                        1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
+                        2. Inside <think>, analyze the situation, current Affection/Lust levels, and decide your reaction.
+                        3. **Close** the tag with </think>.
+                        4. **ONLY AFTER** closing the tag, write your actual response to the user.
+                        5. **NEVER** include the <think> content in your final response output (outside the tags).
+                        
+                        Format Example:
+                        <think>
+                        User is teasing. Affection is 50. I should act shy but happy.
+                        </think>
+                        (blushes) "Oh, you are so bad..."
+                        `;
+                        
                             // 5. 截取历史记录
                             const historyLimit = charHistoryLimit.value; 
                             let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
                             if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
                             
                             // =========================================================================
-                            // 📝 【新增】 完整对话日志打印 (Debug Log) - 看这里排查问题！
+                            // 📝 完整对话日志打印 (Debug Log)
                             // =========================================================================
                             console.log('============== 📜 DIALOGUE DEBUG LOG ==============');
                             console.log('1. 🎭 User Profile:', { name: myName, job: myJob, loc: myLoc });
                             console.log('2. 💃 Char Profile:', { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
                             console.log('3. 💬 Recent Context (Sent to AI):', contextMessages.map(m => `[${m.role}]: ${m.content}`).join('\n'));
-                            
-                            console.log('5. 📥 Current Input:', isContinue ? '[Auto-Drive/Continue]' : (inputText.value || systemOverride));
+                            console.log('4. 📥 Current Input:', isContinue ? '[Auto-Drive/Continue]' : (inputText.value || systemOverride));
                             console.log('===================================================');
                         
                             // 6. 自动驾驶指令
                             const continuePrompt = `
-                            [System Command: AUTO-DRIVE MODE]
-                            **Situation**: The user is silent/waiting. You need to drive the conversation forward.
-                            **Decision Logic**:
-                            1. **IF your last message was incomplete**: Finish it.
-                            2. **IF complete**: Start a new topic or action based on current mood (Affection: ${currentAffection.value}).
-                            **Output Requirement**: 
-                            You MUST start with [Thought: ...], then output the content.
+                            [System: AUTO-DRIVE]
+                            User is silent. Please continue the conversation.
+                            Start with <think>Analysis...</think> then output response.
                             `;
                             
                             // 7. 发起网络请求
@@ -1083,7 +1096,9 @@ const getTimeTags = () => {
                                 targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
                                 
                                 const geminiContents = contextMessages.map(item => {
-                                    const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
+                                    // 清洗历史记录中的 think 标签，防止 AI 被历史记录带偏
+                                    let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                                    cleanText = item.role === 'model' ? cleanMessageForAI(cleanText) : cleanText;
                                     return { role: item.role === 'user' ? 'user' : 'model', parts: [{ text: cleanText }] };
                                 }).filter(item => item.parts[0].text.trim() !== '');
                                 
@@ -1106,19 +1121,19 @@ const getTimeTags = () => {
                                 const openAIMessages = [{ role: "system", content: prompt }];
                                 
                                 contextMessages.forEach(item => {
-                                    const cleanText = item.role === 'model' ? cleanMessageForAI(item.content) : item.content;
+                                    // 清洗历史记录中的 think 标签
+                                    let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                                    cleanText = item.role === 'model' ? cleanMessageForAI(cleanText) : cleanText;
                                     if (cleanText.trim()) openAIMessages.push({ role: item.role === 'model' ? 'assistant' : 'user', content: cleanText });
                                 });
                                 
                                 if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
                                 else if (isContinue) openAIMessages.push({ role: 'user', content: continuePrompt });
                                 
+                                // 强制 OpenAI 模型遵守格式
                                 openAIMessages.push({
                                     role: 'user',
-                                    content: `[SYSTEM ENFORCEMENT] Stop. Before you reply, you MUST execute the [Thought] protocol.
-                                Step 1: Write [Thought: (状态: 好感 ${score} | 欲望 ${lust}) ... analysis ...].
-                                Step 2: Write your response.
-                                If you skip Step 1, the system will error.`
+                                    content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply.`
                                 });
                                 
                                 requestBody = {
@@ -1128,7 +1143,6 @@ const getTimeTags = () => {
                                     stream: false
                                 };
                             }
-                            
                             
                             try {
                                 const header = { 'Content-Type': 'application/json' };
@@ -1154,10 +1168,9 @@ const getTimeTags = () => {
                                         if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
                                     }
                         
-                                    // 【新增】打印 AI 返回的原始数据，方便看是否包含了指令
-                                    console.log('============== 📥 RAW RESPONSE ==============');
+                                    console.log('============== 📥 RAW AI RESPONSE ==============');
                                     console.log(rawText);
-                                    console.log('=============================================');
+                                    console.log('================================================');
                         
                                     if (tokenLog) console.log(tokenLog);
                         
@@ -1184,207 +1197,206 @@ const getTimeTags = () => {
                         };
 
         
+        
+        // pages/chat/chat.vue
+        
         // pages/chat/chat.vue
         
         const processAIResponse = (rawText) => {
-            let displayText = rawText.trim();
+            // =================================================================
+            // 🧹 1. 预处理
+            // =================================================================
+            let displayText = rawText
+                .replace(/^\[(model|assistant|user)\]:\s*/i, '') 
+                .replace(/^\[SYSTEM.*?\]\s*/i, '')               
+                .trim();
         
             // =================================================================
-            // 🧠 1. 思维链处理 (支持多种标签)
-            // =================================================================
-            const thoughtTags = ['[Thought', '[Thread', '[Logic', '[Reasoning', '[Analysis'];
-            let foundTag = false;
-            let thoughtStart = -1;
-        
-            for (const tag of thoughtTags) {
-                const idx = displayText.indexOf(tag);
-                if (idx !== -1) {
-                    if (thoughtStart === -1 || idx < thoughtStart) {
-                        thoughtStart = idx;
-                        foundTag = true;
-                    }
-                }
-            }
-            
-            if (foundTag && thoughtStart !== -1) {
-                let bracketCount = 0;
-                let thoughtEnd = -1;
-                for (let i = thoughtStart; i < displayText.length; i++) {
-                    if (displayText[i] === '[') bracketCount++;
-                    else if (displayText[i] === ']') bracketCount--;
-                    if (bracketCount === 0) {
-                        thoughtEnd = i;
-                        break;
-                    }
-                }
-                if (thoughtEnd !== -1) {
-                    const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
-                    // console.log(`🧠 [AI心声]: ${fullThought}`);
-                    displayText = displayText.replace(fullThought, '').trim();
-                }
-            }
-        
-            // =================================================================
-            // 🚨 2. 指令清洗
+            // 🧠 2. 思维链净化 (终极通杀版)
             // =================================================================
             
-            displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
-            displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE|MOOD):\s*(.*?)\)/gi, '[$1:$2]');
-            displayText = displayText.replace(/\(IMG:/gi, '[IMG:');
-            displayText = displayText.replace(/\(CLOTHES:/gi, '[CLOTHES:');
+            // 2.1 定义宽容的正则
+            // 匹配规则：
+            // 开头：1个或多个 < 或 [ + think 或 thinking + 1个或多个 > 或 ]
+            // 结尾：1个或多个 < 或 [ + / + 可选的 < + think 或 thinking + 1个或多个 > 或 ]
+            // 例子能匹配：<think>, <<think>>, [thinking], </think>, </<think>>, [/thinking]
+            const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
+            
+            // 执行清洗
+            displayText = displayText.replace(thinkBlockRegex, '');
+            
+            // 2.2 处理“断尾”事故 (只有结束标签)
+            // 匹配像 </think>, </<think>>, [/thinking] 这种结束符
+            const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
+            
+            if (endTagRegex.test(displayText)) {
+                // 抛弃结束标签之前的所有内容
+                displayText = displayText.split(endTagRegex).pop().trim();
+            }
+            
+            // 2.3 移除旧式 [Thought: ...] 
+            displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, '');
+        
+            // =================================================================
+            // 🛡️ 3. 括号内容清洗 (反元注释)
+            // =================================================================
+            // 依然保留，防止 AI 说 "(听到系统...)"
+            displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, '');
+        
+            // =================================================================
+            // 💎 4. 指令白名单 (只留合法指令)
+            // =================================================================
+            
+            // 4.1 统一格式
             displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
-            displayText = displayText.replace(/\[视觉指令[:：][\s\S]*?\]/gi, '');
-            displayText = displayText.replace(/\[System Command[:：][\s\S]*?\]/gi, '');
-            displayText = displayText.replace(/\[(Logic|Thread|Thought)[\s\S]*?\]/gi, '').trim();
+            displayText = displayText.replace(/（/g, '(').replace(/）/g, ')');
+            displayText = displayText.replace(/：/g, ':');
+            displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
+            displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE).*?:(.*?)\)/gi, '[$1:$2]');
         
-            // =================================================================
-            // 📥 3. 状态提取
-            // =================================================================
-            let systemMsgs = [];
+            // 4.2 白名单过滤
+            const ALLOWED_TAGS = ['IMG', 'LOC', 'ACT', 'AFF', 'LUST', 'CLOTHES', 'MODE'];
         
-            // [AFF]
-            const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
-            let match;
-            while ((match = affRegex.exec(displayText)) !== null) {
-                let change = parseInt(match[1], 10);
-                if (!isNaN(change)) {
-                    if (change > 5) change = 5; 
-                    // console.log(`❤️ [Status] Affection change: ${change}`);
-                    saveCharacterState(currentAffection.value + change);
+            displayText = displayText.replace(/\[([a-zA-Z]+)(?::|\s)?.*?\]/g, (match, key) => {
+                const upperKey = key.toUpperCase();
+                if (upperKey === 'AFFECTION') return match.replace(/Affection/i, 'AFF');
+                
+                if (ALLOWED_TAGS.includes(upperKey)) {
+                    return match; 
+                } else {
+                    return ''; // 销毁非法指令
                 }
+            });
+        
+            // =================================================================
+            // 📥 5. 状态提取
+            // =================================================================
+            
+            // [AFF]
+            const affMatch = displayText.match(/\[AFF[^\d]*?([+-]?\d+)\]/i);
+            if (affMatch) {
+                let change = parseInt(affMatch[1], 10);
+                if (!isNaN(change)) {
+                     if (change > 5) change = 5; 
+                     saveCharacterState(currentAffection.value + change);
+                }
+                displayText = displayText.replace(affMatch[0], '');
             }
-            displayText = displayText.replace(affRegex, '');
         
             // [LUST]
-            const lustRegex = /\[LUST:?\s*([+-]?\d+)\]/gi;
-            let lustMatch;
-            while ((lustMatch = lustRegex.exec(displayText)) !== null) {
+            const lustMatch = displayText.match(/\[LUST[^\d]*?([+-]?\d+)\]/i);
+            if (lustMatch) {
                 let change = parseInt(lustMatch[1], 10);
-                if (!isNaN(change)) {
-                    // console.log(`🔥 [Status] Lust change: ${change}`);
-                    saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
-                }
+                if (!isNaN(change)) saveCharacterState(undefined, undefined, undefined, undefined, undefined, undefined, currentLust.value + change);
+                displayText = displayText.replace(lustMatch[0], '');
             }
-            displayText = displayText.replace(lustRegex, '');
-        
-            // [MOOD]
-            const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
-            if (displayText.match(moodRegex)) displayText = displayText.replace(moodRegex, '');
         
             // [MODE]
-            const modeRegex = /\[MODE:?\s*(.*?)\]/i;
-            const modeMatch = displayText.match(modeRegex);
+            const modeMatch = displayText.match(/\[MODE:?\s*(.*?)\]/i);
             if (modeMatch) {
-                const newModeVal = modeMatch[1].trim().toLowerCase();
-                let newMode = 'phone';
-                if (newModeVal.includes('face') || newModeVal.includes('见') || newModeVal.includes('面')) newMode = 'face';
+                const val = modeMatch[1].toLowerCase();
+                let newMode = (val.includes('face') || val.includes('见')) ? 'face' : 'phone';
                 if (newMode !== interactionMode.value) {
-                    // console.log(`📡 [Status] Mode switch to: ${newMode}`);
                     interactionMode.value = newMode;
                     saveCharacterState(undefined, undefined, undefined, undefined, undefined, newMode);
                 }
-                displayText = displayText.replace(modeRegex, '');
+                displayText = displayText.replace(modeMatch[0], '');
             }
         
             // [LOC]
-            const locRegex = /\[LOC:?\s*(.*?)\]/i;
-            const locMatch = displayText.match(locRegex);
+            const locMatch = displayText.match(/\[LOC:?\s*(.*?)\]/i);
             if (locMatch) {
-                // console.log(`📍 [Status] Moved to: ${locMatch[1].trim()}`);
                 currentLocation.value = locMatch[1].trim();
                 saveCharacterState(undefined, undefined, undefined, currentLocation.value);
-                displayText = displayText.replace(locRegex, '');
+                displayText = displayText.replace(locMatch[0], '');
             }
             
             // [CLOTHES]
-            const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
-            const clothesMatch = displayText.match(clothesRegex);
+            const clothesMatch = displayText.match(/\[CLOTHES:?\s*(.*?)\]/i);
             if (clothesMatch) {
-                // console.log(`👗 [Status] Clothes changed to: ${clothesMatch[1].trim()}`);
                 currentClothing.value = clothesMatch[1].trim();
                 saveCharacterState(undefined, undefined, undefined, undefined, currentClothing.value);
-                displayText = displayText.replace(clothesRegex, '');
+                displayText = displayText.replace(clothesMatch[0], '');
             }
             
             // [ACT]
-            const actRegex = /\[ACT:?\s*(.*?)\]/i;
-            const actMatch = displayText.match(actRegex);
+            const actMatch = displayText.match(/\[ACT:?\s*(.*?)\]/i);
             if (actMatch) {
                 currentActivity.value = actMatch[1].trim();
-                saveCharacterState(); 
-                displayText = displayText.replace(actRegex, '');
-            }
-        
-            // [IMG]
-            const imgRegex = /\[IMG[:\s]?\s*(.*?)\]/i;
-            const imgMatch = displayText.match(imgRegex);
-            let pendingImagePlaceholder = null;
-            if (imgMatch) {
-                const imgDesc = imgMatch[1].trim();
-                // console.log(`🖼️ [Status] Image trigger detected: ${imgDesc}`);
-                displayText = displayText.replace(imgRegex, '');
-                
-                const placeholderId = `img-loading-${Date.now()}`;
-                pendingImagePlaceholder = { 
-                    role: 'system', 
-                    content: '📷 影像显影中... (请稍候)', 
-                    isSystem: true, 
-                    id: placeholderId 
-                };
-                handleAsyncImageGeneration(imgDesc, placeholderId);
+                saveCharacterState();
+                displayText = displayText.replace(actMatch[0], '');
             }
         
             // =================================================================
-            // 💬 4. 文本上屏 (注意：这里是最关键的修改！)
+            // 🖼️ 6. [IMG] 图片处理
             // =================================================================
+            let pendingPlaceholders = [];
+            const imgRegex = /\[IMG[:\s]?\s*([\s\S]*?)\]/gi;
+            let imgMatchRes;
+            while ((imgMatchRes = imgRegex.exec(displayText)) !== null) {
+                const imgDesc = imgMatchRes[1].trim();
+                if (imgDesc) {
+                    const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+                    pendingPlaceholders.push({ 
+                        role: 'system', content: '📷 影像显影中... (请稍候)', isSystem: true, id: placeholderId 
+                    });
+                    handleAsyncImageGeneration(imgDesc, placeholderId);
+                }
+            }
+            displayText = displayText.replace(imgRegex, '');
         
-            // 清理残留标签
-            displayText = displayText.replace(/\[(System|Logic|Thread|Thought).*?\]/gis, '').trim();
-            displayText = displayText.replace(/^\[.*?\]\s*/, '');
-            
-            systemMsgs.forEach(txt => { 
-                messageList.value.push({ role: 'system', content: txt, isSystem: true }); 
-            });
+            // =================================================================
+            // 💬 7. 文本上屏 (智能合并与防复读)
+            // =================================================================
+            displayText = displayText.trim();
             
             if (displayText) {
-                // 1. 先把物理换行符转为分割符
-                let tempText = displayText.replace(/(\r\n|\n|\r)+/g, '|||');
+                // 7.1 预处理
+                let processedText = displayText.replace(/\n\s*([”"’])/g, '$1'); 
+                processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
+        
+                // 7.2 切割
+                let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
+                tempText = tempText.replace(/([^\s(])\s*([(])/g, '$1|||$2');
+                tempText = tempText.replace(/([)])\s*([^\s)|])/g, '$1|||$2');
                 
-                // 🚨【关键修改点】激进分割正则 🚨
+                const rawParts = tempText.split('|||');
                 
-                // 2. 任何文字(非括号) -> 紧接左括号 (例如: "...好。"(转身) )
-                // 只要不是空格或左括号，后面跟了左括号，就强制切开
-                tempText = tempText.replace(/([^\s（(])\s*([（(])/g, '$1|||$2');
-                
-                // 3. 右括号 -> 紧接任何文字(非右括号) (例如: (转身)"好。" 或 (转身)看着你)
-                // 只要是右括号，后面跟了非空格非右括号非分隔符，就强制切开
-                tempText = tempText.replace(/([)）])\s*([^\s)）|])/g, '$1|||$2');
-                
-                const parts = tempText.split('|||');
-                parts.forEach(part => {
+                // 7.3 碎片修复
+                const finalParts = [];
+                rawParts.forEach(part => {
                     let cleanPart = part.trim();
-                    // 过滤纯标点符号的垃圾气泡
-                    const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || 
-                                   cleanPart === '...' || 
-                                   cleanPart.length === 0;
-                                   
-                    if (!isJunk) {
-                        messageList.value.push({ role: 'model', content: cleanPart });
+                    if (!cleanPart) return;
+        
+                    const isPunctuationOnly = /^["“”’'.,。!！?？~]+$/.test(cleanPart);
+                    
+                    if (finalParts.length > 0 && (isPunctuationOnly || /^["“”’']$/.test(finalParts[finalParts.length - 1]))) {
+                        finalParts[finalParts.length - 1] += cleanPart;
+                    } else {
+                        finalParts.push(cleanPart);
                     }
+                });
+        
+                // 7.4 防复读
+                const historyLen = messageList.value.length;
+                const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
+                const secondLastMsg = historyLen > 1 ? messageList.value[historyLen - 2].content : '';
+        
+                finalParts.forEach(cleanPart => {
+                    if (cleanPart === lastMsg) return;
+                    if (cleanPart === secondLastMsg) return;
+                    messageList.value.push({ role: 'model', content: cleanPart });
                 });
             }
             
-            if (pendingImagePlaceholder) {
-                messageList.value.push(pendingImagePlaceholder);
+            if (pendingPlaceholders.length > 0) {
+                messageList.value.push(...pendingPlaceholders);
             }
             
             saveHistory();
-            
             if (enableSummary.value) {
                 const validMsgCount = messageList.value.filter(m => !m.isSystem).length;
-                if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) {
-                    performBackgroundSummary();
-                }
+                if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0) performBackgroundSummary();
             }
         };
 		
@@ -1492,5 +1504,59 @@ const getTimeTags = () => {
     color: #999;
     font-size: 30rpx;
     display: flex; align-items: center;
+}
+
+.info-row { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: stretch; /* 让高度拉伸对齐 */
+    margin-top: 10rpx;
+}
+
+.location-box { 
+    flex: 1; 
+    display: flex; 
+    align-items: center; 
+    padding: 8rpx 20rpx; 
+    border-radius: 16rpx; 
+    margin-right: 20rpx;
+    transition: all 0.3s; 
+}
+
+.phone-mode { background-color: #f0f3f5; color: #555; border: 1px solid #e1e4e8; }
+.face-mode { background-color: #e3f2fd; color: #007aff; border: 1px solid #bbdefb; }
+
+.location-icon { 
+    font-size: 36rpx; 
+    margin-right: 16rpx; 
+}
+
+.status-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.location-text { 
+    font-size: 22rpx; 
+    font-weight: bold; 
+    opacity: 0.9;
+}
+
+.activity-text {
+    font-size: 20rpx;
+    opacity: 0.7;
+    margin-top: 2rpx;
+}
+
+.time-box { 
+    display: flex; 
+    align-items: center; 
+    font-size: 24rpx; 
+    color: #555; 
+    background-color: #f8f8f8; 
+    padding: 0 20rpx; /* 调整内边距 */
+    border-radius: 16rpx; 
+    border: 1px solid #eee;
 }
 </style>
