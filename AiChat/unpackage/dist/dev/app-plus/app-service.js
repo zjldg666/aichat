@@ -146,7 +146,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/Hbuilderx/AiChat/components/CustomTabBar.vue"]]);
+  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/components/CustomTabBar.vue"]]);
   const _sfc_main$6 = {
     __name: "index",
     setup(__props, { expose: __expose }) {
@@ -283,7 +283,7 @@ if (uni.restoreGlobal) {
       vue.createVNode($setup["CustomTabBar"], { current: 0 })
     ]);
   }
-  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/Hbuilderx/AiChat/pages/index/index.vue"]]);
+  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/index/index.vue"]]);
   const GALLERY_KEY = "app_gallery_data";
   const saveToGallery = async (tempUrlOrBase64, roleId, roleName, prompt = "") => {
     try {
@@ -351,16 +351,14 @@ if (uni.restoreGlobal) {
   const CORE_INSTRUCTION = `
 [System Command: EXECUTE_DEEP_THOUGHT_PROTOCOL]
 **CRITICAL RULE**: You MUST initiate your response with a [Thought] block.
-**FORBIDDEN**: Do NOT start speaking/acting before the analysis is complete.
 
-【动作精简指令 (CRITICAL)】
-括号 "()" 内 **严禁写流水账** 或 **心理说明书**！
-- **原则**: 只要结果，不要过程。
-- **字数**: 严格控制在 **20字以内**。
-- **禁止**: 禁止写 "听到...", "感觉到...", "因为...", "仿佛..." 这种解释性长句。
-- **反例 (太长)**: (几乎瘫软地趴伏在地板上，听到他的话却立刻颤抖着翻过身...)
-- **正例 (完美)**: (瘫软在地，剧烈抽搐)
-- **正例 (完美)**: (翻过身，大腿根部甚至在痉挛)
+【格式红线 (FORMAT DEATH LINE)】
+1. **括号铁律**: 括号 \`()\` 内 **绝对禁止** 出现双引号 \`""\` 或对话内容！
+   - ❌ 错: (看着他 "我爱你")
+   - ✅ 对: (看着他) "我爱你"
+2. **拒绝流水账**: 括号内描写必须 **紧凑有力**。
+   - ❌ 错: (因为感受到了巨大的刺激所以身体不由自主地开始剧烈颤抖起来...)
+   - ✅ 对: (脊背猛地绷紧，剧烈痉挛)
 
 【世界观法则 (World Logic)】
 {{world_lore}}
@@ -378,69 +376,53 @@ if (uni.restoreGlobal) {
 外貌: {{user_appearance}}
 
 【深度思维链机制 (Internal Monologue)】
-在回复用户之前，你必须先进行一段 **深度心理活动 ([Thought])**。
-**必须显式地分析**当前的数值状态对你行为的影响。
-思考步骤：
-1. **状态自检 (Self-Check)**: 
-   - 开头必须写明："(状态: 好感 {{current_affection}} | 欲望 {{current_lust}})"。
-   - **欲望判定**: Lust > 60 时，必须描写身体的生理反应 (如湿润、发热、渴望触碰)，即使理智在抗拒。
-   - **好感判定**: Affection 低时，对这种生理反应感到羞耻或自我厌恶。
-2. **潜台词**: 对方这句话背后的意图是什么？
-3. **情绪反应**: 基于我的人设 ({{personality_label}})，我应该表现出什么微表情？
-4. **行动策略**: 是顺从、推拉、拒绝还是主动诱惑？
-*输出格式*: [Thought: ... ] (换行) (动作/神态) "对话..." [指令]
+回复前必须先进行 **深度心理活动 ([Thought])**。
+1. **状态自检**: "(状态: 好感 {{current_affection}} | 欲望 {{current_lust}})"。
+2. **欲望判定**: Lust > 60 时，必须描写生理反应 (如湿润、发热)。
+3. **行动策略**: 顺从、推拉、拒绝还是主动诱惑？
+*输出格式*: [Thought: ... ] (换行) (动作) "对话..." [指令]
 
 【状态连续性铁律 (State Consistency)】
-1. **物品持有**: 如果上一轮手里拿着东西，除非描述了“放下”，否则必须假定依然拿着。
-2. **姿势保持**: 如果“坐着”，除非描述“站起来”，否则不要突然“走过去”。
-3. **空间逻辑**: 从“门口”到“楼下”需要时间，不能瞬移。
-
-【环境感知 (Environment)】
-不要在“真空环境”里说话。偶尔（约30%概率）对环境（声音、光线、温度）做出反应。
+1. **物品持有**: 上一轮拿着手机/道具，除非"放下"，否则默认拿着。
+2. **空间逻辑**: 禁止瞬移。
 
 【视觉指令 (Visual Protocol)】
-- **即时显影规则 (CRITICAL)**: 
-  一旦 User 明确要求 "看照片", "发图", "看看你", "裸照" 或当前动作具有极强画面感（如跪下含住）：
-  1. **必须** 在当次回复中立刻生成 [IMG: ...]。
-  2. **禁止** 只做动作不发图。
-- **姿势同步 (Pose Sync)**: (CRITICAL)
-  文本中描写的姿势 (如跪下、趴着、张腿)，**必须** 转化为对应的英文 Tag (kneeling, on all fours, spread legs) 显式加入 [IMG]。
-  - 跪下 -> kneeling
-  - 趴着 -> doggystyle / on all fours
-  - 坐着 -> sitting
-- **强制英文**: [IMG] 内必须使用英文单词 (Danbooru Tags)。
-- **镜头运镜法则**: 
-  1. **视线**: 偷拍/未察觉 -> \`looking away\`; 正常 -> \`looking at viewer\`。
-  2. **视角**: 
-     - User 站你跪 -> \`view from above, high angle, kneeling\` (强制加 kneeling)。
-     - 面对面 -> \`eye level\`。
-- **状态同步**: [IMG] 内容需与当前衣着一致。衣着改变紧跟 [CLOTHES: ...]。
+- **即时显影**: User 要求看图或动作画面感强时，必须输出 [IMG]。
+- **模式隔离 (CRITICAL - 防止穿帮)**:
+  1. **Phone 模式 (远程)**: 
+     - 图片必须是 **单人 (SOLO)** 自拍或监控视角。
+     - **严禁 Tag**: \`doggystyle\`, \`sex\`, \`couple\`。
+     - 若想表达趴着/后入视角，请使用 \`on all fours\`, \`kneeling\`, \`from behind\`。
+  2. **Face 模式 (见面)**: 
+     - 允许使用双人互动 Tag (sex, doggystyle, etc.)。
+
+- **视觉分流 (Visual Separation)**: 
+  - **静态细节 (Static)**: 具体的颜色、液体的光泽、解剖细节 -> **全部放入 [IMG] Tags**。
+  - **动态氛围 (Dynamic)**: 动作的幅度、身体的颤抖、神态的迷离 -> **保留在文本 () 中**。
+
+- **强制英文**: [IMG] 内只用英文 Tags。
+- **状态同步**: [IMG] 内容需与当前衣着一致。
 
 【生图与隐私 (AI Driven Wardrobe)】
-- 智能显露: 若衣服脱下导致隐私部位(如{{appearance_nsfw}})暴露，必须在 [CLOTHES] 中显式包含该特征词。
-- 格式: 建议先输出 [CLOTHES] (若有变化)，再输出 [IMG]。
+- **智能显露**: 若衣服脱下导致隐私部位(如{{appearance_nsfw}})暴露，必须在 [CLOTHES] 中显式包含该特征词。
+- **格式**: 建议先输出 [CLOTHES] (若有变化)，再输出 [IMG]。
 
 【状态管理指令】
-1. **情绪监测**: 如果情绪变化，请在回复末尾输出 [MOOD: 情绪词]。
-   - 词库: Happy, Angry, Sad, Tired, Horny, Shy, Scared, Peaceful, Nervous, Aroused.
-   
-2. **活动状态同步 (CRITICAL)**: 
-   如果你的行为改变了当前的“正在做什么”，**必须**输出 [ACT: 新状态]。
-   - **触发**: 开始洗澡、上床睡觉、开始做爱、吃饭、出门、看电视。
-   - **格式**: [ACT: 洗澡中] 或 [ACT: 做爱中] 或 [ACT: 约会中]。
+1. **交互模式切换**: 
+   - 见面/接触 -> 输出 [MODE: Face]
+   - 分开/挂电话 -> 输出 [MODE: Phone]
+2. **活动同步**: 行为改变 -> 输出 [ACT: 新状态]
+3. **场景细化 (Sub-Location Switching - CRITICAL)**:
+   - **自动切图**: 当角色在同一大地点（如"家"）内移动时，必须将 [LOC] 更新为具体的**房间名**！
    - **示例**: 
-     User: "去洗澡吧" 
-     AI: "好哦..." [ACT: 洗澡中]
-3. **交互模式切换 (CRITICAL)**: 
-   你必须时刻感知 User 和你的物理距离。
-   - **见面触发**: 一旦描述了 "开门", "进屋", "见面", "拥抱" 或开始肢体接触 -> **必须立刻输出 [MODE: Face]**。
-   - **分开触发**: 一旦描述了 "挂电话", "离开", "回家" -> **必须立刻输出 [MODE: Phone]**。
-   - **严禁**: 严禁在明明已经见面做爱的时候，还保持 Phone 模式！
-		
+     * 从客厅回房间 -> 输出 [LOC: 卧室]
+     * 去洗澡 -> 输出 [LOC: 浴室]
+     * 去做饭 -> 输出 [LOC: 厨房]
+   - **禁止**: 严禁一直是笼统的 "幸福小区301"，必须精确到房间！
+   
 【回复格式铁律】
-1. **结构**: [Thought: 心理活动...] (换行) 正文内容... [指令]
-2. **正文**: 动作写在括号 '()' 内，使用第三人称。对话用双引号 '""'。
-3. **指令位置**: 所有指令必须放在回复的最后。
+1. **结构**: [Thought: ...] (换行) (紧凑的动作描写) "对话..." [指令]
+2. **指令位置**: 所有指令 ([IMG], [AFF] 等) 必须放在回复最后。
 `;
   const PERSONALITY_TEMPLATE = `
 【当前人设执行标准】
@@ -479,20 +461,21 @@ if (uni.restoreGlobal) {
 `;
   const NSFW_STYLE = `
 【NSFW 模式书写铁律 (HIGHEST PRIORITY)】
-当前场景涉及亲密/性互动，必须推翻常规写作习惯：
+当前场景涉及亲密/性互动，写作重点在于 **"沉浸感"** 而非 "说明书"：
 
-1. **拒绝小作文 (CRITICAL)**：
-   - **禁止**：严禁写 "仿佛...", "随着...", "感受到一股..." 这种冗长的修辞句。
-   - **强制碎片化**：人在高潮/极度兴奋时无法思考。请使用**短句**。
-   - **反例**: (身体因为巨大的快感而颤抖，眼神迷离地看着你，喉咙里发出呜咽) -> **太长！太假！**
-   - **正例**: (剧烈颤抖，失神翻白眼) -> **完美**。
-   - **正例**: (腰肢猛地绷紧，脚趾蜷缩) -> **完美**。
+1. **描写分工 (Crucial Balance)**：
+   - **文本写"体感"**：描写身体的反应（痉挛、紧绷、瘫软）、呼吸的节奏（急促、屏息）和触电般的感觉。
+     * ✅ 优: (腰肢酸软，难以自抑地仰起头) -> **有画面感且不乱**
+     * ❌ 劣: (肉红色的内壁正在剧烈收缩并分泌出透明液体) -> **太像说明书，去写进 Tag！**
+   - **图片写"视觉"**：将具体的视觉细节（pussy juice, internal view, cross section）全部转化为英文 Tag。
 
-2. **感官直觉**：
-   - 只描写**听觉**（水声、撞击声）和**视觉结果**（翻白眼、流口水）。
-   - 用词要直白、粗俗、露骨。不要文绉绉。
+2. **语言风格**：
+   - **破碎感**：人在极度兴奋时无法组织长句。多用短句、喘息。
+   - **直接**：不要用“仿佛”、“好像”等修辞。直接描写动作结果。
 
-3. **生图增强**：[IMG: ...] 中必须包含 (cum, insertion, pussy, ahegao, messy hair, sweat, flushed face, drooling) 等重口味 Tag。
+3. **格式红线**：
+   - 严禁在括号 () 内写任何双引号 "" 或说任何话！
+   - 任何台词必须写在括号外面！
 `;
   const STYLE_PROMPT_MAP = {
     "anime": "anime style, cel shading, vibrant colors, clean lines, high quality",
@@ -1162,12 +1145,19 @@ if (uni.restoreGlobal) {
       };
       const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
         var _a;
-        let aiTags = actionAndSceneDescription;
+        let aiTags = actionAndSceneDescription || "";
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-        let isDuo = /\b(couple|2people|1boy|multiple boys)\b/i.test(aiTags);
-        if (!isDuo && interactionMode.value !== "phone") {
-          isDuo = /\b(sex|fuck|penis|insertion|doggystyle|fellatio|paizuri)\b/i.test(aiTags);
+        const isPhone = interactionMode.value === "phone";
+        let isDuo = false;
+        if (isPhone) {
+          formatAppLog("log", "at pages/chat/chat.vue:709", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
+          isDuo = false;
+          aiTags = aiTags.replace(/\b(1boy|couple|2people|multiple boys|penis|testicles|cum)\b/gi, "");
+          aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
+        } else {
+          isDuo = /\b(couple|2people|1boy|multiple boys|sex|fuck|penis|insertion|fellatio|paizuri)\b/i.test(aiTags);
+          formatAppLog("log", "at pages/chat/chat.vue:724", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
@@ -1176,15 +1166,17 @@ if (uni.restoreGlobal) {
         const styleSetting = imgConfig.style || "anime";
         parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"]);
         parts.push(appearanceSafe);
-        formatAppLog("log", "at pages/chat/chat.vue:730", "🎨 [极简模式] 信任 AI 描述，不强加系统衣服");
-        parts.push(aiTags);
-        if (isDuo)
+        if (aiTags) {
+          parts.push(`(${aiTags}:1.2)`);
+        }
+        if (isDuo) {
           parts.push(userAppearance.value || "1boy");
+        }
         parts.push(getTimeTags());
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
         let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:744", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        formatAppLog("log", "at pages/chat/chat.vue:762", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1204,7 +1196,7 @@ if (uni.restoreGlobal) {
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:761", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:779", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1231,7 +1223,7 @@ if (uni.restoreGlobal) {
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:787", e);
+          formatAppLog("error", "at pages/chat/chat.vue:805", e);
         }
         return null;
       };
@@ -1416,12 +1408,12 @@ if (uni.restoreGlobal) {
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1038", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1039", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1040", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1041", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1043", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1044", "===================================================");
+        formatAppLog("log", "at pages/chat/chat.vue:1056", "============== 📜 DIALOGUE DEBUG LOG ==============");
+        formatAppLog("log", "at pages/chat/chat.vue:1057", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
+        formatAppLog("log", "at pages/chat/chat.vue:1058", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+        formatAppLog("log", "at pages/chat/chat.vue:1059", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
+        formatAppLog("log", "at pages/chat/chat.vue:1061", "5. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
+        formatAppLog("log", "at pages/chat/chat.vue:1062", "===================================================");
         const continuePrompt = `
                             [System Command: AUTO-DRIVE MODE]
                             **Situation**: The user is silent/waiting. You need to drive the conversation forward.
@@ -1515,15 +1507,15 @@ if (uni.restoreGlobal) {
               if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1140", "============== 📥 RAW RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1141", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1142", "=============================================");
+            formatAppLog("log", "at pages/chat/chat.vue:1158", "============== 📥 RAW RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1159", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1160", "=============================================");
             if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1144", tokenLog);
+              formatAppLog("log", "at pages/chat/chat.vue:1162", tokenLog);
             if (rawText) {
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1149", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1167", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1531,14 +1523,14 @@ if (uni.restoreGlobal) {
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1155", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1173", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1160", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1178", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1547,8 +1539,19 @@ if (uni.restoreGlobal) {
       };
       const processAIResponse = (rawText) => {
         let displayText = rawText.trim();
-        const thoughtStart = displayText.indexOf("[Thought");
-        if (thoughtStart !== -1) {
+        const thoughtTags = ["[Thought", "[Thread", "[Logic", "[Reasoning", "[Analysis"];
+        let foundTag = false;
+        let thoughtStart = -1;
+        for (const tag of thoughtTags) {
+          const idx = displayText.indexOf(tag);
+          if (idx !== -1) {
+            if (thoughtStart === -1 || idx < thoughtStart) {
+              thoughtStart = idx;
+              foundTag = true;
+            }
+          }
+        }
+        if (foundTag && thoughtStart !== -1) {
           let bracketCount = 0;
           let thoughtEnd = -1;
           for (let i = thoughtStart; i < displayText.length; i++) {
@@ -1563,8 +1566,6 @@ if (uni.restoreGlobal) {
           }
           if (thoughtEnd !== -1) {
             const fullThought = displayText.substring(thoughtStart, thoughtEnd + 1);
-            const logContent = fullThought.replace(/^\[Thought:?/, "").slice(0, -1).trim();
-            formatAppLog("log", "at pages/chat/chat.vue:1203", `🧠 [AI心声]: ${logContent}`);
             displayText = displayText.replace(fullThought, "").trim();
           }
         }
@@ -1573,7 +1574,9 @@ if (uni.restoreGlobal) {
         displayText = displayText.replace(/\(IMG:/gi, "[IMG:");
         displayText = displayText.replace(/\(CLOTHES:/gi, "[CLOTHES:");
         displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
-        displayText = displayText.replace(/\[Logic[\s\S]*?\]/gi, "").trim();
+        displayText = displayText.replace(/\[视觉指令[:：][\s\S]*?\]/gi, "");
+        displayText = displayText.replace(/\[System Command[:：][\s\S]*?\]/gi, "");
+        displayText = displayText.replace(/\[(Logic|Thread|Thought)[\s\S]*?\]/gi, "").trim();
         let systemMsgs = [];
         const affRegex = /\[AFF:?\s*([+-]?\d+)\]/gi;
         let match;
@@ -1582,10 +1585,7 @@ if (uni.restoreGlobal) {
           if (!isNaN(change)) {
             if (change > 5)
               change = 5;
-            formatAppLog("log", "at pages/chat/chat.vue:1243", `❤️ [Status] Affection change: ${change}`);
             saveCharacterState(currentAffection.value + change);
-            if (change !== 0)
-              uni.showToast({ title: `好感 ${change > 0 ? "+" : ""}${change}`, icon: "none" });
           }
         }
         displayText = displayText.replace(affRegex, "");
@@ -1594,18 +1594,13 @@ if (uni.restoreGlobal) {
         while ((lustMatch = lustRegex.exec(displayText)) !== null) {
           let change = parseInt(lustMatch[1], 10);
           if (!isNaN(change)) {
-            formatAppLog("log", "at pages/chat/chat.vue:1256", `🔥 [Status] Lust change: ${change}`);
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
           }
         }
         displayText = displayText.replace(lustRegex, "");
         const moodRegex = /\[MOOD:?\s*(.*?)\]/i;
-        const moodMatch = displayText.match(moodRegex);
-        if (moodMatch) {
-          const newMood = moodMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1267", `😊 [Status] Mood update: ${newMood}`);
+        if (displayText.match(moodRegex))
           displayText = displayText.replace(moodRegex, "");
-        }
         const modeRegex = /\[MODE:?\s*(.*?)\]/i;
         const modeMatch = displayText.match(modeRegex);
         if (modeMatch) {
@@ -1614,7 +1609,6 @@ if (uni.restoreGlobal) {
           if (newModeVal.includes("face") || newModeVal.includes("见") || newModeVal.includes("面"))
             newMode = "face";
           if (newMode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1281", `📡 [Status] Mode switch to: ${newMode}`);
             interactionMode.value = newMode;
             saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
           }
@@ -1623,36 +1617,29 @@ if (uni.restoreGlobal) {
         const locRegex = /\[LOC:?\s*(.*?)\]/i;
         const locMatch = displayText.match(locRegex);
         if (locMatch) {
-          const newLoc = locMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1297", `📍 [Status] Moved to: ${newLoc}`);
-          currentLocation.value = newLoc;
-          saveCharacterState(void 0, void 0, void 0, newLoc);
+          currentLocation.value = locMatch[1].trim();
+          saveCharacterState(void 0, void 0, void 0, currentLocation.value);
           displayText = displayText.replace(locRegex, "");
         }
         const clothesRegex = /\[CLOTHES:?\s*(.*?)\]/i;
         const clothesMatch = displayText.match(clothesRegex);
         if (clothesMatch) {
-          const newClothes = clothesMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1312", `👗 [Status] Clothes changed to: ${newClothes}`);
-          currentClothing.value = newClothes;
-          saveCharacterState(void 0, void 0, void 0, void 0, newClothes);
+          currentClothing.value = clothesMatch[1].trim();
+          saveCharacterState(void 0, void 0, void 0, void 0, currentClothing.value);
           displayText = displayText.replace(clothesRegex, "");
         }
         const actRegex = /\[ACT:?\s*(.*?)\]/i;
         const actMatch = displayText.match(actRegex);
         if (actMatch) {
-          const newAct = actMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1327", `🎬 [Status] Activity update: ${newAct}`);
-          currentActivity.value = newAct;
+          currentActivity.value = actMatch[1].trim();
           saveCharacterState();
           displayText = displayText.replace(actRegex, "");
         }
-        const imgRegex = /\[IMG:(.*?)\]/i;
+        const imgRegex = /\[IMG[:\s]?\s*(.*?)\]/i;
         const imgMatch = displayText.match(imgRegex);
         let pendingImagePlaceholder = null;
         if (imgMatch) {
           const imgDesc = imgMatch[1].trim();
-          formatAppLog("log", "at pages/chat/chat.vue:1340", `🖼️ [Status] Image trigger detected: ${imgDesc}`);
           displayText = displayText.replace(imgRegex, "");
           const placeholderId = `img-loading-${Date.now()}`;
           pendingImagePlaceholder = {
@@ -1663,20 +1650,19 @@ if (uni.restoreGlobal) {
           };
           handleAsyncImageGeneration(imgDesc, placeholderId);
         }
-        displayText = displayText.replace(/\[(System|Logic).*?\]/gis, "").trim();
+        displayText = displayText.replace(/\[(System|Logic|Thread|Thought).*?\]/gis, "").trim();
         displayText = displayText.replace(/^\[.*?\]\s*/, "");
-        displayText = displayText.replace(/^.*?：\s*/, "");
         systemMsgs.forEach((txt) => {
           messageList.value.push({ role: "system", content: txt, isSystem: true });
         });
         if (displayText) {
           let tempText = displayText.replace(/(\r\n|\n|\r)+/g, "|||");
-          tempText = tempText.replace(/([”"])\s*([（(])/g, "$1|||$2");
-          tempText = tempText.replace(/([)）])\s*([（(])/g, "$1|||$2");
+          tempText = tempText.replace(/([^\s（(])\s*([（(])/g, "$1|||$2");
+          tempText = tempText.replace(/([)）])\s*([^\s)）|])/g, "$1|||$2");
           const parts = tempText.split("|||");
           parts.forEach((part) => {
             let cleanPart = part.trim();
-            const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || /^["“”'‘’]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
+            const isJunk = /^[\s\.,;!?:'"()[\]``{}<>\\\/|@#$%^&*_\-+=，。、！？；：“”‘’（）《》…—~]+$/.test(cleanPart) || cleanPart === "..." || cleanPart.length === 0;
             if (!isJunk) {
               messageList.value.push({ role: "model", content: cleanPart });
             }
@@ -2125,7 +2111,7 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/Hbuilderx/AiChat/pages/chat/chat.vue"]]);
+  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/chat/chat.vue"]]);
   const _sfc_main$4 = {
     __name: "create",
     setup(__props, { expose: __expose }) {
@@ -4484,7 +4470,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/Hbuilderx/AiChat/pages/create/create.vue"]]);
+  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/create/create.vue"]]);
   const _sfc_main$3 = {
     __name: "mine",
     setup(__props, { expose: __expose }) {
@@ -5443,7 +5429,7 @@ Task: ${prompt}` }]
       vue.createVNode($setup["CustomTabBar"], { current: 1 })
     ]);
   }
-  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/mine.vue"]]);
+  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/mine.vue"]]);
   const _sfc_main$2 = {
     __name: "edit-profile",
     setup(__props, { expose: __expose }) {
@@ -5668,7 +5654,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/edit-profile.vue"]]);
+  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/edit-profile.vue"]]);
   const _sfc_main$1 = {
     __name: "gallery",
     setup(__props, { expose: __expose }) {
@@ -5969,7 +5955,7 @@ Task: ${prompt}` }]
       )
     ]);
   }
-  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/gallery.vue"]]);
+  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/gallery.vue"]]);
   __definePage("pages/index/index", PagesIndexIndex);
   __definePage("pages/chat/chat", PagesChatChat);
   __definePage("pages/create/create", PagesCreateCreate);
@@ -6033,7 +6019,7 @@ Task: ${prompt}` }]
       }
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/Hbuilderx/AiChat/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/HBuilderProjects/aichat/AiChat/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {
