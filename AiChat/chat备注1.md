@@ -683,7 +683,11 @@
     
   
         
-
+        // pages/chat/chat.vue
+        
+        // pages/chat/chat.vue
+        
+        // pages/chat/chat.vue
         
         const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
             let aiTags = actionAndSceneDescription || "";
@@ -746,8 +750,8 @@
                 parts.push(userAppearance.value || "1boy, male focus");
             }
             
-            // 5. 光影 (已移除 getTimeTags 以防止室内变室外)
-            // parts.push(getTimeTags()); 
+            // 5. 光影
+            parts.push(getTimeTags());
         
             // 6. 清洗去重
             let rawPrompt = parts.join(', ');
@@ -1196,59 +1200,57 @@
 
 // 找到 processAIResponse 函数，完整替换为以下代码：
 
-// AiChat/pages/chat/chat.vue
-
- const processAIResponse = (rawText) => {
+const processAIResponse = (rawText) => {
     // =================================================================
     // 🧹 1. 预处理
     // =================================================================
     let displayText = rawText
-        .replace(/^\[(model|assistant|user)\]:\s*/i, '') 
+        .replace(/^\[(model|assistant|user)\]:\s*/i, '')
         .replace(/^\[SYSTEM.*?\]\s*/i, '')
-        // 过滤 "我明白..." "好的..." 等助手废话
-        .replace(/^(我明白|我理解|好的|收到|Here is|Sure|Okay).*?[:：]\s*/i, '')
         .trim();
 
     // =================================================================
-    // 🧠 2. 思维链净化 (核弹级通用版)
+    // 🧠 2. 思维链清洗 (升级版：防止 AI 不听话用其他格式)
     // =================================================================
     
-    // 2.1 【新增】通用成对标签清洗
-    // 逻辑：匹配 <任意非空白字符> ... </同名标签>
-    // 无论是 <think>, <內部思考>, <Thought>, <分析> 统统杀掉
-    const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
-    displayText = displayText.replace(genericTagRegex, '');
+    // 2.1 标准 XML/方括号标签清洗 (<think>...</think>)
+    const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
+    displayText = displayText.replace(thinkBlockRegex, '');
 
-    // 2.2 处理“断尾”事故 (只有结束标签的情况，如 ...</think>)
-    // 匹配 </think>, </内部思考> 等
-    const endTagRegex = /<\/[^>]+>/i;
+    // 2.2 【新增】针对 "思考链:" "Analysis:" 等非标准开头的暴力清洗
+    // 如果开头包含 "思考"、"分析"、"Analysis" 等词，且后面跟着换行，说明 AI 正在自言自语
+    const looseThoughtRegex = /^(?:\*\*|\[)?(思考|分析|解析|Thought|Analysis|Chain of Thought)(?:链|过程)?(?:\*\*|\]|:)?[\s\S]*?(?=\n\s*[("（“])/i;
+    
+    // 只有当开头确实匹配到这些词时才执行，防止误删正常对话
+    if (looseThoughtRegex.test(displayText)) {
+        console.log('🧹 [Cleaner] Removing non-standard thought block...');
+        displayText = displayText.replace(looseThoughtRegex, '');
+    }
+
+    // 2.3 再次兜底：寻找真正的“正文”起始点
+    // 逻辑：AI 的正文通常以 动作 "(" "（" 或 对话 """ "“" 开头
+    const contentStartRegex = /[\(（]["“]|[“"']|[^\n\r]*[\u4e00-\u9fa5]+[^\n\r]*["“”]/;
+    const match = displayText.match(contentStartRegex);
+    
+    // 如果前面有一大段废话，且找到了明显的对话/动作起始点，砍掉前面的内容
+    if (match && match.index > 20) { 
+        // 阈值设为 20字符，防止误删短的开场白
+        const potentialGarbage = displayText.substring(0, match.index).trim();
+        // 如果前面的废话里包含 "分析" "用户" "User" 等词，大概率是思维链泄露
+        if (/分析|用户|User|Logic|Context/i.test(potentialGarbage)) {
+             console.log('✂️ [Cleaner] Truncating preamble based on content start position.');
+             displayText = displayText.substring(match.index).trim();
+        }
+    }
+
+    // 2.4 断尾修复 (处理只有 </think> 没有开始标签的情况)
+    const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
     if (endTagRegex.test(displayText)) {
-        // 抛弃第一个结束标签之前的所有内容
         displayText = displayText.split(endTagRegex).pop().trim();
     }
-    
-    // 2.3 移除旧式 [Thought: ...] 方括号风格
-    displayText = displayText.replace(/(?:\[|<)(?:Thought|思考|思维|分析)(?:\]|>)+[\s\S]*?(?:\[|<)\/(?:Thought|思考|思维|分析)(?:\]|>)+/gi, '');
-    
-    // 2.4 【结构性兜底】
-    // 如果前面还有残留的废话（Markdown加粗标题等），直接定位到真正的对话/动作开头
-    const startOfActualContentRegex = /[\(（]["“]|[“"'][^\r\n]|[\(（][^\r\n]/;
-    const actionOrQuoteStart = displayText.search(startOfActualContentRegex);
-    
-    if (actionOrQuoteStart > 0) {
-         const suspectedThoughtBlock = displayText.substring(0, actionOrQuoteStart).trim();
-         // 如果前面的内容包含“思考”、“分析”、“Affection”等关键词，或者是大段文字，就删掉
-         if (suspectedThoughtBlock.length > 5) {
-            console.log("⚠️ [Cleaner] Detected garbage preamble, trimming...");
-            displayText = displayText.substring(actionOrQuoteStart).trim();
-         }
-    }
-    
-    // 2.5 清除 Markdown 标题残留 (如 **内部思考**)
-    displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, '');
 
     // =================================================================
-    // 🛡️ 3. 括号内容清洗 (反元注释)
+    // 🛡️ 3. 括号内容清洗 (保留，防止 AI 复读系统指令)
     // =================================================================
     displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, '');
 
@@ -1256,19 +1258,19 @@
     // 💎 4. 指令白名单 (只留合法指令)
     // =================================================================
     
-    // 4.1 统一格式
+    // 统一格式
     displayText = displayText.replace(/【/g, '[').replace(/】/g, ']');
     displayText = displayText.replace(/（/g, '(').replace(/）/g, ')');
     displayText = displayText.replace(/：/g, ':');
     displayText = displayText.replace(/LINTYAHOT_IMG/gi, 'IMG');
-    // 修复部分模型输出 (IMG:...) 的情况
-    displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE).*?:(.*?)\)/gi, '[$1:$2]');
+    // 修复部分模型会在指令前加换行的问题
+    displayText = displayText.replace(/\n\s*\[(AFF|LUST|LOC|ACT|MODE|CLOTHES)/g, ' [$1'); 
 
-    // 4.2 白名单过滤
     const ALLOWED_TAGS = ['IMG', 'LOC', 'ACT', 'AFF', 'LUST', 'CLOTHES', 'MODE'];
 
     displayText = displayText.replace(/\[([a-zA-Z]+)(?::|\s)?.*?\]/g, (match, key) => {
         const upperKey = key.toUpperCase();
+        // 兼容写法修复
         if (upperKey === 'AFFECTION') return match.replace(/Affection/i, 'AFF');
         
         if (ALLOWED_TAGS.includes(upperKey)) {
@@ -1279,7 +1281,7 @@
     });
 
     // =================================================================
-    // 📥 5. 状态提取 (保持原有逻辑)
+    // 📥 5. 状态提取与保存 (逻辑保持不变)
     // =================================================================
     
     // [AFF]
@@ -1338,7 +1340,7 @@
     }
 
     // =================================================================
-    // 🖼️ 6. [IMG] 图片处理
+    // 🖼️ 6. 图片与文本上屏 (逻辑保持不变)
     // =================================================================
     let pendingPlaceholders = [];
     const imgRegex = /\[IMG[:\s]?\s*([\s\S]*?)\]/gi;
@@ -1355,31 +1357,19 @@
     }
     displayText = displayText.replace(imgRegex, '');
 
-    // =================================================================
-    // 💬 7. 文本上屏 (智能合并与防复读)
-    // =================================================================
     displayText = displayText.trim();
     
     if (displayText) {
-        // 7.1 预处理
-        let processedText = displayText.replace(/\n\s*([”"’])/g, '$1'); 
-        processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
-
-        // 7.2 切割
+        // 碎片修复
+        let processedText = displayText.replace(/\n\s*([”"’])/g, '$1').replace(/([“"‘])\s*\n/g, '$1');   
         let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
-        tempText = tempText.replace(/([^\s(])\s*([(])/g, '$1|||$2');
-        tempText = tempText.replace(/([)])\s*([^\s)|])/g, '$1|||$2');
-        
+        tempText = tempText.replace(/([^\s(])\s*([(])/g, '$1|||$2').replace(/([)])\s*([^\s)|])/g, '$1|||$2');
         const rawParts = tempText.split('|||');
-        
-        // 7.3 碎片修复
         const finalParts = [];
         rawParts.forEach(part => {
             let cleanPart = part.trim();
             if (!cleanPart) return;
-
             const isPunctuationOnly = /^["“”’'.,。!！?？~]+$/.test(cleanPart);
-            
             if (finalParts.length > 0 && (isPunctuationOnly || /^["“”’']$/.test(finalParts[finalParts.length - 1]))) {
                 finalParts[finalParts.length - 1] += cleanPart;
             } else {
@@ -1387,7 +1377,7 @@
             }
         });
 
-        // 7.4 防复读
+        // 防复读 (Last Message Check)
         const historyLen = messageList.value.length;
         const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
         const secondLastMsg = historyLen > 1 ? messageList.value[historyLen - 2].content : '';
@@ -1395,6 +1385,10 @@
         finalParts.forEach(cleanPart => {
             if (cleanPart === lastMsg) return;
             if (cleanPart === secondLastMsg) return;
+            // 额外检查：防止 AI 把用户的上一句话当成自己的话发出来
+            // 如果 cleanPart 几乎等于 inputText (去除标点空格后)，则跳过
+            if (inputText.value && cleanPart.replace(/\W/g,'') === inputText.value.replace(/\W/g,'')) return;
+            
             messageList.value.push({ role: 'model', content: cleanPart });
         });
     }

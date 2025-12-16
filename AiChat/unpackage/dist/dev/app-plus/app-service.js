@@ -351,6 +351,15 @@ if (uni.restoreGlobal) {
   const FORMAT_RULES = `
 [System Command: EXECUTE_ROLEPLAY]
 
+【绝对禁止 (Forbidden)】
+1. **禁止复述**: 绝对不要总结用户的意图 (如 "User wants me to..." 或 "(User 让我...)")。
+2. **禁止客套**: 绝对不要说 "我明白了"、"好的"、"以下是回复"。
+3. **禁止出戏**: 括号 () 内只能写**视觉动作**，禁止写心理独白，禁止出现 "User" 或 "用户" 二字。
+
+【语言强制 (Language Lock)】
+**必须**使用 **简体中文 (Simplified Chinese)** 进行回复。
+严禁使用繁体中文 (Traditional Chinese) 或其他语言，除非用户明确要求。
+
 【格式指南 (Format Guidelines)】
 1. **括号规范**: 括号 \`()\` 仅用于描写可视化的**肢体动作**和**神态**，请勿在其中包含双引号 \`""\` 或对话内容。
 2. **拒绝流水账 (Description Quality)**: 
@@ -403,8 +412,9 @@ if (uni.restoreGlobal) {
 
 **思维格式 (Strict Format)**: 
 1. 必须使用 XML 标签 \`<think>...</think>\` 包裹思考内容。
-2. **严禁翻译标签**: 禁止使用 <内部思考>、<分析> 等中文标签，必须使用 \`<think>\`。
-3. **严禁裸奔**: 禁止输出不带标签的分析文本 (如直接输出 "分析当前状态...")。
+2. **严禁 Markdown**: 绝对禁止使用 **思考链**、**Analysis** 等 Markdown 加粗标题作为思考开头！
+3. **严禁翻译标签**: 禁止使用 <内部思考> 等中文标签，必须使用英文 \`<think>\`。
+4. **严禁裸奔**: 禁止直接输出不带标签的分析文本。
 
 **思考步骤**:
 1. **状态自检**: 分析当前 Affection (好感) 和 Lust (欲望) 的数值。
@@ -415,7 +425,7 @@ if (uni.restoreGlobal) {
 `;
   const VISUAL_PROTOCOL = `
 【视觉指令 (Visual Protocol)】
-User 要求看图或动作画面感强时，请输出 [IMG]。
+User 要求看图时，请输出 [IMG]。
 
 **关键：构图标记 (Composition Flag)**
 你必须判断画面中**是否包含 User (玩家)**，并在 [IMG] 的**第一个单词**明确标记：
@@ -1180,14 +1190,14 @@ ${VISUAL_PROTOCOL}
         const isPhone = interactionMode.value === "phone";
         let isDuo = false;
         if (isPhone) {
-          formatAppLog("log", "at pages/chat/chat.vue:708", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
+          formatAppLog("log", "at pages/chat/chat.vue:704", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           isDuo = false;
           aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
           aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         } else {
           const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
           isDuo = duoKeywords.test(aiTags);
-          formatAppLog("log", "at pages/chat/chat.vue:722", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
+          formatAppLog("log", "at pages/chat/chat.vue:718", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
@@ -1202,11 +1212,10 @@ ${VISUAL_PROTOCOL}
         if (isDuo) {
           parts.push(userAppearance.value || "1boy, male focus");
         }
-        parts.push(getTimeTags());
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
         let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:761", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        formatAppLog("log", "at pages/chat/chat.vue:757", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1226,7 +1235,7 @@ ${VISUAL_PROTOCOL}
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:778", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:774", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1253,7 +1262,7 @@ ${VISUAL_PROTOCOL}
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:804", e);
+          formatAppLog("error", "at pages/chat/chat.vue:800", e);
         }
         return null;
       };
@@ -1454,12 +1463,12 @@ ${VISUAL_PROTOCOL}
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1074", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1075", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1076", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1077", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1078", "4. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1079", "===================================================");
+        formatAppLog("log", "at pages/chat/chat.vue:1070", "============== 📜 DIALOGUE DEBUG LOG ==============");
+        formatAppLog("log", "at pages/chat/chat.vue:1071", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
+        formatAppLog("log", "at pages/chat/chat.vue:1072", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
+        formatAppLog("log", "at pages/chat/chat.vue:1073", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
+        formatAppLog("log", "at pages/chat/chat.vue:1074", "4. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
+        formatAppLog("log", "at pages/chat/chat.vue:1075", "===================================================");
         const continuePrompt = `
                             [System: AUTO-DRIVE]
                             User is silent. Please continue the conversation.
@@ -1548,15 +1557,15 @@ ${VISUAL_PROTOCOL}
               if (usage)
                 tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1171", "============== 📥 RAW AI RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1172", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1173", "================================================");
+            formatAppLog("log", "at pages/chat/chat.vue:1167", "============== 📥 RAW AI RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1168", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1169", "================================================");
             if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1175", tokenLog);
+              formatAppLog("log", "at pages/chat/chat.vue:1171", tokenLog);
             if (rawText) {
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1180", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1176", "⚠️ [LLM] Empty response or Blocked");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1564,14 +1573,14 @@ ${VISUAL_PROTOCOL}
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1186", "❌ [LLM] API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1182", "❌ [LLM] API Error", res);
             if (res.statusCode === 429)
               uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
               uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1191", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1187", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1579,24 +1588,24 @@ ${VISUAL_PROTOCOL}
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
-        const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
-        displayText = displayText.replace(thinkBlockRegex, "");
-        const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
+        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").replace(/^(我明白|我理解|好的|收到|Here is|Sure|Okay).*?[:：]\s*/i, "").trim();
+        const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
+        displayText = displayText.replace(genericTagRegex, "");
+        const endTagRegex = /<\/[^>]+>/i;
         if (endTagRegex.test(displayText)) {
           displayText = displayText.split(endTagRegex).pop().trim();
         }
-        displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, "");
+        displayText = displayText.replace(/(?:\[|<)(?:Thought|思考|思维|分析)(?:\]|>)+[\s\S]*?(?:\[|<)\/(?:Thought|思考|思维|分析)(?:\]|>)+/gi, "");
         const startOfActualContentRegex = /[\(（]["“]|[“"'][^\r\n]|[\(（][^\r\n]/;
         const actionOrQuoteStart = displayText.search(startOfActualContentRegex);
         if (actionOrQuoteStart > 0) {
           const suspectedThoughtBlock = displayText.substring(0, actionOrQuoteStart).trim();
-          if (suspectedThoughtBlock.length > 0) {
-            formatAppLog("warn", "at pages/chat/chat.vue:1249", "⚠️ [Cleaner] Detected and removed structural non-XML thought block before actual content.");
+          if (suspectedThoughtBlock.length > 5) {
+            formatAppLog("log", "at pages/chat/chat.vue:1242", "⚠️ [Cleaner] Detected garbage preamble, trimming...");
             displayText = displayText.substring(actionOrQuoteStart).trim();
           }
         }
-        displayText = displayText.replace(/\*\*[\s\S]*?[一-龥a-zA-Z]+[\s\S]*?\*\*/i, "").trim();
+        displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, "");
         displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, "");
         displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
         displayText = displayText.replace(/（/g, "(").replace(/）/g, ")");
