@@ -689,6 +689,16 @@
         
         // pages/chat/chat.vue
         
+        /**
+         * 优化生图 Prompt (集成 AI 标记识别 + 智能兜底)
+         * @param {String} actionAndSceneDescription AI 输出的 [IMG: ...] 中的内容
+         */
+        /**
+         * 优化生图 Prompt (修复头发冲突 + 衣服状态同步)
+         */
+        /**
+         * 优化生图 Prompt (AI 标记识别 + 修复头发冲突 + 🔴 画质去油腻)
+         */
         const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
             let aiTags = actionAndSceneDescription || "";
             
@@ -697,30 +707,35 @@
             const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
             
             // =========================================================
-            // 🔍 核心修改：增强双人关键词检测
+            // 🔍 核心修改：基于 AI 标记 + 规则兜底
             // =========================================================
             
-            const isPhone = interactionMode.value === 'phone';
             let isDuo = false;
+            let cleanTags = aiTags;
         
-            if (isPhone) {
-                // 【模式 A：电话/聊天】 -> 🔒 绝对单人
-                console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
-                isDuo = false;
+            // A. 检查 AI 是否遵守指令在开头写了 'couple' 或 'solo'
+            const modeMatch = aiTags.match(/^(couple|solo)/i);
         
-                // 🧹 净化：清洗男性词汇
-                aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
-                // 修正姿势词
-                aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
-        
+            if (modeMatch) {
+                isDuo = (modeMatch[1].toLowerCase() === 'couple');
+                cleanTags = aiTags.replace(/^(couple|solo)[,:\.\s]*/i, '');
             } else {
-                // 【模式 B：见面/同处】 -> 🔓 开放规则
-                // 🚨 修复：增加对 man, men, male, holding 等词的检测
-                const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
-                isDuo = duoKeywords.test(aiTags);
-                
-                console.log(`📍 [生图模式] 见面互动中 -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
+                if (interactionMode.value === 'phone') {
+                    isDuo = false;
+                } else {
+                    const fallbackDuoRegex = /\b(couple|2people|multiple boys|sex|making love|fuck|fucking|penis|cum|doggystyle|missionary|cowgirl|spooning|straddling|lifted by|carrying|kiss|kissing|hugging|holding hands|leaning on|paizuri|fellatio|blowjob|cunnilingus|handjob|fingering|insertion|penetration)\b/i;
+                    isDuo = fallbackDuoRegex.test(aiTags);
+                }
             }
+        
+            // B. 【硬规则】电话模式强制单人
+            if (interactionMode.value === 'phone') {
+                isDuo = false;
+                const maleCleanerRegex = /\b(couple|2people|1boy|boys|man|men|male|sex|penis|cum|doggystyle|missionary|straddling|kiss|hugging|holding hands)\b/gi;
+                cleanTags = cleanTags.replace(maleCleanerRegex, "");
+            }
+        
+            console.log(`📍 [生图模式] AI标记: ${modeMatch ? modeMatch[1] : '无'} -> 最终判定: ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
         
             // =========================================================
             // 🛠️ 组装 Prompt
@@ -728,35 +743,59 @@
             
             let parts = [];
             
-            // 1. 构图
-            parts.push(isDuo ? "couple, 2people" : "solo");
-            parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
+            // 1. 构图词 (Composition)
+            parts.push(isDuo ? "couple, 2people, 1boy, 1girl" : "solo, 1girl");
             
+            // 2. 🔴 画质词 (Quality) - 【极简清爽版】
+            // 去掉了 cinematic lighting, depth of field 等导致 3D 化的词
+            // 加入了 flat color (平涂) 让画面更像二次元动画
+            parts.push("masterpiece, best quality, new, highres, absurdres, 8k, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), expressive eyes, colorful, illustration, flat color,cinematic lighting, dynamic angle, depth of field, lens flare, hyper detailed");
+            
+            // 3. 风格词 (Style)
             const imgConfig = uni.getStorageSync('app_image_config') || {};
             const styleSetting = imgConfig.style || 'anime';
+            // ⚠️ 注意：如果 constants.js 里的 STYLE_PROMPT_MAP['anime'] 本身包含很多光影词，
+            // 建议去 constants.js 里把那部分也删减一下，只留 simple background 或 anime style
             parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
             
-            // 2. 固定样貌 (女主)
+            // 4. 女主外貌 (Character)
             parts.push(appearanceSafe);
             
-            // 3. AI 的描述
-            if (aiTags) {
-                parts.push(`(${aiTags}:1.2)`);
+            // 5. 衣服状态同步
+            const currentClotheVal = currentClothing.value || "";
+            const isDescribingClothes = /\b(nude|naked|undressing|taking off|shirt|sweater|dress|skirt|bra|panties|bikini|lingerie)\b/i.test(cleanTags);
+            
+            if (!isDescribingClothes && currentClotheVal && currentClotheVal !== '默认服装' && currentClotheVal !== '便服') {
+                parts.push(`(${currentClotheVal})`);
             }
             
-            // 4. 男主 (仅在判定为双人时才添加)
+            // 6. 场景与动作
+            if (cleanTags) {
+                parts.push(`(${cleanTags}:1.2)`);
+            }
+            
+            // 7. 男主外貌 (User) - 强力绑定
             if (isDuo) {
-                // 如果用户没设置外貌，默认给个通用帅哥词，防止出现不可名状的怪物
-                parts.push(userAppearance.value || "1boy, male focus");
+                let uPrompt = userAppearance.value || "1boy, short hair";
+                if (!/\b(1boy|man|male|boy)\b/i.test(uPrompt)) {
+                    uPrompt = "1boy, " + uPrompt;
+                }
+                parts.push(`(${uPrompt}:1.2)`);
             }
             
-            // 5. 光影
+            // 8. 环境光影 (Atmosphere)
             parts.push(getTimeTags());
         
-            // 6. 清洗去重
+            // =========================================================
+            // 🧹 最终清洗与去重
+            // =========================================================
+            
             let rawPrompt = parts.join(', ');
-            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
-            let finalPrompt = uniqueTags.join(', ');
+            let tags = rawPrompt.split(/[,，]/);
+            tags = tags.map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t);
+            let uniqueTags = [...new Set(tags)];
+            
+            const finalPrompt = uniqueTags.join(', ');
             
             console.log('🚀 [ComfyUI] Final Prompt:', finalPrompt);
             return finalPrompt;
@@ -842,10 +881,29 @@
     };
 
     const handleCameraSend = () => {
-        if (isLoading.value) return;
-        const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
-        sendMessage(false, extraInstruction);
-    };
+            if (isLoading.value) return;
+            
+            // 获取当前正在进行的活动，作为上下文提醒
+            const activityContext = currentActivity.value || "未知状态";
+            
+            // 构建抓拍指令
+            const extraInstruction = `
+            [SYSTEM EVENT: SNAPSHOT TRIGGERED] 
+            用户正在对你进行**抓拍 (Candid Shot)**。
+            
+            **状态惯性检查 (CRITICAL)**:
+            你当前的活动状态是: "${activityContext}"。
+            如果该状态涉及双人互动（如性爱、拥抱、依偎），即使现在的动作（如脱衣、喝水）是你单独完成的，**画面依然必须标记为 [IMG: couple...]**，因为男主依然在场！
+            
+            **执行死命令**:
+            1. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作，不可改变姿势。
+            2. **禁止互动**：绝对禁止回头看镜头、摆姿势或对快门声做出反应（除非是自拍）。
+            3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面。
+            4. **Tag要求**：[IMG] 内容使用英文。
+            `;
+            
+            sendMessage(false, extraInstruction);
+        };
     
     const checkProactiveGreeting = () => {
         if (!chatId.value || !currentRole.value) return;
@@ -904,254 +962,307 @@
         
                         // pages/chat/chat.vue
                         
+                        /**
+                         * 发送消息核心函数 (已修复多气泡导致的逻辑断层/复读问题)
+                         * @param {Boolean} isContinue 是否为自动继续 (不发送用户输入，仅触发AI生成)
+                         * @param {String} systemOverride 系统强制指令 (如：拍照快门声、强制剧情事件)
+                         */
+                        /**
+                         * 发送消息核心函数
+                         * 特性：
+                         * 1. 消息历史合并 (防止 AI 复读)
+                         * 2. 动态 Prompt 注入 (防止状态丢失)
+                         * 3. 强制思维链规范 (防止 AI 翻译标签)
+                         */
                         const sendMessage = async (isContinue = false, systemOverride = '') => {
-                            // 1. 基础校验
+                            // 1. 基础校验：如果是用户输入且为空，且没有系统指令，则不执行
                             if (!isContinue && !inputText.value.trim() && !systemOverride) return;
                             if (isLoading.value) return;
-                            
+                        
+                            // 获取当前 LLM 配置
                             const config = getCurrentLlmConfig();
                             if (!config || !config.apiKey) {
-                                uni.showToast({ title: '请配置模型', icon: 'none' });
+                                uni.showToast({ title: '请配置模型 API', icon: 'none' });
                                 return;
                             }
-                            
-                            // 2. 消息上屏
+                        
+                            // 2. 消息上屏 (UI 更新)
                             if (!isContinue) {
                                 if (inputText.value.trim()) {
-                                     // console.log('🗣️ [Chat] User sent:', inputText.value); 
-                                     messageList.value.push({ role: 'user', content: inputText.value });
-                                     inputText.value = '';
+                                    // 用户正常发言
+                                    messageList.value.push({ role: 'user', content: inputText.value });
+                                    inputText.value = ''; // 清空输入框
                                 } else if (systemOverride && systemOverride.includes('SHUTTER')) {
-                                     messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
+                                    // 特殊事件：拍照
+                                    messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
                                 }
                             }
+                            
+                            // 滚动到底部并保存历史
                             scrollToBottom();
                             isLoading.value = true;
                             saveHistory();
-                            
-                            // 3. 准备数据
-                            const score = currentAffection.value;
-                            const lust = currentLust.value;
-                            const role = currentRole.value || {};
-                            const s = role.settings || {};
-                            
-                            // 3.1 获取玩家档案 (补全 User Profile)
-                            const appUser = uni.getStorageSync('app_user_info') || {};
-                            const myJob = s.userOccupation || appUser.occupation || "未知职业";
-                            const myLoc = s.userLocation || appUser.location || "未知地点";
-                            const myLook = s.userAppearance || appUser.appearance || "普通外貌";
-                            const myName = userName.value || appUser.name || 'User';
                         
-                            // 3.2 获取角色档案 (补全 Char Profile)
-                            const charJob = role.occupation || s.occupation || "未知职业";
-                            const charLoc = role.location || s.location || "未知地点";
-                            const charPersonality = s.personality || "未知性格";
-                            
-                            // 3.3 计算当前性格阶段 (5阶段升级版)
-                            let personalityLabel = "";
-                            let activePersonality = "";
-                            let activeExample = "";
-                            
-                            // 0-20, 21-40, 41-60, 61-80, 81+
-                            if (score <= 20) {
-                                personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
-                                activePersonality = s.personalityNormal || "高冷，保持距离。";
-                                activeExample = s.exampleNormal || "";
-                            } else if (score <= 40) {
-                                personalityLabel = "阶段2: 熟人/朋友 (Friend)";
-                                // 如果没填 stage2，回退到 stage1
-                                activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
-                                activeExample = s.exampleFriend || s.exampleNormal || "";
-                            } else if (score <= 60) {
-                                personalityLabel = "阶段3: 暧昧/心动 (Crush)";
-                                activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
-                                activeExample = s.exampleFlirt || "";
-                            } else if (score <= 80) {
-                                personalityLabel = "阶段4: 热恋/深爱 (Lover)";
-                                // 如果没填 stage4，回退到 stage3
-                                activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
-                                activeExample = s.exampleLover || s.exampleFlirt || "";
-                            } else {
-                                personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
-                                activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
-                                activeExample = s.exampleSex || "";
-                            }
-                        
-                            activePersonality = `[当前阶段: ${personalityLabel}]\n行为逻辑: ${activePersonality}`;
-                        
-                            // 3.4 欲望与特殊规则 (增强版)
-                            let activeRules = "";
-                            // 注入 XP 和雷点，让 AI 知道什么能加 Lust
-                            activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。\n`;
-                            activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。\n`;
-                        
-                            if (lust > 80 && score < 60) {
-                                activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**\n虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
-                            } else if (lust < 30) {
-                                activeRules += `当前欲望较低(${lust})。面对调情会感到害羞、迟钝或不知所措，需要更多前戏或氛围铺垫才能提升 Lust。`;
-                            } else {
-                                activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
-                            }
-                        
-                            let nsfwInstruction = "";
-                            const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
-                            if (isIntimate) nsfwInstruction = NSFW_STYLE; 
-                            
-                            const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'. If activity changes, append [ACT: new status].]`;
-                            
-                            // 4. 构建 Prompt
-                            let prompt = CORE_INSTRUCTION + 
-                                         PERSONALITY_TEMPLATE + 
-                                         AFFECTION_LOGIC + 
-                                         nsfwInstruction + 
-                                         hiddenInstruction;
-                            
-                            const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
-                            const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
-                        
-                            prompt = prompt
-                                // --- 世界观与基础 ---
-                                .replace(/{{world_lore}}/g, worldLoreData) 
-                                .replace(/{{current_time}}/g, formattedTime.value)
-                                .replace(/{{current_location}}/g, currentLocation.value)
-                                .replace(/{{current_activity}}/g, currentActivity.value)
-                                .replace(/{{current_clothes}}/g, currentClothing.value)
-                                .replace(/{{interaction_mode}}/g, interactionMode.value === 'phone' ? 'Phone (手机通讯)' : 'Face (面对面)')
-                                
-                                // --- 角色信息 ---
-                                .replace(/{{char}}/g, chatName.value)
-                                .replace(/{{occupation}}/g, charJob)
-                                .replace(/{{char_location}}/g, charLoc)
-                                .replace(/{{appearance_nsfw}}/g, nsfwData)
-                                .replace(/{{appearance}}/g, s.appearance || "anime character")
-                                .replace(/{{memory}}/g, s.bio || "无")
-                                // 【新增字段注入】
-                                .replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话")
-                                .replace(/{{likes}}/g, s.likes || "未知")
-                                .replace(/{{dislikes}}/g, s.dislikes || "未知")
-                                
-                                // --- 玩家信息 ---
-                                .replace(/{{user}}/g, myName)
-                                .replace(/{{user_occupation}}/g, myJob)
-                                .replace(/{{user_location}}/g, myLoc)
-                                .replace(/{{user_appearance}}/g, myLook)
-                                
-                                // --- 性格与逻辑 ---
-                                .replace(/{{personality_label}}/g, personalityLabel)
-                                .replace(/{{personality_logic}}/g, activePersonality) 
-                                .replace(/{{example}}/g, activeExample)
-                                .replace(/{{current_affection}}/g, currentAffection.value)
-                                .replace(/{{current_lust}}/g, currentLust.value)
-                                .replace(/{{affection_rules}}/g, activeRules); 
-                        
-                            // =========================================================================
-                            // 🚀 【关键修改】强制注入 XML 思考协议
-                            // =========================================================================
-                            prompt += `
-                        \n[SYSTEM MANDATE: THOUGHT SEPARATION]
-                        You MUST strictly separate your internal analysis from your response.
-                        1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
-                        2. Inside <think>, analyze the situation, current Affection/Lust levels, and decide your reaction.
-                        3. **Close** the tag with </think>.
-                        4. **ONLY AFTER** closing the tag, write your actual response to the user.
-                        5. **NEVER** include the <think> content in your final response output (outside the tags).
-                        
-                        Format Example:
-                        <think>
-                        User is teasing. Affection is 50. I should act shy but happy.
-                        </think>
-                        (blushes) "Oh, you are so bad..."
-                        `;
-                        
-                            // 5. 截取历史记录
-                            const historyLimit = charHistoryLimit.value; 
-                            let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
-                            if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
-                            
-                            // =========================================================================
-                            // 📝 完整对话日志打印 (Debug Log)
-                            // =========================================================================
-                            console.log('============== 📜 DIALOGUE DEBUG LOG ==============');
-                            console.log('1. 🎭 User Profile:', { name: myName, job: myJob, loc: myLoc });
-                            console.log('2. 💃 Char Profile:', { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-                            console.log('3. 💬 Recent Context (Sent to AI):', contextMessages.map(m => `[${m.role}]: ${m.content}`).join('\n'));
-                            console.log('4. 📥 Current Input:', isContinue ? '[Auto-Drive/Continue]' : (inputText.value || systemOverride));
-                            console.log('===================================================');
-                        
-                            // 6. 自动驾驶指令
-                            const continuePrompt = `
-                            [System: AUTO-DRIVE]
-                            User is silent. Please continue the conversation.
-                            Start with <think>Analysis...</think> then output response.
-                            `;
-                            
-                            // 7. 发起网络请求
-                            let targetUrl = '';
-                            let requestBody = {};
-                            let baseUrl = config.baseUrl || '';
-                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                        
-                            if (config.provider === 'gemini') {
-                                const cleanBase = 'https://generativelanguage.googleapis.com';
-                                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                                
-                                const geminiContents = contextMessages.map(item => {
-                                    // 清洗历史记录中的 think 标签，防止 AI 被历史记录带偏
-                                    let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-                                    cleanText = item.role === 'model' ? cleanMessageForAI(cleanText) : cleanText;
-                                    return { role: item.role === 'user' ? 'user' : 'model', parts: [{ text: cleanText }] };
-                                }).filter(item => item.parts[0].text.trim() !== '');
-                                
-                                if (systemOverride) geminiContents.push({ role: 'user', parts: [{ text: systemOverride }] });
-                                else if (isContinue) geminiContents.push({ role: 'user', parts: [{ text: continuePrompt }] });
-                                
-                                requestBody = {
-                                    contents: geminiContents,
-                                    system_instruction: { parts: { text: prompt } },
-                                    safetySettings: [
-                                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                                    ]
-                                };
-                            } else {
-                                targetUrl = `${baseUrl}/chat/completions`;
-                                
-                                const openAIMessages = [{ role: "system", content: prompt }];
-                                
-                                contextMessages.forEach(item => {
-                                    // 清洗历史记录中的 think 标签
-                                    let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-                                    cleanText = item.role === 'model' ? cleanMessageForAI(cleanText) : cleanText;
-                                    if (cleanText.trim()) openAIMessages.push({ role: item.role === 'model' ? 'assistant' : 'user', content: cleanText });
-                                });
-                                
-                                if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
-                                else if (isContinue) openAIMessages.push({ role: 'user', content: continuePrompt });
-                                
-                                // 强制 OpenAI 模型遵守格式
-                                openAIMessages.push({
-                                    role: 'user',
-                                    content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply.`
-                                });
-                                
-                                requestBody = {
-                                    model: config.model,
-                                    messages: openAIMessages,
-                                    max_tokens: 1500,
-                                    stream: false
-                                };
-                            }
-                            
                             try {
+                                // =================================================================
+                                // 3. 数据准备：构建 Prompt
+                                // =================================================================
+                                const score = currentAffection.value;
+                                const lust = currentLust.value;
+                                const role = currentRole.value || {};
+                                const s = role.settings || {};
+                        
+                                // 3.1 玩家与角色档案补全
+                                const appUser = uni.getStorageSync('app_user_info') || {};
+                                const myJob = s.userOccupation || appUser.occupation || "未知职业";
+                                const myLoc = s.userLocation || appUser.location || "未知地点";
+                                const myLook = s.userAppearance || appUser.appearance || "普通外貌";
+                                const myName = userName.value || appUser.name || 'User';
+                        
+                                const charJob = role.occupation || s.occupation || "未知职业";
+                                const charLoc = role.location || s.location || "未知地点";
+                                const charPersonality = s.personality || "未知性格";
+                        
+                                // 3.2 动态性格阶段判断 (Stage Logic)
+                                let personalityLabel = "";
+                                let activePersonality = "";
+                                let activeExample = "";
+                        
+                                if (score <= 20) {
+                                    personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
+                                    activePersonality = s.personalityNormal || "高冷，保持距离。";
+                                    activeExample = s.exampleNormal || "";
+                                } else if (score <= 40) {
+                                    personalityLabel = "阶段2: 熟人/朋友 (Friend)";
+                                    activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
+                                    activeExample = s.exampleFriend || s.exampleNormal || "";
+                                } else if (score <= 60) {
+                                    personalityLabel = "阶段3: 暧昧/心动 (Crush)";
+                                    activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
+                                    activeExample = s.exampleFlirt || "";
+                                } else if (score <= 80) {
+                                    personalityLabel = "阶段4: 热恋/深爱 (Lover)";
+                                    activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
+                                    activeExample = s.exampleLover || s.exampleFlirt || "";
+                                } else {
+                                    personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
+                                    activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
+                                    activeExample = s.exampleSex || "";
+                                }
+                                
+                                activePersonality = `[当前阶段: ${personalityLabel}]\n行为逻辑: ${activePersonality}`;
+                        
+                                // 3.3 欲望与特殊规则
+                                let activeRules = "";
+                                activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。\n`;
+                                activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。\n`;
+                        
+                                if (lust > 80 && score < 60) {
+                                    activeRules += `**【特殊状态：Lust Paradox】**\n虽然好感度不高(${score})，但欲望极高(${lust})。表现出“理智拒绝，身体迎合”的反差。`;
+                                } else if (lust < 30) {
+                                    activeRules += `当前欲望较低(${lust})。面对调情会感到害羞或迟钝。`;
+                                } else {
+                                    activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；色气话题优先加 Lust。`;
+                                }
+                        
+                                let nsfwInstruction = "";
+                                // 宽松的 NSFW 判定
+                                const isIntimate = lust > 60 || score > 80 || (currentActivity.value && currentActivity.value.match(/性|爱|床|吻|摸|洗澡/));
+                                if (isIntimate) nsfwInstruction = NSFW_STYLE;
+                        
+                                const hiddenInstruction = `\n[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'.]`;
+                        
+                                // 3.4 拼接 System Prompt
+                                let prompt = CORE_INSTRUCTION +
+                                    PERSONALITY_TEMPLATE +
+                                    AFFECTION_LOGIC +
+                                    nsfwInstruction +
+                                    hiddenInstruction;
+                        
+                                const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
+                                const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力。";
+                        
+                                prompt = prompt
+                                    .replace(/{{world_lore}}/g, worldLoreData)
+                                    .replace(/{{current_time}}/g, formattedTime.value)
+                                    .replace(/{{current_location}}/g, currentLocation.value)
+                                    .replace(/{{current_activity}}/g, currentActivity.value)
+                                    .replace(/{{current_clothes}}/g, currentClothing.value)
+                                    .replace(/{{interaction_mode}}/g, interactionMode.value === 'phone' ? 'Phone (手机通讯)' : 'Face (面对面)')
+                                    .replace(/{{char}}/g, chatName.value)
+                                    .replace(/{{occupation}}/g, charJob)
+                                    .replace(/{{char_location}}/g, charLoc)
+                                    .replace(/{{appearance_nsfw}}/g, nsfwData)
+                                    .replace(/{{appearance}}/g, s.appearance || "anime character")
+                                    .replace(/{{memory}}/g, s.bio || "无")
+                                    .replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话")
+                                    .replace(/{{likes}}/g, s.likes || "未知")
+                                    .replace(/{{dislikes}}/g, s.dislikes || "未知")
+                                    .replace(/{{user}}/g, myName)
+                                    .replace(/{{user_occupation}}/g, myJob)
+                                    .replace(/{{user_location}}/g, myLoc)
+                                    .replace(/{{user_appearance}}/g, myLook)
+                                    .replace(/{{personality_label}}/g, personalityLabel)
+                                    .replace(/{{personality_logic}}/g, activePersonality)
+                                    .replace(/{{example}}/g, activeExample)
+                                    .replace(/{{current_affection}}/g, currentAffection.value)
+                                    .replace(/{{current_lust}}/g, currentLust.value)
+                                    .replace(/{{affection_rules}}/g, activeRules);
+                        
+                                // 3.5 强制思维链注入 (防止 AI 偷懒 + 防止翻译标签)
+                                prompt += `
+                                \n[SYSTEM MANDATE: THOUGHT SEPARATION]
+                                You MUST strictly separate your internal analysis from your response.
+                                1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
+                                2. **STRICTLY FORBIDDEN**: Do NOT translate the tag into Chinese (e.g. <内部思考> is PROHIBITED). Use ONLY <think>.
+                                3. Inside <think>, analyze the situation, Affection/Lust levels, and decide reaction.
+                                4. **Close** the tag with </think>.
+                                5. **ONLY AFTER** closing the tag, write your actual response.
+                                `;
+                        
+                                // =================================================================
+                                // 4. 历史消息处理 (修复核心：合并连续气泡)
+                                // =================================================================
+                                
+                                // 4.1 筛选原始消息 (去除系统消息、图片占位符)
+                                const historyLimit = charHistoryLimit.value || 20;
+                                
+                                // 先获取所有有效的对话记录
+                                let rawMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
+                                
+                                // 截取最近 N 条 (包含刚刚用户发送的那条)
+                                if (historyLimit > 0) {
+                                    rawMessages = rawMessages.slice(-historyLimit);
+                                }
+                        
+                                // 4.2 合并逻辑 (Merge Strategy)
+                                // 将连续的 Role 相同的消息合并为一条，还原为 User-Model-User 结构
+                                const mergedContext = [];
+                                
+                                rawMessages.forEach((msg) => {
+                                    // 清洗历史记录中的 <think> 标签，防止 AI 看到自己以前的思考
+                                    let cleanText = msg.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                                    // 额外清洗可能的中文标签变体
+                                    cleanText = cleanText.replace(/(?:<|\[)(?:[^>\]]*?)(?:思考|思维|分析)(?:[^>\]]*?)(?:>|\])[\s\S]*?(?:<|\[)\/(?:[^>\]]*?)(?:>|\])/gi, '');
+                                    
+                                    // 如果是 AI 的消息，还需要清洗掉 [AFF:...] 这种指令，只留纯文本
+                                    if (msg.role === 'model') {
+                                        cleanText = cleanMessageForAI(cleanText);
+                                    }
+                                    
+                                    if (!cleanText) return;
+                        
+                                    // 如果上一条消息的角色和当前这条一样，就合并
+                                    if (mergedContext.length > 0 && mergedContext[mergedContext.length - 1].role === msg.role) {
+                                        // 加一个换行符让 AI 知道这是分段的
+                                        mergedContext[mergedContext.length - 1].content += "\n" + cleanText;
+                                    } else {
+                                        // 否则推入新消息
+                                        // 统一 Role 名称 (Gemini 需 'model', OpenAI 需 'assistant')
+                                        let apiRole = msg.role;
+                                        if (config.provider === 'gemini') {
+                                            apiRole = msg.role === 'user' ? 'user' : 'model';
+                                        } else {
+                                            apiRole = msg.role === 'model' ? 'assistant' : 'user';
+                                        }
+                                        
+                                        mergedContext.push({
+                                            role: apiRole,
+                                            content: cleanText
+                                        });
+                                    }
+                                });
+                        
+                                // Debug Log: 查看合并后的上下文
+                                console.log('🔗 [Merged Context]:', JSON.stringify(mergedContext, null, 2));
+                        
+                                // =================================================================
+                                // 5. 构建 API 请求
+                                // =================================================================
+                                let targetUrl = '';
+                                let requestBody = {};
+                                let baseUrl = config.baseUrl || '';
+                                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                        
+                                // 自动驾驶指令
+                                const continuePrompt = `
+                                [System: AUTO-DRIVE]
+                                User is silent. Please continue the conversation naturally based on current context.
+                                Start with <think>...</think>.
+                                `;
+                        
+                                if (config.provider === 'gemini') {
+                                    const cleanBase = 'https://generativelanguage.googleapis.com';
+                                    targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                        
+                                    // Gemini 格式: { role, parts: [{text}] }
+                                    const geminiContents = mergedContext.map(m => ({
+                                        role: m.role,
+                                        parts: [{ text: m.content }]
+                                    }));
+                        
+                                    // 处理 SystemOverride 或 自动继续
+                                    if (systemOverride) {
+                                        geminiContents.push({ role: 'user', parts: [{ text: systemOverride }] });
+                                    } else if (isContinue) {
+                                        geminiContents.push({ role: 'user', parts: [{ text: continuePrompt }] });
+                                    }
+                        
+                                    requestBody = {
+                                        contents: geminiContents,
+                                        system_instruction: { parts: { text: prompt } },
+                                        safetySettings: [
+                                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                                        ]
+                                    };
+                                } else {
+                                    // OpenAI 格式
+                                    targetUrl = `${baseUrl}/chat/completions`;
+                        
+                                    const openAIMessages = [{ role: "system", content: prompt }];
+                        
+                                    // 填入合并后的历史
+                                    mergedContext.forEach(m => {
+                                        openAIMessages.push(m);
+                                    });
+                        
+                                    if (systemOverride) {
+                                        openAIMessages.push({ role: 'user', content: systemOverride });
+                                    } else if (isContinue) {
+                                        openAIMessages.push({ role: 'user', content: continuePrompt });
+                                    }
+                        
+                                    // 再次强化格式要求
+                                    openAIMessages.push({
+                                        role: 'user',
+                                        content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply. DO NOT translate <think> tag.`
+                                    });
+                        
+                                    requestBody = {
+                                        model: config.model,
+                                        messages: openAIMessages,
+                                        max_tokens: 1500,
+                                        temperature: 0.8, // 稍微调高一点温度增加变化
+                                        stream: false
+                                    };
+                                }
+                        
+                                // =================================================================
+                                // 6. 发起请求
+                                // =================================================================
                                 const header = { 'Content-Type': 'application/json' };
                                 if (config.provider !== 'gemini') header['Authorization'] = `Bearer ${config.apiKey}`;
-                                
+                        
                                 const res = await uni.request({
                                     url: targetUrl, method: 'POST', header: header, data: requestBody, sslVerify: false
                                 });
                         
+                                // =================================================================
+                                // 7. 处理响应
+                                // =================================================================
                                 if (res.statusCode === 200) {
                                     let rawText = "";
                                     let tokenLog = "";
@@ -1159,34 +1270,33 @@
                                     if (config.provider === 'gemini') {
                                         rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
                                         const usage = res.data?.usageMetadata;
-                                        if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
+                                        if (usage) tokenLog = `📊 [Tokens] In:${usage.promptTokenCount} | Out:${usage.candidatesTokenCount}`;
                                     } else {
                                         let data = res.data;
-                                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) {} }
                                         rawText = data?.choices?.[0]?.message?.content || "";
                                         const usage = data?.usage;
-                                        if (usage) tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
+                                        if (usage) tokenLog = `📊 [Tokens] In:${usage.prompt_tokens} | Out:${usage.completion_tokens}`;
                                     }
                         
                                     console.log('============== 📥 RAW AI RESPONSE ==============');
                                     console.log(rawText);
+                                    console.log(tokenLog);
                                     console.log('================================================');
-                        
-                                    if (tokenLog) console.log(tokenLog);
                         
                                     if (rawText) {
                                         processAIResponse(rawText);
                                     } else {
-                                        console.warn('⚠️ [LLM] Empty response or Blocked');
+                                        console.warn('⚠️ [LLM] Empty response');
                                         const blockReason = res.data?.promptFeedback?.blockReason;
                                         if (blockReason) uni.showModal({ title: 'AI 拒绝', content: blockReason, showCancel: false });
                                         else uni.showToast({ title: '无内容响应', icon: 'none' });
                                     }
                                 } else {
                                     console.error("❌ [LLM] API Error", res);
-                                    if (res.statusCode === 429) uni.showToast({ title: '请求太快 (429)', icon: 'none' });
-                                    else uni.showToast({ title: `API错误 ${res.statusCode}`, icon: 'none' });
+                                    uni.showToast({ title: `API错误 ${res.statusCode}`, icon: 'none' });
                                 }
+                        
                             } catch (e) {
                                 console.error('❌ [Network] Request failed:', e);
                                 uni.showToast({ title: '网络错误', icon: 'none' });
@@ -1198,10 +1308,19 @@
 
         
         
-        // pages/chat/chat.vue
-        
-        // pages/chat/chat.vue
-        
+        /**
+         * 处理 AI 响应
+         * 特性：
+         * 1. 万能正则清洗 (清除 <内部思考>, <思维> 等乱码)
+         * 2. 状态提取与更新 (AFF, LUST, CLOTHES, IMG)
+         * 3. 气泡切分与去重
+         */
+        /**
+         * 处理 AI 响应 (终极清洗版)
+         */
+        /**
+         * 处理 AI 响应 (终极拦截版：XML通杀 + 关键词阻断)
+         */
         const processAIResponse = (rawText) => {
             // =================================================================
             // 🧹 1. 预处理
@@ -1212,36 +1331,49 @@
                 .trim();
         
             // =================================================================
-            // 🧠 2. 思维链净化 (终极通杀版)
+            // 🧠 2. 思维链净化 (核弹级拦截)
             // =================================================================
             
-            // 2.1 定义宽容的正则
-            // 匹配规则：
-            // 开头：1个或多个 < 或 [ + think 或 thinking + 1个或多个 > 或 ]
-            // 结尾：1个或多个 < 或 [ + / + 可选的 < + think 或 thinking + 1个或多个 > 或 ]
-            // 例子能匹配：<think>, <<think>>, [thinking], </think>, </<think>>, [/thinking]
-            const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
+            // 🔴 策略 A: XML 结构通杀 (Nuclear Option)
+            // 逻辑：匹配 <任意标签名> ... </同名标签名>
+            // 无论它是 <think>, <思考>, <内部分析>, <plan>, 只要成对出现，统统删除
+            const genericXmlRegex = /<([a-zA-Z\u4e00-\u9fa5-_]+)[^>]*>[\s\S]*?<\/\1>/gi;
+            displayText = displayText.replace(genericXmlRegex, '');
+        
+            // 🔴 策略 B: 方括号变体通杀
+            // 逻辑：匹配 [think]...[/think] 或 [思考]...[/思考]
+            const genericBracketRegex = /\[([a-zA-Z\u4e00-\u9fa5-_]+)[^\]]*\][\s\S]*?\[\/\1\]/gi;
+            // 只针对特定关键词进行方括号清洗，防止误伤 [IMG] 等指令
+            // 如果方括号内包含：think, thought, 思考, 思维, 分析, plan
+            const specificBracketRegex = /\[(?:think|thought|思考|思维|分析|plan|internal)[^\]]*\][\s\S]*?\[\/(?:think|thought|思考|思维|分析|plan|internal)\]/gi;
+            displayText = displayText.replace(specificBracketRegex, '');
             
-            // 执行清洗
-            displayText = displayText.replace(thinkBlockRegex, '');
-            
-            // 2.2 处理“断尾”事故 (只有结束标签)
-            // 匹配像 </think>, </<think>>, [/thinking] 这种结束符
-            const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
-            
+            // 🔴 策略 C: 断尾事故处理 (修复只有一个 </思考> 的情况)
+            const endTagRegex = /<\/(?:think|thought|思考|思维|分析|analysis)(?:ing|s)?>/i;
             if (endTagRegex.test(displayText)) {
-                // 抛弃结束标签之前的所有内容
                 displayText = displayText.split(endTagRegex).pop().trim();
             }
             
-            // 2.3 移除旧式 [Thought: ...] 
-            displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, '');
+            // 🔴 策略 D: 移除旧式单行标签 [Thought: ...] 
+            displayText = displayText.replace(/\[(?:Thought|Thinking|Logic|Reasoning|Analysis)[\s\S]*?\]/gi, '');
+        
+            // 🔴 策略 E: 关键词狙击 (针对无标签“裸奔”的思考)
+            // 逻辑：如果文本开头包含了敏感词（好感度、欲望值等），且后面紧跟着括号或引号（正文开始），则删除前面这部分。
+            // 敏感词库：分析, 状态, 好感度, 欲望值, Affection, Lust, Analysis, Current
+            const keywordLeakRegex = /^[\s\S]*?(?:分析|状态|好感度|欲望值|Affection|Lust|Analysis|Current|数值|Evaluate)[\s\S]*?(?=\s*[（("“])/i;
+            
+            if (keywordLeakRegex.test(displayText)) {
+                // 双重检查：确保这不是用户在问“你的好感度是多少”
+                // AI 的思考通常很长，或者包含换行
+                console.log("🧹 [Cleaner] 检测到基于关键词的思考泄漏，执行切除。");
+                displayText = displayText.replace(keywordLeakRegex, '');
+            }
         
             // =================================================================
             // 🛡️ 3. 括号内容清洗 (反元注释)
             // =================================================================
-            // 依然保留，防止 AI 说 "(听到系统...)"
-            displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, '');
+            // 清洗掉类似 (系统提示: ...) 的内容
+            displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI|Output|Input)[^)）]*?[)）]\s*/gi, '');
         
             // =================================================================
             // 💎 4. 指令白名单 (只留合法指令)
@@ -1264,7 +1396,7 @@
                 if (ALLOWED_TAGS.includes(upperKey)) {
                     return match; 
                 } else {
-                    return ''; // 销毁非法指令
+                    return ''; // 销毁非法指令 (如 [Thought], [Analysis] 等漏网之鱼)
                 }
             });
         

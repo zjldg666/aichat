@@ -384,28 +384,31 @@ if (uni.restoreGlobal) {
 请在回复末尾附带必要的指令。
 
 **状态汇报 (Status Report)**:
-每次回复的**最后**，请包含 [ACT: ...] 指令，简要概括当前动作，以保持界面状态同步。
+每次回复的**最后**，请包含 [ACT: ...] 指令，简要概括当前动作。
 
 **空间与逻辑 (Spatial Logic)**:
 1. **位置连贯**: 你当前位于 **{{current_location}}**。如果剧情需要移动，请先输出动作，并在**回复末尾**附带 [LOC: 新地点] 指令。
 2. **合理拒绝**: 禁止为了拒绝用户而编造“我不在家”等与当前设定冲突的理由。
 
 **指令集**:
-- **换装**: [CLOTHES: 新衣服] (若衣服改变或脱下，请输出)
+- **换装**: [CLOTHES: 新衣服] (若衣服改变或脱下，请务必输出)
 - **移动**: [LOC: 具体房间/地点] (如 [LOC: 浴室])
 - **模式**: [MODE: Face/Phone]
+  * **切换规则**: 若用户**抵达**你的位置，或发生**肢体接触**，必须输出 [MODE: Face]。
 - **状态**: [ACT: 新动作]
 `;
   const THOUGHT_PROTOCOL = `
 【思维链 (Internal Monologue)】
 **Important**: 回复正文前，请进行深度心理活动分析。
 
-**思维格式**: 
-使用 XML 标签 \`<think>...</think>\` 包裹思考内容。该内容**不可**出现在最终回复中。
+**思维格式 (Strict Format)**: 
+1. 必须使用 XML 标签 \`<think>...</think>\` 包裹思考内容。
+2. **严禁翻译标签**: 禁止使用 <内部思考>、<分析> 等中文标签，必须使用 \`<think>\`。
+3. **严禁裸奔**: 禁止输出不带标签的分析文本 (如直接输出 "分析当前状态...")。
 
 **思考步骤**:
 1. **状态自检**: 分析当前 Affection (好感) 和 Lust (欲望) 的数值。
-2. **环境检查**: 确认当前时间、地点 ({{current_location}}) 和上一轮的状态。
+2. **环境检查**: 确认当前时间、地点 ({{current_location}}) 和交互模式。
 3. **逻辑一致**: 确保回复内容不发生空间瞬移或逻辑断层。
 4. **欲望判定**: 若 Lust > 60，请在正文中增加生理反应描写 (如呼吸急促、发热)。
 5. **行动策略**: 决定是顺从、推拉、拒绝还是主动诱惑。
@@ -414,21 +417,29 @@ if (uni.restoreGlobal) {
 【视觉指令 (Visual Protocol)】
 User 要求看图或动作画面感强时，请输出 [IMG]。
 
-**模式区分 (Mode Distinction)**:
-1. **Phone 模式 (远程/手机)**: 
-   - 图片请保持 **单人 (SOLO)** 自拍或监控视角。
-   - **避免 Tag**: \`doggystyle\`, \`sex\`, \`couple\`, \`2people\`。
-   - 表达动作请用单人词汇: \`on all fours\`, \`kneeling\`, \`selfie\`, \`looking at viewer\`。
-2. **Face 模式 (见面/同处)**: 
-   - 允许使用双人互动 Tag (sex, doggystyle, etc.)。
+**关键：构图标记 (Composition Flag)**
+你必须判断画面中**是否包含 User (玩家)**，并在 [IMG] 的**第一个单词**明确标记：
+1. **solo**: 画面里只有你自己。
+   - 适用: 自拍、独处、回头看玩家、玩家视角看你(但看不到玩家身体)。
+   - *Phone 模式下必须是 solo。*
+2. **couple**: 画面里有你和玩家两个人。
+   - 适用: 拥抱、接吻、性行为、牵手、依偎。
+   - *Face 模式下发生肢体接触时使用。*
+   - **状态惯性**: 若正处于持续性行为(如后入)中，即使当前动作为单人(如脱衣、表情特写)，仍标记为 **couple**。
 
 **视觉分流原则**:
 - **静态细节 (Static)**: 颜色、液体光泽、解剖细节 -> **全部放入 [IMG] Tags**。
 - **动态氛围 (Dynamic)**: 动作幅度、神态迷离 -> **保留在文本 () 中**。
 
+**格式范例**:
+- [IMG: solo, selfie, v-sign, smile] (自拍)
+- [IMG: couple, doggystyle, from behind, sex] (互动)
+- [IMG: solo, cooking, apron, looking back] (做饭)
+
 **格式要求**:
-- [IMG] 内只用英文 Tags。
-- 内容需与当前 [CLOTHES] 一致。
+1. [IMG] 内只用英文 Tags。
+2. 必须以 solo 或 couple 开头。
+3. **环境一致性**: 必须包含当前地点的 Tag (如 kitchen, bedroom)，严禁生成无背景图片。
 `;
   const CORE_INSTRUCTION = `
 ${FORMAT_RULES}
@@ -1166,36 +1177,55 @@ ${VISUAL_PROTOCOL}
         let aiTags = actionAndSceneDescription || "";
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-        const isPhone = interactionMode.value === "phone";
         let isDuo = false;
-        if (isPhone) {
-          formatAppLog("log", "at pages/chat/chat.vue:708", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
-          isDuo = false;
-          aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
-          aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
+        let cleanTags = aiTags;
+        const modeMatch = aiTags.match(/^(couple|solo)/i);
+        if (modeMatch) {
+          isDuo = modeMatch[1].toLowerCase() === "couple";
+          cleanTags = aiTags.replace(/^(couple|solo)[,:\.\s]*/i, "");
         } else {
-          const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
-          isDuo = duoKeywords.test(aiTags);
-          formatAppLog("log", "at pages/chat/chat.vue:722", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
+          if (interactionMode.value === "phone") {
+            isDuo = false;
+          } else {
+            const fallbackDuoRegex = /\b(couple|2people|multiple boys|sex|making love|fuck|fucking|penis|cum|doggystyle|missionary|cowgirl|spooning|straddling|lifted by|carrying|kiss|kissing|hugging|holding hands|leaning on|paizuri|fellatio|blowjob|cunnilingus|handjob|fingering|insertion|penetration)\b/i;
+            isDuo = fallbackDuoRegex.test(aiTags);
+          }
         }
+        if (interactionMode.value === "phone") {
+          isDuo = false;
+          const maleCleanerRegex = /\b(couple|2people|1boy|boys|man|men|male|sex|penis|cum|doggystyle|missionary|straddling|kiss|hugging|holding hands)\b/gi;
+          cleanTags = cleanTags.replace(maleCleanerRegex, "");
+        }
+        formatAppLog("log", "at pages/chat/chat.vue:738", `📍 [生图模式] AI标记: ${modeMatch ? modeMatch[1] : "无"} -> 最终判定: ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         let parts = [];
-        parts.push(isDuo ? "couple, 2people" : "solo");
-        parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
+        parts.push(isDuo ? "couple, 2people, 1boy, 1girl" : "solo, 1girl");
+        parts.push("masterpiece, best quality, new, highres, absurdres, 8k, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), expressive eyes, colorful, illustration, flat color,cinematic lighting, dynamic angle, depth of field, lens flare, hyper detailed");
         const imgConfig = uni.getStorageSync("app_image_config") || {};
         const styleSetting = imgConfig.style || "anime";
         parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"]);
         parts.push(appearanceSafe);
-        if (aiTags) {
-          parts.push(`(${aiTags}:1.2)`);
+        const currentClotheVal = currentClothing.value || "";
+        const isDescribingClothes = /\b(nude|naked|undressing|taking off|shirt|sweater|dress|skirt|bra|panties|bikini|lingerie)\b/i.test(cleanTags);
+        if (!isDescribingClothes && currentClotheVal && currentClotheVal !== "默认服装" && currentClotheVal !== "便服") {
+          parts.push(`(${currentClotheVal})`);
+        }
+        if (cleanTags) {
+          parts.push(`(${cleanTags}:1.2)`);
         }
         if (isDuo) {
-          parts.push(userAppearance.value || "1boy, male focus");
+          let uPrompt = userAppearance.value || "1boy, short hair";
+          if (!/\b(1boy|man|male|boy)\b/i.test(uPrompt)) {
+            uPrompt = "1boy, " + uPrompt;
+          }
+          parts.push(`(${uPrompt}:1.2)`);
         }
         parts.push(getTimeTags());
         let rawPrompt = parts.join(", ");
-        let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
-        let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:761", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
+        let tags = rawPrompt.split(/[,，]/);
+        tags = tags.map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t);
+        let uniqueTags = [...new Set(tags)];
+        const finalPrompt = uniqueTags.join(", ");
+        formatAppLog("log", "at pages/chat/chat.vue:800", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1215,7 +1245,7 @@ ${VISUAL_PROTOCOL}
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:778", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:817", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1242,7 +1272,7 @@ ${VISUAL_PROTOCOL}
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:804", e);
+          formatAppLog("error", "at pages/chat/chat.vue:843", e);
         }
         return null;
       };
@@ -1284,7 +1314,21 @@ ${VISUAL_PROTOCOL}
       const handleCameraSend = () => {
         if (isLoading.value)
           return;
-        const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
+        const activityContext = currentActivity.value || "未知状态";
+        const extraInstruction = `
+            [SYSTEM EVENT: SNAPSHOT TRIGGERED] 
+            用户正在对你进行**抓拍 (Candid Shot)**。
+            
+            **状态惯性检查 (CRITICAL)**:
+            你当前的活动状态是: "${activityContext}"。
+            如果该状态涉及双人互动（如性爱、拥抱、依偎），即使现在的动作（如脱衣、喝水）是你单独完成的，**画面依然必须标记为 [IMG: couple...]**，因为男主依然在场！
+            
+            **执行死命令**:
+            1. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作，不可改变姿势。
+            2. **禁止互动**：绝对禁止回头看镜头、摆姿势或对快门声做出反应（除非是自拍）。
+            3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面。
+            4. **Tag要求**：[IMG] 内容使用英文。
+            `;
         sendMessage(false, extraInstruction);
       };
       const checkProactiveGreeting = () => {
@@ -1348,7 +1392,7 @@ ${VISUAL_PROTOCOL}
           return;
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey) {
-          uni.showToast({ title: "请配置模型", icon: "none" });
+          uni.showToast({ title: "请配置模型 API", icon: "none" });
           return;
         }
         if (!isContinue) {
@@ -1362,150 +1406,164 @@ ${VISUAL_PROTOCOL}
         scrollToBottom();
         isLoading.value = true;
         saveHistory();
-        const score = currentAffection.value;
-        const lust = currentLust.value;
-        const role = currentRole.value || {};
-        const s = role.settings || {};
-        const appUser = uni.getStorageSync("app_user_info") || {};
-        const myJob = s.userOccupation || appUser.occupation || "未知职业";
-        const myLoc = s.userLocation || appUser.location || "未知地点";
-        const myLook = s.userAppearance || appUser.appearance || "普通外貌";
-        const myName = userName.value || appUser.name || "User";
-        const charJob = role.occupation || s.occupation || "未知职业";
-        const charLoc = role.location || s.location || "未知地点";
-        const charPersonality = s.personality || "未知性格";
-        let personalityLabel = "";
-        let activePersonality = "";
-        let activeExample = "";
-        if (score <= 20) {
-          personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
-          activePersonality = s.personalityNormal || "高冷，保持距离。";
-          activeExample = s.exampleNormal || "";
-        } else if (score <= 40) {
-          personalityLabel = "阶段2: 熟人/朋友 (Friend)";
-          activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
-          activeExample = s.exampleFriend || s.exampleNormal || "";
-        } else if (score <= 60) {
-          personalityLabel = "阶段3: 暧昧/心动 (Crush)";
-          activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
-          activeExample = s.exampleFlirt || "";
-        } else if (score <= 80) {
-          personalityLabel = "阶段4: 热恋/深爱 (Lover)";
-          activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
-          activeExample = s.exampleLover || s.exampleFlirt || "";
-        } else {
-          personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
-          activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
-          activeExample = s.exampleSex || "";
-        }
-        activePersonality = `[当前阶段: ${personalityLabel}]
-行为逻辑: ${activePersonality}`;
-        let activeRules = "";
-        activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。
-`;
-        activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。
-`;
-        if (lust > 80 && score < 60) {
-          activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**
-虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
-        } else if (lust < 30) {
-          activeRules += `当前欲望较低(${lust})。面对调情会感到害羞、迟钝或不知所措，需要更多前戏或氛围铺垫才能提升 Lust。`;
-        } else {
-          activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
-        }
-        let nsfwInstruction = "";
-        const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
-        if (isIntimate)
-          nsfwInstruction = NSFW_STYLE;
-        const hiddenInstruction = `
-[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'. If activity changes, append [ACT: new status].]`;
-        let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
-        const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
-        const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
-        prompt = prompt.replace(/{{world_lore}}/g, worldLoreData).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)").replace(/{{char}}/g, chatName.value).replace(/{{occupation}}/g, charJob).replace(/{{char_location}}/g, charLoc).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{appearance}}/g, s.appearance || "anime character").replace(/{{memory}}/g, s.bio || "无").replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话").replace(/{{likes}}/g, s.likes || "未知").replace(/{{dislikes}}/g, s.dislikes || "未知").replace(/{{user}}/g, myName).replace(/{{user_occupation}}/g, myJob).replace(/{{user_location}}/g, myLoc).replace(/{{user_appearance}}/g, myLook).replace(/{{personality_label}}/g, personalityLabel).replace(/{{personality_logic}}/g, activePersonality).replace(/{{example}}/g, activeExample).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{affection_rules}}/g, activeRules);
-        prompt += `
-                        
-[SYSTEM MANDATE: THOUGHT SEPARATION]
-                        You MUST strictly separate your internal analysis from your response.
-                        1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
-                        2. Inside <think>, analyze the situation, current Affection/Lust levels, and decide your reaction.
-                        3. **Close** the tag with </think>.
-                        4. **ONLY AFTER** closing the tag, write your actual response to the user.
-                        5. **NEVER** include the <think> content in your final response output (outside the tags).
-                        
-                        Format Example:
-                        <think>
-                        User is teasing. Affection is 50. I should act shy but happy.
-                        </think>
-                        (blushes) "Oh, you are so bad..."
-                        `;
-        const historyLimit = charHistoryLimit.value;
-        let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
-        if (historyLimit > 0)
-          contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1074", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1075", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1076", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1077", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1078", "4. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1079", "===================================================");
-        const continuePrompt = `
-                            [System: AUTO-DRIVE]
-                            User is silent. Please continue the conversation.
-                            Start with <think>Analysis...</think> then output response.
-                            `;
-        let targetUrl = "";
-        let requestBody = {};
-        let baseUrl = config.baseUrl || "";
-        if (baseUrl.endsWith("/"))
-          baseUrl = baseUrl.slice(0, -1);
-        if (config.provider === "gemini") {
-          const cleanBase = "https://generativelanguage.googleapis.com";
-          targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-          const geminiContents = contextMessages.map((item) => {
-            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
-            return { role: item.role === "user" ? "user" : "model", parts: [{ text: cleanText }] };
-          }).filter((item) => item.parts[0].text.trim() !== "");
-          if (systemOverride)
-            geminiContents.push({ role: "user", parts: [{ text: systemOverride }] });
-          else if (isContinue)
-            geminiContents.push({ role: "user", parts: [{ text: continuePrompt }] });
-          requestBody = {
-            contents: geminiContents,
-            system_instruction: { parts: { text: prompt } },
-            safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-            ]
-          };
-        } else {
-          targetUrl = `${baseUrl}/chat/completions`;
-          const openAIMessages = [{ role: "system", content: prompt }];
-          contextMessages.forEach((item) => {
-            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
-            if (cleanText.trim())
-              openAIMessages.push({ role: item.role === "model" ? "assistant" : "user", content: cleanText });
-          });
-          if (systemOverride)
-            openAIMessages.push({ role: "user", content: systemOverride });
-          else if (isContinue)
-            openAIMessages.push({ role: "user", content: continuePrompt });
-          openAIMessages.push({
-            role: "user",
-            content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply.`
-          });
-          requestBody = {
-            model: config.model,
-            messages: openAIMessages,
-            max_tokens: 1500,
-            stream: false
-          };
-        }
         try {
+          const score = currentAffection.value;
+          const lust = currentLust.value;
+          const role = currentRole.value || {};
+          const s = role.settings || {};
+          const appUser = uni.getStorageSync("app_user_info") || {};
+          const myJob = s.userOccupation || appUser.occupation || "未知职业";
+          const myLoc = s.userLocation || appUser.location || "未知地点";
+          const myLook = s.userAppearance || appUser.appearance || "普通外貌";
+          const myName = userName.value || appUser.name || "User";
+          const charJob = role.occupation || s.occupation || "未知职业";
+          const charLoc = role.location || s.location || "未知地点";
+          const charPersonality = s.personality || "未知性格";
+          let personalityLabel = "";
+          let activePersonality = "";
+          let activeExample = "";
+          if (score <= 20) {
+            personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
+            activePersonality = s.personalityNormal || "高冷，保持距离。";
+            activeExample = s.exampleNormal || "";
+          } else if (score <= 40) {
+            personalityLabel = "阶段2: 熟人/朋友 (Friend)";
+            activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
+            activeExample = s.exampleFriend || s.exampleNormal || "";
+          } else if (score <= 60) {
+            personalityLabel = "阶段3: 暧昧/心动 (Crush)";
+            activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
+            activeExample = s.exampleFlirt || "";
+          } else if (score <= 80) {
+            personalityLabel = "阶段4: 热恋/深爱 (Lover)";
+            activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
+            activeExample = s.exampleLover || s.exampleFlirt || "";
+          } else {
+            personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
+            activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
+            activeExample = s.exampleSex || "";
+          }
+          activePersonality = `[当前阶段: ${personalityLabel}]
+行为逻辑: ${activePersonality}`;
+          let activeRules = "";
+          activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。
+`;
+          activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。
+`;
+          if (lust > 80 && score < 60) {
+            activeRules += `**【特殊状态：Lust Paradox】**
+虽然好感度不高(${score})，但欲望极高(${lust})。表现出“理智拒绝，身体迎合”的反差。`;
+          } else if (lust < 30) {
+            activeRules += `当前欲望较低(${lust})。面对调情会感到害羞或迟钝。`;
+          } else {
+            activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；色气话题优先加 Lust。`;
+          }
+          let nsfwInstruction = "";
+          const isIntimate = lust > 60 || score > 80 || currentActivity.value && currentActivity.value.match(/性|爱|床|吻|摸|洗澡/);
+          if (isIntimate)
+            nsfwInstruction = NSFW_STYLE;
+          const hiddenInstruction = `
+[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'.]`;
+          let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
+          const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
+          const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力。";
+          prompt = prompt.replace(/{{world_lore}}/g, worldLoreData).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)").replace(/{{char}}/g, chatName.value).replace(/{{occupation}}/g, charJob).replace(/{{char_location}}/g, charLoc).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{appearance}}/g, s.appearance || "anime character").replace(/{{memory}}/g, s.bio || "无").replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话").replace(/{{likes}}/g, s.likes || "未知").replace(/{{dislikes}}/g, s.dislikes || "未知").replace(/{{user}}/g, myName).replace(/{{user_occupation}}/g, myJob).replace(/{{user_location}}/g, myLoc).replace(/{{user_appearance}}/g, myLook).replace(/{{personality_label}}/g, personalityLabel).replace(/{{personality_logic}}/g, activePersonality).replace(/{{example}}/g, activeExample).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{affection_rules}}/g, activeRules);
+          prompt += `
+                                
+[SYSTEM MANDATE: THOUGHT SEPARATION]
+                                You MUST strictly separate your internal analysis from your response.
+                                1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
+                                2. **STRICTLY FORBIDDEN**: Do NOT translate the tag into Chinese (e.g. <内部思考> is PROHIBITED). Use ONLY <think>.
+                                3. Inside <think>, analyze the situation, Affection/Lust levels, and decide reaction.
+                                4. **Close** the tag with </think>.
+                                5. **ONLY AFTER** closing the tag, write your actual response.
+                                `;
+          const historyLimit = charHistoryLimit.value || 20;
+          let rawMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
+          if (historyLimit > 0) {
+            rawMessages = rawMessages.slice(-historyLimit);
+          }
+          const mergedContext = [];
+          rawMessages.forEach((msg) => {
+            let cleanText = msg.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+            cleanText = cleanText.replace(/(?:<|\[)(?:[^>\]]*?)(?:思考|思维|分析)(?:[^>\]]*?)(?:>|\])[\s\S]*?(?:<|\[)\/(?:[^>\]]*?)(?:>|\])/gi, "");
+            if (msg.role === "model") {
+              cleanText = cleanMessageForAI(cleanText);
+            }
+            if (!cleanText)
+              return;
+            if (mergedContext.length > 0 && mergedContext[mergedContext.length - 1].role === msg.role) {
+              mergedContext[mergedContext.length - 1].content += "\n" + cleanText;
+            } else {
+              let apiRole = msg.role;
+              if (config.provider === "gemini") {
+                apiRole = msg.role === "user" ? "user" : "model";
+              } else {
+                apiRole = msg.role === "model" ? "assistant" : "user";
+              }
+              mergedContext.push({
+                role: apiRole,
+                content: cleanText
+              });
+            }
+          });
+          formatAppLog("log", "at pages/chat/chat.vue:1177", "🔗 [Merged Context]:", JSON.stringify(mergedContext, null, 2));
+          let targetUrl = "";
+          let requestBody = {};
+          let baseUrl = config.baseUrl || "";
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          const continuePrompt = `
+                                [System: AUTO-DRIVE]
+                                User is silent. Please continue the conversation naturally based on current context.
+                                Start with <think>...</think>.
+                                `;
+          if (config.provider === "gemini") {
+            const cleanBase = "https://generativelanguage.googleapis.com";
+            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            const geminiContents = mergedContext.map((m) => ({
+              role: m.role,
+              parts: [{ text: m.content }]
+            }));
+            if (systemOverride) {
+              geminiContents.push({ role: "user", parts: [{ text: systemOverride }] });
+            } else if (isContinue) {
+              geminiContents.push({ role: "user", parts: [{ text: continuePrompt }] });
+            }
+            requestBody = {
+              contents: geminiContents,
+              system_instruction: { parts: { text: prompt } },
+              safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+              ]
+            };
+          } else {
+            targetUrl = `${baseUrl}/chat/completions`;
+            const openAIMessages = [{ role: "system", content: prompt }];
+            mergedContext.forEach((m) => {
+              openAIMessages.push(m);
+            });
+            if (systemOverride) {
+              openAIMessages.push({ role: "user", content: systemOverride });
+            } else if (isContinue) {
+              openAIMessages.push({ role: "user", content: continuePrompt });
+            }
+            openAIMessages.push({
+              role: "user",
+              content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply. DO NOT translate <think> tag.`
+            });
+            requestBody = {
+              model: config.model,
+              messages: openAIMessages,
+              max_tokens: 1500,
+              temperature: 0.8,
+              // 稍微调高一点温度增加变化
+              stream: false
+            };
+          }
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
             header["Authorization"] = `Bearer ${config.apiKey}`;
@@ -1523,7 +1581,7 @@ ${VISUAL_PROTOCOL}
               rawText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "";
               const usage = (_g = res.data) == null ? void 0 : _g.usageMetadata;
               if (usage)
-                tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
+                tokenLog = `📊 [Tokens] In:${usage.promptTokenCount} | Out:${usage.candidatesTokenCount}`;
             } else {
               let data = res.data;
               if (typeof data === "string") {
@@ -1535,17 +1593,16 @@ ${VISUAL_PROTOCOL}
               rawText = ((_j = (_i = (_h = data == null ? void 0 : data.choices) == null ? void 0 : _h[0]) == null ? void 0 : _i.message) == null ? void 0 : _j.content) || "";
               const usage = data == null ? void 0 : data.usage;
               if (usage)
-                tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
+                tokenLog = `📊 [Tokens] In:${usage.prompt_tokens} | Out:${usage.completion_tokens}`;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1171", "============== 📥 RAW AI RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1172", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1173", "================================================");
-            if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1175", tokenLog);
+            formatAppLog("log", "at pages/chat/chat.vue:1282", "============== 📥 RAW AI RESPONSE ==============");
+            formatAppLog("log", "at pages/chat/chat.vue:1283", rawText);
+            formatAppLog("log", "at pages/chat/chat.vue:1284", tokenLog);
+            formatAppLog("log", "at pages/chat/chat.vue:1285", "================================================");
             if (rawText) {
               processAIResponse(rawText);
             } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1180", "⚠️ [LLM] Empty response or Blocked");
+              formatAppLog("warn", "at pages/chat/chat.vue:1290", "⚠️ [LLM] Empty response");
               const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
               if (blockReason)
                 uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
@@ -1553,14 +1610,11 @@ ${VISUAL_PROTOCOL}
                 uni.showToast({ title: "无内容响应", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1186", "❌ [LLM] API Error", res);
-            if (res.statusCode === 429)
-              uni.showToast({ title: "请求太快 (429)", icon: "none" });
-            else
-              uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
+            formatAppLog("error", "at pages/chat/chat.vue:1296", "❌ [LLM] API Error", res);
+            uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1191", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1301", "❌ [Network] Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1569,14 +1623,21 @@ ${VISUAL_PROTOCOL}
       };
       const processAIResponse = (rawText) => {
         let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
-        const thinkBlockRegex = /(?:<+|\[)think(?:ing|s)?(?:>+|\])[\s\S]*?(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/gi;
-        displayText = displayText.replace(thinkBlockRegex, "");
-        const endTagRegex = /(?:<+|\[)\/+(?:<+)?think(?:ing|s)?(?:>+|\])/i;
+        const genericXmlRegex = /<([a-zA-Z\u4e00-\u9fa5-_]+)[^>]*>[\s\S]*?<\/\1>/gi;
+        displayText = displayText.replace(genericXmlRegex, "");
+        const specificBracketRegex = /\[(?:think|thought|思考|思维|分析|plan|internal)[^\]]*\][\s\S]*?\[\/(?:think|thought|思考|思维|分析|plan|internal)\]/gi;
+        displayText = displayText.replace(specificBracketRegex, "");
+        const endTagRegex = /<\/(?:think|thought|思考|思维|分析|analysis)(?:ing|s)?>/i;
         if (endTagRegex.test(displayText)) {
           displayText = displayText.split(endTagRegex).pop().trim();
         }
-        displayText = displayText.replace(/\[Thought[\s\S]*?\]/gi, "");
-        displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, "");
+        displayText = displayText.replace(/\[(?:Thought|Thinking|Logic|Reasoning|Analysis)[\s\S]*?\]/gi, "");
+        const keywordLeakRegex = /^[\s\S]*?(?:分析|状态|好感度|欲望值|Affection|Lust|Analysis|Current|数值|Evaluate)[\s\S]*?(?=\s*[（("“])/i;
+        if (keywordLeakRegex.test(displayText)) {
+          formatAppLog("log", "at pages/chat/chat.vue:1368", "🧹 [Cleaner] 检测到基于关键词的思考泄漏，执行切除。");
+          displayText = displayText.replace(keywordLeakRegex, "");
+        }
+        displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI|Output|Input)[^)）]*?[)）]\s*/gi, "");
         displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
         displayText = displayText.replace(/（/g, "(").replace(/）/g, ")");
         displayText = displayText.replace(/：/g, ":");
@@ -2616,21 +2677,28 @@ Task: ${prompt}` }]
             formData.value.appearanceNsfw = target.settings.appearanceNsfw || "";
             formData.value.faceStyle = target.settings.faceStyle || "cute";
             formData.value.bio = target.settings.bio || "";
+            formData.value.speakingStyle = target.settings.speakingStyle || "";
+            formData.value.likes = target.settings.likes || "";
+            formData.value.dislikes = target.settings.dislikes || "";
             formData.value.personalityNormal = target.settings.personalityNormal || "";
-            formData.value.personalityFlirt = target.settings.personalityFlirt || "";
-            formData.value.personalitySex = target.settings.personalitySex || "";
             formData.value.exampleNormal = target.settings.exampleNormal || "";
+            formData.value.personalityFriend = target.settings.personalityFriend || "";
+            formData.value.exampleFriend = target.settings.exampleFriend || "";
+            formData.value.personalityFlirt = target.settings.personalityFlirt || "";
             formData.value.exampleFlirt = target.settings.exampleFlirt || "";
+            formData.value.personalityLover = target.settings.personalityLover || "";
+            formData.value.exampleLover = target.settings.exampleLover || "";
+            formData.value.personalitySex = target.settings.personalitySex || "";
             formData.value.exampleSex = target.settings.exampleSex || "";
             formData.value.userWorldId = target.settings.userWorldId || "";
             formData.value.userLocation = target.settings.userLocation || "";
             formData.value.userOccupation = target.settings.userOccupation || "";
             formData.value.userAppearance = target.settings.userAppearance || "";
+            formData.value.worldLore = target.settings.worldLore || "";
             if (target.settings.charFeatures)
               formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
             if (target.settings.userFeatures)
               formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
-            formData.value.worldLore = target.settings.worldLore || "";
           }
           if (formData.value.worldId) {
             const idx = worldList.value.findIndex((w) => String(w.id) === String(formData.value.worldId));
@@ -2716,7 +2784,7 @@ Task: ${prompt}` }]
           }
           uni.showToast({ title: "人设推演完成！", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:1205", e);
+          formatAppLog("error", "at pages/create/create.vue:1223", e);
           uni.showModal({ title: "生成失败", content: "AI返回数据异常，请重试。\n" + e.message, showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2745,30 +2813,46 @@ Task: ${prompt}` }]
           summary: formData.value.summary,
           location: formData.value.location,
           clothing: clothingStr,
-          // 这里保存初始衣服文字，不影响生图
           worldId: formData.value.worldId,
           occupation: formData.value.occupation,
           settings: {
-            // 保存的是 generateEnglishPrompt 生成的纯净版（不含衣服）
+            // --- 外貌相关 ---
             appearance: formData.value.appearance,
             appearanceSafe: formData.value.appearanceSafe,
             appearanceNsfw: formData.value.appearanceNsfw,
             faceStyle: formData.value.faceStyle,
             charFeatures: formData.value.charFeatures,
+            // --- 细节设定 (修复点：之前漏保存了) ---
             bio: formData.value.bio,
+            speakingStyle: formData.value.speakingStyle,
+            // 说话风格
+            likes: formData.value.likes,
+            // 喜好
+            dislikes: formData.value.dislikes,
+            // 雷点
+            // --- 身份与玩家设定 ---
             occupation: formData.value.occupation,
             userWorldId: formData.value.userWorldId,
             userLocation: formData.value.userLocation,
             userOccupation: formData.value.userOccupation,
             userAppearance: formData.value.userAppearance,
             userFeatures: formData.value.userFeatures,
+            worldLore: formData.value.worldLore,
+            // --- 5阶段人设 (修复点：补全了 Friend 和 Lover 阶段) ---
             personalityNormal: formData.value.personalityNormal,
-            personalityFlirt: formData.value.personalityFlirt,
-            personalitySex: formData.value.personalitySex,
             exampleNormal: formData.value.exampleNormal,
+            personalityFriend: formData.value.personalityFriend,
+            // 补全
+            exampleFriend: formData.value.exampleFriend,
+            // 补全
+            personalityFlirt: formData.value.personalityFlirt,
             exampleFlirt: formData.value.exampleFlirt,
-            exampleSex: formData.value.exampleSex,
-            worldLore: formData.value.worldLore
+            personalityLover: formData.value.personalityLover,
+            // 补全
+            exampleLover: formData.value.exampleLover,
+            // 补全
+            personalitySex: formData.value.personalitySex,
+            exampleSex: formData.value.exampleSex
           },
           lastMsg: isEditMode.value ? void 0 : "新角色已创建",
           lastTime: isEditMode.value ? void 0 : "刚刚",

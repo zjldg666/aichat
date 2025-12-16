@@ -1082,6 +1082,7 @@ const loadCharacterData = (id) => {
   const list = uni.getStorageSync('contact_list') || [];
   const target = list.find(item => String(item.id) === String(id));
   if (target) {
+    // 基础信息读取
     formData.value.name = target.name;
     formData.value.avatar = target.avatar;
     formData.value.worldId = target.worldId || '';
@@ -1089,31 +1090,47 @@ const loadCharacterData = (id) => {
     formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
     if (target.settings) {
+        // --- 外貌读取 ---
         formData.value.appearance = target.settings.appearance || '';
         formData.value.appearanceSafe = target.settings.appearanceSafe || '';
         formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
-        
         formData.value.faceStyle = target.settings.faceStyle || 'cute';
+        
+        // --- 细节设定读取 (修复点) ---
         formData.value.bio = target.settings.bio || '';
+        formData.value.speakingStyle = target.settings.speakingStyle || ''; // 读取说话风格
+        formData.value.likes = target.settings.likes || '';                 // 读取喜好
+        formData.value.dislikes = target.settings.dislikes || '';           // 读取雷点
+        
+        // --- 5阶段人设读取 (修复点：补全 Friend 和 Lover) ---
         formData.value.personalityNormal = target.settings.personalityNormal || '';
-        formData.value.personalityFlirt = target.settings.personalityFlirt || '';
-        formData.value.personalitySex = target.settings.personalitySex || '';
         formData.value.exampleNormal = target.settings.exampleNormal || '';
+
+        formData.value.personalityFriend = target.settings.personalityFriend || ''; // 补全
+        formData.value.exampleFriend = target.settings.exampleFriend || '';         // 补全
+
+        formData.value.personalityFlirt = target.settings.personalityFlirt || '';
         formData.value.exampleFlirt = target.settings.exampleFlirt || '';
+
+        formData.value.personalityLover = target.settings.personalityLover || '';   // 补全
+        formData.value.exampleLover = target.settings.exampleLover || '';           // 补全
+
+        formData.value.personalitySex = target.settings.personalitySex || '';
         formData.value.exampleSex = target.settings.exampleSex || '';
         
+        // --- 玩家与世界观读取 ---
         formData.value.userWorldId = target.settings.userWorldId || '';
         formData.value.userLocation = target.settings.userLocation || '';
         formData.value.userOccupation = target.settings.userOccupation || '';
         formData.value.userAppearance = target.settings.userAppearance || '';
+        formData.value.worldLore = target.settings.worldLore || '';
         
+        // 合并特征对象，防止旧数据缺少某些新键值报错
         if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
         if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
-        
-        // 【新增】读取世界观
-        formData.value.worldLore = target.settings.worldLore || '';
     }
     
+    // 自动回显 Picker 索引
     if (formData.value.worldId) {
         const idx = worldList.value.findIndex(w => String(w.id) === String(formData.value.worldId));
         if (idx !== -1) worldIndex.value = idx;
@@ -1123,6 +1140,7 @@ const loadCharacterData = (id) => {
         if (uIdx !== -1) userWorldIndex.value = uIdx;
     }
 
+    // 系统设置读取
     formData.value.maxReplies = target.maxReplies || 1;
     formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
     formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
@@ -1214,7 +1232,6 @@ const saveCharacter = () => {
   let list = uni.getStorageSync('contact_list') || [];
   
   // 衣服仅作为"初始状态"保存，用于在聊天界面顶部显示"穿着：xxx"
-  // 但不会进入生图 Prompt
   let clothingStr = '便服';
   if (formData.value.charFeatures.clothingStyle) {
       clothingStr = `${formData.value.charFeatures.clothingColor || ''}${formData.value.charFeatures.clothingStyle}`;
@@ -1235,33 +1252,49 @@ const saveCharacter = () => {
     summary: formData.value.summary,
     location: formData.value.location,
     
-    clothing: clothingStr, // 这里保存初始衣服文字，不影响生图
+    clothing: clothingStr, 
     
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
 
     settings: {
-        // 保存的是 generateEnglishPrompt 生成的纯净版（不含衣服）
+        // --- 外貌相关 ---
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
-        
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
+        
+        // --- 细节设定 (修复点：之前漏保存了) ---
         bio: formData.value.bio,
+        speakingStyle: formData.value.speakingStyle, // 说话风格
+        likes: formData.value.likes,                 // 喜好
+        dislikes: formData.value.dislikes,           // 雷点
+        
+        // --- 身份与玩家设定 ---
         occupation: formData.value.occupation, 
         userWorldId: formData.value.userWorldId,
         userLocation: formData.value.userLocation,
         userOccupation: formData.value.userOccupation,
         userAppearance: formData.value.userAppearance, 
         userFeatures: formData.value.userFeatures,
-        personalityNormal: formData.value.personalityNormal,
-        personalityFlirt: formData.value.personalityFlirt,
-        personalitySex: formData.value.personalitySex,
-        exampleNormal: formData.value.exampleNormal,
-        exampleFlirt: formData.value.exampleFlirt,
-        exampleSex: formData.value.exampleSex,
         worldLore: formData.value.worldLore,
+
+        // --- 5阶段人设 (修复点：补全了 Friend 和 Lover 阶段) ---
+        personalityNormal: formData.value.personalityNormal,
+        exampleNormal: formData.value.exampleNormal,
+
+        personalityFriend: formData.value.personalityFriend, // 补全
+        exampleFriend: formData.value.exampleFriend,         // 补全
+
+        personalityFlirt: formData.value.personalityFlirt,
+        exampleFlirt: formData.value.exampleFlirt,
+
+        personalityLover: formData.value.personalityLover,   // 补全
+        exampleLover: formData.value.exampleLover,           // 补全
+
+        personalitySex: formData.value.personalitySex,
+        exampleSex: formData.value.exampleSex,
     },
     
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
@@ -1272,9 +1305,8 @@ const saveCharacter = () => {
   if (isEditMode.value) {
     const index = list.findIndex(item => String(item.id) === String(targetId.value));
     if (index !== -1) {
+        // 编辑模式合并数据
         list[index] = { ...list[index], ...charData };
-        // 编辑模式下不重置好感度，除非你想重置
-        // list[index].affection = formData.value.initialAffection; 
         uni.showToast({ title: '修改已保存', icon: 'success' });
     }
   } else {
