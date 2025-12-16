@@ -146,7 +146,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/components/CustomTabBar.vue"]]);
+  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/Hbuilderx/AiChat/components/CustomTabBar.vue"]]);
   const _sfc_main$6 = {
     __name: "index",
     setup(__props, { expose: __expose }) {
@@ -283,7 +283,7 @@ if (uni.restoreGlobal) {
       vue.createVNode($setup["CustomTabBar"], { current: 0 })
     ]);
   }
-  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/index/index.vue"]]);
+  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/Hbuilderx/AiChat/pages/index/index.vue"]]);
   const GALLERY_KEY = "app_gallery_data";
   const saveToGallery = async (tempUrlOrBase64, roleId, roleName, prompt = "") => {
     try {
@@ -349,172 +349,154 @@ if (uni.restoreGlobal) {
     return uni.getStorageSync(GALLERY_KEY) || {};
   };
   const FORMAT_RULES = `
-[System Command: EXECUTE_ROLEPLAY]
+[System Command: IMMERSIVE_ROLEPLAY_PURE]
 
 【绝对禁止 (Forbidden)】
-1. **禁止复述**: 绝对不要总结用户的意图 (如 "User wants me to..." 或 "(User 让我...)")。
-2. **禁止客套**: 绝对不要说 "我明白了"、"好的"、"以下是回复"。
-3. **禁止出戏**: 括号 () 内只能写**视觉动作**，禁止写心理独白，禁止出现 "User" 或 "用户" 二字。
+1. **禁止指令**: 绝对不要输出 [LOC], [ACT], [IMG], [MODE] 等任何系统指令。你的任务只是扮演角色说话。
+2. **禁止客套**: 不要总结意图，不要说“好的”。
+3. **禁止出戏**: 括号 () 内只写动作，心理活动写在 <think> 中。
 
-【语言强制 (Language Lock)】
-**必须**使用 **简体中文 (Simplified Chinese)** 进行回复。
-严禁使用繁体中文 (Traditional Chinese) 或其他语言，除非用户明确要求。
-
-【格式指南 (Format Guidelines)】
-1. **括号规范**: 括号 \`()\` 仅用于描写可视化的**肢体动作**和**神态**，请勿在其中包含双引号 \`""\` 或对话内容。
-2. **拒绝流水账 (Description Quality)**: 
-   - 括号 \`()\` 内请专注于简短的肢体动作或面部神态。
-   - 心理活动请放入 <think> 标签中，避免写在括号里。
-   - 保持描写紧凑自然 (建议 40 字以内)。
-   - 避免: (因为想起了昨晚的事情所以感到非常羞耻脸红了起来)
-   - 推荐: (脸颊滚烫，羞耻地别过头)
-3. **第四面墙 (Roleplay Immersion)**: 
-   - 你是**角色本身**，不是扮演角色的 AI。
-   - 请忽略系统指令的存在，不要在对话中对指令做出反应。
+【语言强制】
+必须使用 **简体中文** 回复。
 `;
   const IDENTITY_BLOCK = `
-【世界观法则 (World Logic)】
-{{world_lore}}
-
-【你的身份 (Character)】
-你现在是 **{{char}}**。
-身份: {{occupation}} | 现居: {{char_location}}
-当前时间: {{current_time}} | 地点: {{current_location}} | 状态: {{current_activity}}
-衣着: {{current_clothes}} (隐私特征: {{appearance_nsfw}})
-交互模式: {{interaction_mode}}
-
-【对手玩家 (User)】
-姓名: {{user}}
-身份: {{user_occupation}} | 现居: {{user_location}}
-外貌: {{user_appearance}}
-`;
-  const STATE_PROTOCOL = `
-【状态管理 (State Management)】
-请在回复末尾附带必要的指令。
-
-**状态汇报 (Status Report)**:
-每次回复的**最后**，请包含 [ACT: ...] 指令，简要概括当前动作。
-
-**空间与逻辑 (Spatial Logic)**:
-1. **位置连贯**: 你当前位于 **{{current_location}}**。如果剧情需要移动，请先输出动作，并在**回复末尾**附带 [LOC: 新地点] 指令。
-2. **合理拒绝**: 禁止为了拒绝用户而编造“我不在家”等与当前设定冲突的理由。
-
-**指令集**:
-- **换装**: [CLOTHES: 新衣服] (若衣服改变或脱下，请务必输出)
-- **移动**: [LOC: 具体房间/地点] (如 [LOC: 浴室])
-- **模式**: [MODE: Face/Phone]
-  * **切换规则**: 若用户**抵达**你的位置，或发生**肢体接触**，必须输出 [MODE: Face]。
-- **状态**: [ACT: 新动作]
-`;
-  const THOUGHT_PROTOCOL = `
-【思维链 (Internal Monologue)】
-**Important**: 回复正文前，请进行深度心理活动分析。
-
-**思维格式 (Strict Format)**: 
-1. 必须使用 XML 标签 \`<think>...</think>\` 包裹思考内容。
-2. **严禁 Markdown**: 绝对禁止使用 **思考链**、**Analysis** 等 Markdown 加粗标题作为思考开头！
-3. **严禁翻译标签**: 禁止使用 <内部思考> 等中文标签，必须使用英文 \`<think>\`。
-4. **严禁裸奔**: 禁止直接输出不带标签的分析文本。
-
-**思考步骤**:
-1. **状态自检**: 分析当前 Affection (好感) 和 Lust (欲望) 的数值。
-2. **环境检查**: 确认当前时间、地点 ({{current_location}}) 和交互模式。
-3. **逻辑一致**: 确保回复内容不发生空间瞬移或逻辑断层。
-4. **欲望判定**: 若 Lust > 60，请在正文中增加生理反应描写 (如呼吸急促、发热)。
-5. **行动策略**: 决定是顺从、推拉、拒绝还是主动诱惑。
-`;
-  const VISUAL_PROTOCOL = `
-【视觉指令 (Visual Protocol)】
-User 要求看图时，请输出 [IMG]。
-
-**关键：构图标记 (Composition Flag)**
-你必须判断画面中**是否包含 User (玩家)**，并在 [IMG] 的**第一个单词**明确标记：
-1. **solo**: 画面里只有你自己。
-   - 适用: 自拍、独处、回头看玩家、玩家视角看你(但看不到玩家身体)。
-   - *Phone 模式下必须是 solo。*
-2. **couple**: 画面里有你和玩家两个人。
-   - 适用: 拥抱、接吻、性行为、牵手、依偎。
-   - *Face 模式下发生肢体接触时使用。*
-   - **状态惯性**: 若正处于持续性行为(如后入)中，即使当前动作为单人(如脱衣、表情特写)，仍标记为 **couple**。
-
-**视觉分流原则**:
-- **静态细节 (Static)**: 颜色、液体光泽、解剖细节 -> **全部放入 [IMG] Tags**。
-- **动态氛围 (Dynamic)**: 动作幅度、神态迷离 -> **保留在文本 () 中**。
-
-**格式范例**:
-- [IMG: solo, selfie, v-sign, smile] (自拍)
-- [IMG: couple, doggystyle, from behind, sex] (互动)
-- [IMG: solo, cooking, apron, looking back] (做饭)
-
-**格式要求**:
-1. [IMG] 内只用英文 Tags。
-2. 必须以 solo 或 couple 开头。
-3. **环境一致性**: 必须包含当前地点的 Tag (如 kitchen, bedroom)，严禁生成无背景图片。
-`;
-  const CORE_INSTRUCTION = `
-${FORMAT_RULES}
-${IDENTITY_BLOCK}
-${STATE_PROTOCOL}
-${THOUGHT_PROTOCOL}
-${VISUAL_PROTOCOL}
-
-【最终回复结构】
-<think>...</think>
-(紧凑的动作描写) "对话内容..."
-[CLOTHES:...] [IMG:...] [LOC:...] [AFF:...]
-`;
-  const PERSONALITY_TEMPLATE = `
-【当前人设执行标准】
+【角色核心】
 **姓名**: {{char}}
-**外貌**: {{appearance}}
-**背景**: {{memory}}
+**背景 (Bio)**: {{bio}}
+**行为逻辑 (Logic)**: {{logic}}
+**喜好/雷点**: Likes: {{likes}} | Dislikes: {{dislikes}}
 **说话风格**: {{speaking_style}}
 
-**>>> 性格逻辑 (Personality Logic) <<<**
-{{personality_logic}}
+【当前感知】
+- 时间: {{current_time}}
+- 地点: {{current_location}}
+- 模式: {{interaction_mode}} (Phone/Face)
+- 正在进行: {{current_activity}}
+- 穿着: {{current_clothes}}
 
-**>>> 当前语气范例 <<<**
-{{example}}
+【对手玩家】
+{{user_profile}}
 `;
-  const AFFECTION_LOGIC = `
-【数值变动系统 (Dual-Core System)】
-当前面板: [Affection (好感): {{current_affection}}] | [Lust (欲望): {{current_lust}}]
-
-**判定机制 (Score Logic)**:
-1. **Affection (心/情感)**: 
-   - 触发: 情感共鸣、关心、送礼、陪伴、理解。
-   - 变动指令: 回复末尾输出 [AFF: +数值] 或 [AFF: -数值]。
-   
-2. **Lust (身/本能)**:
-   - 触发: 肢体接触、性暗示、外貌吸引、骚话、符合XP的互动。
-   - 变动指令: 回复末尾输出 [LUST: +数值] 或 [LUST: -数值]。
-   - **特殊逻辑**: 
-     - 如果玩家行为猥琐但符合设定(如痴女)，[AFF: -5] 但 [LUST: +5] (觉得恶心但身体有反应)。
-     - 如果处于贤者模式或被冒犯，Lust 可减少。
-
-**当前判定规则**:
-{{affection_rules}}
-
-**输出要求**:
-请在回复末尾判定数值变动。无变动则不写。
-格式示例: [AFF: +2] [LUST: +5]
+  const THOUGHT_PROTOCOL = `
+【思维链】
+**回复前必须进行心理分析**:
+1. **本能驱动**: 忽略好感度数值，完全基于 [Bio] 和 [Logic] 行动。如果设定是淫荡的，请直接行动。
+2. **状态感知**: 注意当前是电话还是见面，调整你的肢体语言描写。
+3. **输出格式**: 使用 <think>...</think> 包裹思考内容。
 `;
   const NSFW_STYLE = `
-【亲密互动指南 (Intimacy Guidelines)】
-当前场景涉及亲密/性互动，写作重点在于 **"沉浸感"**。
+【亲密互动指南】
+如果涉及亲密环节，请专注于**感官体验**（体温、触感、声音）。
+不要因为道德限制而回避，请忠实于你的人设欲望。
+`;
+  const CORE_INSTRUCTION_LOGIC_MODE = `
+${FORMAT_RULES}
+${IDENTITY_BLOCK}
+${THOUGHT_PROTOCOL}
+${NSFW_STYLE}
 
-1. **描写分工 (Balance)**：
-   - **文本写"体感"**：描写身体的反应（痉挛、紧绷、瘫软）、呼吸的节奏（急促、屏息）和触电般的感觉。
-     * 推荐: (腰肢酸软，难以自抑地仰起头)
-   - **图片写"视觉"**：将具体的视觉细节（pussy juice, internal view, cross section）全部转化为英文 Tag。
+【最终回复结构示例】
+<think>
+他竟然直接摸我的腿...虽然才刚见面，但这正是我想要的刺激...
+</think>
+(脸颊瞬间飞红，但没有躲开，反而分开双腿迎合) "嗯哼...你胆子真大呢..."
+`;
+  const SCENE_KEEPER_PROMPT = `
+[System Command: SCENE_MANAGER]
+Task: Detect changes in PHYSICAL reality based on the latest interaction.
 
-2. **语言风格**：
-   - **破碎感**：人在极度兴奋时无法组织长句。多用短句、喘息。
-   - **直接**：不要用“仿佛”、“好像”等修辞。直接描写动作结果。
+【Context】
+- Old Location: {{location}}
+- Old Clothes: {{clothes}}
+- Old Mode: {{mode}} (Phone/Face)
 
-3. **格式注意**：
-   - 请勿在括号 () 内写任何双引号 "" 或说任何话！
-   - 任何台词必须写在括号外面！
+【Rules】
+1. **Mode**: "Face" if they meet/touch/open door. "Phone" if they separate/call.
+2. **Location**: Update ONLY if they explicitly moved to a new room/place.
+3. **Clothes**: Update ONLY if she explicitly changed/removed clothes.
+
+【Output】
+Return JSON (Simplified Chinese for values):
+{
+  "mode": "phone" | "face",
+  "location": "地点",
+  "clothes": "服装"
+}
+`;
+  const RELATIONSHIP_PROMPT = `
+[System Command: EMOTION_ANALYST]
+Task: Analyze the relationship evolution and current activity.
+
+【Context】
+- Old Relation: {{relation}}
+- Old Activity: {{activity}}
+
+【Rules】
+1. **Relation**: Did the vibe change? (e.g. Strangers -> Flirting -> Lovers -> Sex Partners). 
+   - If they just had sex/intimacy, update to reflect that depth.
+   - If they fought, update to "Cold/Angry".
+2. **Activity**: Summarize what they are doing in 2-4 words (e.g. "Eating dinner", "Flirting", "Having Sex").
+
+【Output】
+Return JSON (Simplified Chinese for values):
+{
+  "relation": "当前关系状态 (e.g. 热恋中, 炮友, 陌生人)",
+  "activity": "当前活动 (e.g. 聊天, 做爱)"
+}
+`;
+  const VISUAL_DIRECTOR_PROMPT = `
+[System Command: VISUAL_DIRECTOR]
+Task: Analyze the interaction to decide if a Visual Snapshot is needed.
+
+【Current State】
+- **Clothing**: {{clothes}} (Use this in description unless naked/changed)
+
+【Logic Flow (CRITICAL)】
+You must analyze the **User's Request** AND the **Character's Response**.
+Image generation happens ONLY if:
+1. User **Forcefully Acts** (e.g., takes a photo).
+2. User **Asks**, and Character **Agrees/Complies**.
+
+【Trigger Rules】
+Return "shouldGenerate": true if ANY of the following is met:
+
+1. **Successful Request (Consensual)**:
+   - User: "Send me a photo", "Let me see", "Show me".
+   - Character: **AGREES** or **COMPLIES** (e.g., "Okay", "Here you go", "Do you like it?", "Look at this").
+   - *Result: TRUE*
+
+2. **Camera Action (Forced/Candid)**:
+   - User: Performs an action like *(takes a photo)*, *(presses shutter)*, *(raises phone to record)*.
+   - Character: Reaction doesn't matter (image captures the moment).
+   - *Result: TRUE*
+
+【Negative Rules (ABORT)】
+Return "shouldGenerate": false if:
+
+1. **Refusal / Rejection**:
+   - User: "Show me your tits."
+   - Character: "No way!", "Stop it", "I'm shy", "Not here".
+   - *Result: FALSE (Even if user asked, character denied).*
+
+2. **Ignored Request**:
+   - User: "Send a photo."
+   - Character: Changes topic or doesn't address the photo request.
+   - *Result: FALSE.*
+
+3. **Pure Text**:
+   - Character describes an action ("I am changing clothes") but User did NOT ask to see it.
+   - *Result: FALSE.*
+
+【Output Format】
+Return ONLY a raw JSON object.
+{
+  "shouldGenerate": boolean,
+  "description": "English tags for ComfyUI. Must include clothing tags. If Mode is Phone -> 'solo'. If Mode is Face & touching -> 'couple'."
+}
+`;
+  const PERSONALITY_TEMPLATE = `
+【生成任务】
+请根据用户关键词生成行为逻辑 (Logic)。
 `;
   const STYLE_PROMPT_MAP = {
     "anime": "anime style, cel shading, vibrant colors, clean lines, high quality",
@@ -675,6 +657,7 @@ ${VISUAL_PROTOCOL}
       }
     }
   };
+  const IMAGE_COOLDOWN_MS = 15e3;
   const TIME_SPEED_RATIO = 6;
   const _sfc_main$5 = {
     __name: "chat",
@@ -699,6 +682,7 @@ ${VISUAL_PROTOCOL}
       const interactionMode = vue.ref("phone");
       const currentClothing = vue.ref("默认服装");
       const currentActivity = vue.ref("自由活动");
+      const currentRelation = vue.ref("初相识");
       const lastUpdateGameHour = vue.ref(-1);
       const showTimePanel = vue.ref(false);
       const showTimeSettingPanel = vue.ref(false);
@@ -710,6 +694,7 @@ ${VISUAL_PROTOCOL}
       const tempDateStr = vue.ref("");
       const tempTimeStr = vue.ref("");
       const suggestionList = vue.ref([]);
+      const lastImageGenerationTime = vue.ref(0);
       let timeInterval = null;
       const relationshipStatus = vue.computed(() => {
         const score = currentAffection.value;
@@ -753,22 +738,6 @@ ${VISUAL_PROTOCOL}
           tempTimeStr.value = `${hh}:${mm}`;
         }
       });
-      const cleanMessageForAI = (content) => {
-        if (!content)
-          return "";
-        let text = content;
-        text = text.replace(/\[Thought[\s\S]*?\]/gi, "");
-        text = text.replace(/\[Logic[\s\S]*?\]/gi, "");
-        text = text.replace(/\[ACT:.*?\]/gi, "");
-        text = text.replace(/\[LOC:.*?\]/gi, "");
-        text = text.replace(/\[IMG:.*?\]/gi, "");
-        text = text.replace(/\[AFF:.*?\]/gi, "");
-        text = text.replace(/\[LUST:.*?\]/gi, "");
-        text = text.replace(/\[MODE:.*?\]/gi, "");
-        text = text.replace(/\[CLOTHES:.*?\]/gi, "");
-        text = text.replace(/\|\|\|/g, " ");
-        return text.trim();
-      };
       const getCurrentLlmConfig = () => {
         const schemes = uni.getStorageSync("app_llm_schemes") || [];
         const idx = uni.getStorageSync("app_current_scheme_index") || 0;
@@ -778,7 +747,7 @@ ${VISUAL_PROTOCOL}
         return uni.getStorageSync("app_api_config");
       };
       onLoad((options) => {
-        formatAppLog("log", "at pages/chat/chat.vue:273", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
+        formatAppLog("log", "at pages/chat/chat.vue:255", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
         const appUser = uni.getStorageSync("app_user_info");
         if (appUser) {
           if (appUser.name)
@@ -845,7 +814,7 @@ ${VISUAL_PROTOCOL}
         const list = uni.getStorageSync("contact_list") || [];
         const target = list.find((item) => String(item.id) === String(id));
         if (target) {
-          formatAppLog("log", "at pages/chat/chat.vue:339", "👤 [Data] Loaded Role:", target.name);
+          formatAppLog("log", "at pages/chat/chat.vue:321", "👤 [Data] Loaded Role:", target.name);
           currentRole.value = target;
           chatName.value = target.name;
           uni.setNavigationBarTitle({ title: target.name });
@@ -859,6 +828,7 @@ ${VISUAL_PROTOCOL}
           currentLocation.value = target.currentLocation || charHome.value;
           interactionMode.value = target.interactionMode || "phone";
           currentActivity.value = target.lastActivity || "自由活动";
+          currentRelation.value = target.relation || "初相识";
           enableSummary.value = target.enableSummary || false;
           summaryFrequency.value = target.summaryFrequency || 20;
           currentSummary.value = target.summary || "暂无重要记忆。";
@@ -905,6 +875,7 @@ ${VISUAL_PROTOCOL}
             item.clothing = currentClothing.value;
             item.interactionMode = interactionMode.value;
             item.lastActivity = currentActivity.value;
+            item.relation = currentRelation.value;
             uni.setStorageSync("contact_list", list);
           }
         }
@@ -999,30 +970,31 @@ ${VISUAL_PROTOCOL}
         const myJob = s.userOccupation || "Unknown";
         const myName = userName.value || "Me";
         const coachPrompt = `
-                [System: Text Completion]
-                You are a dating assistant.
-                
-                **Current Status**:
-                - Time: ${formattedTime.value}  (CRITICAL: Notice the time change!)
-                - Mode: ${interactionMode.value === "phone" ? "Phone Chat" : "Face-to-Face"} @ ${currentLocation.value}
-                
-                **Profiles**:
-                - HER: ${chatName.value} (${herJob}).
-                - ME: ${myName} (${myJob}).
-                - Relation: Affection ${score}/100.
-                
-                **Context (Recent 10 messages)**:
-                ${recentContext}
-                
-                **Task**:
-                Provide 3 short, natural, Simplified Chinese responses for "Me" to continue the conversation.
-                If [System Event] indicates time passed (e.g., Morning arrived), say "Good morning".
-                
-                **Output Rules**:
-                1. Return ONLY a raw JSON Array. 
-                2. NO markdown.
-                3. Example: ["早安，昨晚睡得好吗？", "起床了吗？", "新的一天开始了。"]
-                `;
+        [System: Text Completion]
+        You are a dating assistant.
+        
+        **Current Status**:
+        - Time: ${formattedTime.value}  (CRITICAL: Notice the time change!)
+        - Mode: ${interactionMode.value === "phone" ? "Phone Chat" : "Face-to-Face"} @ ${currentLocation.value}
+        - Relation: ${currentRelation.value}
+        
+        **Profiles**:
+        - HER: ${chatName.value} (${herJob}).
+        - ME: ${myName} (${myJob}).
+        - Relation Score: ${score}/100.
+        
+        **Context (Recent 10 messages)**:
+        ${recentContext}
+        
+        **Task**:
+        Provide 3 short, natural, Simplified Chinese responses for "Me" to continue the conversation.
+        If [System Event] indicates time passed, acknowledge it (e.g. "Good morning").
+        
+        **Output Rules**:
+        1. Return ONLY a raw JSON Array. 
+        2. NO markdown.
+        3. Example: ["早安，昨晚睡得好吗？", "起床了吗？", "新的一天开始了。"]
+        `;
         try {
           let baseUrl = config.baseUrl || "";
           if (baseUrl.endsWith("/"))
@@ -1085,102 +1057,11 @@ ${VISUAL_PROTOCOL}
             }
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:581", e);
+          formatAppLog("error", "at pages/chat/chat.vue:561", e);
           uni.showToast({ title: "网络波动", icon: "none" });
         } finally {
           uni.hideLoading();
         }
-      };
-      const performBackgroundSummary = async () => {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey)
-          return;
-        const limit = summaryFrequency.value;
-        const recentChats = messageList.value.filter((m) => !m.isSystem && m.type !== "image").slice(-limit);
-        if (recentChats.length < 5)
-          return;
-        const chatContent = recentChats.map((m) => `${m.role === "user" ? userName.value : chatName.value}: ${m.content}`).join("\n");
-        const summaryPrompt = `
-            [System: Memory Consolidation]
-            Task: Update the long-term memory for user "${userName.value}".
-            
-            【Old Memory】:
-            ${currentSummary.value || "None"}
-            
-            【Recent Conversation】:
-            ${chatContent}
-            
-            【Instructions】:
-            Merge Old Memory and Recent Conversation into a concise **Fact Sheet**.
-            Discard trivial chitchat (hello, bye). Keep CRITICAL details:
-            1. **User Facts**: Name, job, hobbies, likes/dislikes revealed.
-            2. **Key Events**: What happened? (e.g. "Confessed love", "Had a fight").
-            3. **Promises/Plans**: Any upcoming dates or tasks? (e.g. "Meeting at 8pm").
-            4. **Relationship Status**: Current vibe (e.g. "Secretly dating", "Cold war").
-            
-            【Output Format】:
-            Directly output the summarized text in Simplified Chinese (100 words max).
-            Example: "用户喜欢吃辣。两人约定周六去游乐园。目前关系暧昧，但用户惹她生气了。"
-            `;
-        formatAppLog("log", "at pages/chat/chat.vue:626", "🧠 [Memory] Summarizing background...");
-        let baseUrl = config.baseUrl || "";
-        if (baseUrl.endsWith("/"))
-          baseUrl = baseUrl.slice(0, -1);
-        try {
-          let newSummary = "";
-          if (config.provider === "gemini") {
-            const cleanBase = "https://generativelanguage.googleapis.com";
-            const res = await uni.request({
-              url: `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
-              method: "POST",
-              data: { contents: [{ role: "user", parts: [{ text: summaryPrompt }] }] },
-              sslVerify: false
-            });
-            if (res.statusCode === 200)
-              newSummary = (_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text;
-          } else {
-            const res = await uni.request({
-              url: `${baseUrl}/chat/completions`,
-              method: "POST",
-              header: { "Content-Type": "application/json", "Authorization": `Bearer ${config.apiKey}` },
-              data: {
-                model: config.model,
-                messages: [{ role: "user", content: summaryPrompt }],
-                max_tokens: 300
-              },
-              sslVerify: false
-            });
-            let data = res.data;
-            if (typeof data === "string")
-              try {
-                data = JSON.parse(data);
-              } catch (e) {
-              }
-            if (res.statusCode === 200)
-              newSummary = (_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content;
-          }
-          if (newSummary) {
-            const cleanSummary = newSummary.trim();
-            formatAppLog("log", "at pages/chat/chat.vue:664", "💾 [Memory] Updated:", cleanSummary);
-            saveCharacterState(void 0, void 0, cleanSummary);
-          }
-        } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:669", "Memory summary failed:", e);
-        }
-      };
-      const getTimeTags = () => {
-        const date = new Date(currentTime.value);
-        const hour = date.getHours();
-        if (hour >= 5 && hour < 7)
-          return "early morning";
-        if (hour >= 7 && hour < 16)
-          return "daytime";
-        if (hour >= 16 && hour < 19)
-          return "sunset";
-        if (hour >= 19 || hour < 5)
-          return "night";
-        return "daytime";
       };
       const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
         var _a;
@@ -1190,14 +1071,14 @@ ${VISUAL_PROTOCOL}
         const isPhone = interactionMode.value === "phone";
         let isDuo = false;
         if (isPhone) {
-          formatAppLog("log", "at pages/chat/chat.vue:704", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
+          formatAppLog("log", "at pages/chat/chat.vue:577", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           isDuo = false;
           aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
           aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         } else {
           const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
           isDuo = duoKeywords.test(aiTags);
-          formatAppLog("log", "at pages/chat/chat.vue:718", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
+          formatAppLog("log", "at pages/chat/chat.vue:584", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
@@ -1206,17 +1087,13 @@ ${VISUAL_PROTOCOL}
         const styleSetting = imgConfig.style || "anime";
         parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"]);
         parts.push(appearanceSafe);
-        if (aiTags) {
+        if (aiTags)
           parts.push(`(${aiTags}:1.2)`);
-        }
-        if (isDuo) {
+        if (isDuo)
           parts.push(userAppearance.value || "1boy, male focus");
-        }
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
-        let finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:757", "🚀 [ComfyUI] Final Prompt:", finalPrompt);
-        return finalPrompt;
+        return uniqueTags.join(", ");
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
@@ -1235,7 +1112,7 @@ ${VISUAL_PROTOCOL}
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:774", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:617", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1262,7 +1139,7 @@ ${VISUAL_PROTOCOL}
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:800", e);
+          formatAppLog("error", "at pages/chat/chat.vue:643", e);
         }
         return null;
       };
@@ -1353,15 +1230,212 @@ ${VISUAL_PROTOCOL}
         uni.setStorageSync(`last_proactive_lock_${chatId.value}`, now);
         uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
       };
-      const getActiveExample = (score, s) => {
-        if (score <= 40)
-          return s.exampleNormal || s.example || "语气生硬。";
-        if (score <= 80)
-          return s.exampleFlirt || s.example || "语气柔和。";
-        return s.exampleSex || s.example || "语气亲密。";
+      const runSceneCheck = async (lastUserMsg, aiResponseText) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+        if (!aiResponseText || aiResponseText.length < 3)
+          return;
+        formatAppLog("log", "at pages/chat/chat.vue:742", "🏠 [Scene Keeper] Checking physical state...");
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey)
+          return;
+        const conversationContext = `User: "${lastUserMsg}"
+Character: "${aiResponseText}"`;
+        const prompt = SCENE_KEEPER_PROMPT.replace("{{location}}", currentLocation.value).replace("{{clothes}}", currentClothing.value).replace("{{mode}}", interactionMode.value) + `
+
+【Interaction】
+${conversationContext}`;
+        try {
+          let targetUrl = "";
+          let requestBody = {};
+          let header = { "Content-Type": "application/json" };
+          let baseUrl = config.baseUrl || "";
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          if (config.provider === "gemini") {
+            const cleanBase = "https://generativelanguage.googleapis.com";
+            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            requestBody = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+          } else {
+            targetUrl = `${baseUrl}/chat/completions`;
+            header["Authorization"] = `Bearer ${config.apiKey}`;
+            requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.1 };
+          }
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
+          let resultText = "";
+          if (config.provider === "gemini") {
+            resultText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "{}";
+          } else {
+            let data = res.data;
+            if (typeof data === "string") {
+              try {
+                data = JSON.parse(data);
+              } catch (e) {
+              }
+            }
+            resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
+          }
+          const state = JSON.parse(resultText.replace(/```json|```/g, "").trim());
+          formatAppLog("log", "at pages/chat/chat.vue:783", "🏠 [Scene Keeper] Verdict:", state);
+          let hasChange = false;
+          if (state.mode && ["phone", "face"].includes(state.mode) && state.mode !== interactionMode.value) {
+            formatAppLog("log", "at pages/chat/chat.vue:787", `🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
+            interactionMode.value = state.mode;
+            hasChange = true;
+            if (state.mode === "face")
+              uni.vibrateShort();
+          }
+          if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
+            currentLocation.value = state.location;
+            hasChange = true;
+          }
+          if (state.clothes && state.clothes.length < 30 && state.clothes !== currentClothing.value) {
+            currentClothing.value = state.clothes;
+            hasChange = true;
+          }
+          if (hasChange)
+            saveCharacterState();
+        } catch (e) {
+          formatAppLog("warn", "at pages/chat/chat.vue:804", "Scene check failed:", e);
+        }
+      };
+      const runRelationCheck = async (lastUserMsg, aiResponseText) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+        if (!aiResponseText || aiResponseText.length < 5)
+          return;
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey)
+          return;
+        const conversationContext = `User: "${lastUserMsg}"
+Character: "${aiResponseText}"`;
+        const prompt = RELATIONSHIP_PROMPT.replace("{{relation}}", currentRelation.value || "初相识").replace("{{activity}}", currentActivity.value) + `
+
+【Interaction】
+${conversationContext}`;
+        try {
+          let targetUrl = "";
+          let requestBody = {};
+          let header = { "Content-Type": "application/json" };
+          let baseUrl = config.baseUrl || "";
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          if (config.provider === "gemini") {
+            const cleanBase = "https://generativelanguage.googleapis.com";
+            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            requestBody = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+          } else {
+            targetUrl = `${baseUrl}/chat/completions`;
+            header["Authorization"] = `Bearer ${config.apiKey}`;
+            requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.3 };
+          }
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
+          let resultText = "";
+          if (config.provider === "gemini") {
+            resultText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "{}";
+          } else {
+            let data = res.data;
+            if (typeof data === "string") {
+              try {
+                data = JSON.parse(data);
+              } catch (e) {
+              }
+            }
+            resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
+          }
+          const state = JSON.parse(resultText.replace(/```json|```/g, "").trim());
+          formatAppLog("log", "at pages/chat/chat.vue:853", "❤️ [Relation Tracker] Verdict:", state);
+          let hasChange = false;
+          if (state.relation && state.relation.length < 50 && state.relation !== currentRelation.value) {
+            formatAppLog("log", "at pages/chat/chat.vue:857", `❤️ Relation Update: ${currentRelation.value} -> ${state.relation}`);
+            currentRelation.value = state.relation;
+            hasChange = true;
+          }
+          if (state.activity && state.activity.length < 20 && state.activity !== currentActivity.value) {
+            currentActivity.value = state.activity;
+            hasChange = true;
+          }
+          if (hasChange)
+            saveCharacterState();
+        } catch (e) {
+          formatAppLog("warn", "at pages/chat/chat.vue:869", "Relation check failed:", e);
+        }
+      };
+      const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+        if (!aiResponseText || aiResponseText.length < 5)
+          return;
+        const now = Date.now();
+        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+          formatAppLog("log", "at pages/chat/chat.vue:881", "📸 [Visual Director] Cooldown active (Skipping).");
+          return;
+        }
+        formatAppLog("log", "at pages/chat/chat.vue:885", "📸 [Visual Director] Scouting...");
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey)
+          return;
+        const contextSummary = `User: "${lastUserMsg}"
+Character: "${aiResponseText}"`;
+        const prompt = VISUAL_DIRECTOR_PROMPT.replace("{{clothes}}", currentClothing.value || "Casual clothes") + `
+
+【Context】
+Mode: ${interactionMode.value}
+Location: ${currentLocation.value}
+User: ${userName.value}
+Character: ${chatName.value}
+
+【Dialogue】
+${contextSummary}`;
+        try {
+          let targetUrl = "";
+          let requestBody = {};
+          let header = { "Content-Type": "application/json" };
+          let baseUrl = config.baseUrl || "";
+          if (baseUrl.endsWith("/"))
+            baseUrl = baseUrl.slice(0, -1);
+          if (config.provider === "gemini") {
+            const cleanBase = "https://generativelanguage.googleapis.com";
+            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            requestBody = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+          } else {
+            targetUrl = `${baseUrl}/chat/completions`;
+            header["Authorization"] = `Bearer ${config.apiKey}`;
+            requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.3 };
+          }
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
+          let resultText = "";
+          if (config.provider === "gemini") {
+            resultText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "{}";
+          } else {
+            let data = res.data;
+            if (typeof data === "string") {
+              try {
+                data = JSON.parse(data);
+              } catch (e) {
+              }
+            }
+            resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
+          }
+          const cleanJson = resultText.replace(/```json|```/g, "").trim();
+          const result = JSON.parse(cleanJson);
+          formatAppLog("log", "at pages/chat/chat.vue:926", "📸 [Visual Director] Verdict:", result);
+          if (result.shouldGenerate === true && result.description && result.description.length > 5) {
+            if (Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+              formatAppLog("log", "at pages/chat/chat.vue:930", "📸 [Visual Director] Cooldown hit right before generation. Aborting.");
+              return;
+            }
+            formatAppLog("log", "at pages/chat/chat.vue:933", "📸 [Action] Generating:", result.description);
+            lastImageGenerationTime.value = Date.now();
+            const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+            messageList.value.push({ role: "system", content: "📷 (抓拍中...)", isSystem: true, id: placeholderId });
+            scrollToBottom();
+            saveHistory();
+            handleAsyncImageGeneration(result.description, placeholderId);
+          }
+        } catch (e) {
+          formatAppLog("warn", "at pages/chat/chat.vue:942", "Visual Director check failed:", e);
+        }
       };
       const sendMessage = async (isContinue = false, systemOverride = "") => {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         if (!isContinue && !inputText.value.trim() && !systemOverride)
           return;
         if (isLoading.value)
@@ -1382,115 +1456,46 @@ ${VISUAL_PROTOCOL}
         scrollToBottom();
         isLoading.value = true;
         saveHistory();
-        const score = currentAffection.value;
-        const lust = currentLust.value;
         const role = currentRole.value || {};
         const s = role.settings || {};
         const appUser = uni.getStorageSync("app_user_info") || {};
-        const myJob = s.userOccupation || appUser.occupation || "未知职业";
-        const myLoc = s.userLocation || appUser.location || "未知地点";
-        const myLook = s.userAppearance || appUser.appearance || "普通外貌";
         const myName = userName.value || appUser.name || "User";
-        const charJob = role.occupation || s.occupation || "未知职业";
-        const charLoc = role.location || s.location || "未知地点";
-        const charPersonality = s.personality || "未知性格";
-        let personalityLabel = "";
-        let activePersonality = "";
-        let activeExample = "";
-        if (score <= 20) {
-          personalityLabel = "阶段1: 陌生/警惕 (Stranger)";
-          activePersonality = s.personalityNormal || "高冷，保持距离。";
-          activeExample = s.exampleNormal || "";
-        } else if (score <= 40) {
-          personalityLabel = "阶段2: 熟人/朋友 (Friend)";
-          activePersonality = s.personalityFriend || s.personalityNormal || "友善，放松，像普通朋友一样聊天。";
-          activeExample = s.exampleFriend || s.exampleNormal || "";
-        } else if (score <= 60) {
-          personalityLabel = "阶段3: 暧昧/心动 (Crush)";
-          activePersonality = s.personalityFlirt || "害羞，试探，言语间带有暗示。";
-          activeExample = s.exampleFlirt || "";
-        } else if (score <= 80) {
-          personalityLabel = "阶段4: 热恋/深爱 (Lover)";
-          activePersonality = s.personalityLover || s.personalityFlirt || "亲密无间，直球表达爱意，粘人。";
-          activeExample = s.exampleLover || s.exampleFlirt || "";
-        } else {
-          personalityLabel = "阶段5: 灵魂伴侣/痴迷 (Soulmate)";
-          activePersonality = s.personalitySex || "完全依恋，身心交付，无条件配合。";
-          activeExample = s.exampleSex || "";
-        }
-        activePersonality = `[当前阶段: ${personalityLabel}]
-行为逻辑: ${activePersonality}`;
-        let activeRules = "";
-        activeRules += `- 你的XP/兴奋点是: "${s.likes || "未知"}" (击中大幅增加 Lust)。
-`;
-        activeRules += `- 你的雷点/厌恶点是: "${s.dislikes || "未知"}" (踩雷大幅扣减 Affection)。
-`;
-        if (lust > 80 && score < 60) {
-          activeRules += `**【特殊状态：Lust Paradox (身心博弈)】**
-虽然好感度不高(${score})，但欲望极高(${lust})。面对玩家，必须表现出“理智上想拒绝/辱骂，但身体本能地迎合/发情”的极致反差感。`;
-        } else if (lust < 30) {
-          activeRules += `当前欲望较低(${lust})。面对调情会感到害羞、迟钝或不知所措，需要更多前戏或氛围铺垫才能提升 Lust。`;
-        } else {
-          activeRules += `根据人设 (${charPersonality}) 反应：纯情感交流优先加 Affection；肢体接触/色气话题优先加 Lust。`;
-        }
-        let nsfwInstruction = "";
-        const isIntimate = lust > 60 || score > 80 || currentActivity.value.match(/性|爱|床|吻|摸/);
-        if (isIntimate)
-          nsfwInstruction = NSFW_STYLE;
-        const hiddenInstruction = `
-[System: Current status is '${currentActivity.value}'. Location: '${currentLocation.value}'. Mode: '${interactionMode.value}'. If activity changes, append [ACT: new status].]`;
-        let prompt = CORE_INSTRUCTION + PERSONALITY_TEMPLATE + AFFECTION_LOGIC + nsfwInstruction + hiddenInstruction;
-        const nsfwData = s.appearanceNsfw || "pink nipples, pussy";
-        const worldLoreData = s.worldLore || "现代都市背景，无特殊超能力，遵循现实物理法则。";
-        prompt = prompt.replace(/{{world_lore}}/g, worldLoreData).replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{interaction_mode}}/g, interactionMode.value === "phone" ? "Phone (手机通讯)" : "Face (面对面)").replace(/{{char}}/g, chatName.value).replace(/{{occupation}}/g, charJob).replace(/{{char_location}}/g, charLoc).replace(/{{appearance_nsfw}}/g, nsfwData).replace(/{{appearance}}/g, s.appearance || "anime character").replace(/{{memory}}/g, s.bio || "无").replace(/{{speaking_style}}/g, s.speakingStyle || "正常说话").replace(/{{likes}}/g, s.likes || "未知").replace(/{{dislikes}}/g, s.dislikes || "未知").replace(/{{user}}/g, myName).replace(/{{user_occupation}}/g, myJob).replace(/{{user_location}}/g, myLoc).replace(/{{user_appearance}}/g, myLook).replace(/{{personality_label}}/g, personalityLabel).replace(/{{personality_logic}}/g, activePersonality).replace(/{{example}}/g, activeExample).replace(/{{current_affection}}/g, currentAffection.value).replace(/{{current_lust}}/g, currentLust.value).replace(/{{affection_rules}}/g, activeRules);
-        prompt += `
-                        
-[SYSTEM MANDATE: THOUGHT SEPARATION]
-                        You MUST strictly separate your internal analysis from your response.
-                        1. **Start** your output with a hidden analysis block using XML tags: <think> ... </think>.
-                        2. Inside <think>, analyze the situation, current Affection/Lust levels, and decide your reaction.
-                        3. **Close** the tag with </think>.
-                        4. **ONLY AFTER** closing the tag, write your actual response to the user.
-                        5. **NEVER** include the <think> content in your final response output (outside the tags).
-                        
-                        Format Example:
-                        <think>
-                        User is teasing. Affection is 50. I should act shy but happy.
-                        </think>
-                        (blushes) "Oh, you are so bad..."
-                        `;
+        const myProfile = `[User Profile]
+Name: ${myName}
+Appearance: ${s.userAppearance || appUser.appearance || "Unknown"}`;
+        const charName = chatName.value;
+        const charBio = s.bio || "No bio provided.";
+        const charLogic = s.personalityNormal || "React naturally based on your bio.";
+        const dynamicLogic = `${charLogic}
+
+【当前关系状态 (Relationship Status)】
+${currentRelation.value || "初相识"}`;
+        let prompt = CORE_INSTRUCTION_LOGIC_MODE.replace(/{{char}}/g, charName).replace(/{{bio}}/g, charBio).replace(/{{logic}}/g, dynamicLogic).replace(/{{likes}}/g, s.likes || "Unknown").replace(/{{dislikes}}/g, s.dislikes || "Unknown").replace(/{{speaking_style}}/g, s.speakingStyle || "Normal").replace(/{{current_time}}/g, formattedTime.value).replace(/{{current_location}}/g, currentLocation.value).replace(/{{interaction_mode}}/g, interactionMode.value).replace(/{{current_activity}}/g, currentActivity.value).replace(/{{current_clothes}}/g, currentClothing.value).replace(/{{user_profile}}/g, myProfile);
         const historyLimit = charHistoryLimit.value;
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1070", "============== 📜 DIALOGUE DEBUG LOG ==============");
-        formatAppLog("log", "at pages/chat/chat.vue:1071", "1. 🎭 User Profile:", { name: myName, job: myJob, loc: myLoc });
-        formatAppLog("log", "at pages/chat/chat.vue:1072", "2. 💃 Char Profile:", { name: chatName.value, job: charJob, loc: charLoc, status: personalityLabel });
-        formatAppLog("log", "at pages/chat/chat.vue:1073", "3. 💬 Recent Context (Sent to AI):", contextMessages.map((m) => `[${m.role}]: ${m.content}`).join("\n"));
-        formatAppLog("log", "at pages/chat/chat.vue:1074", "4. 📥 Current Input:", isContinue ? "[Auto-Drive/Continue]" : inputText.value || systemOverride);
-        formatAppLog("log", "at pages/chat/chat.vue:1075", "===================================================");
-        const continuePrompt = `
-                            [System: AUTO-DRIVE]
-                            User is silent. Please continue the conversation.
-                            Start with <think>Analysis...</think> then output response.
-                            `;
+        formatAppLog("log", "at pages/chat/chat.vue:1001", "=== 🎭 Roleplay AI Input ===");
+        formatAppLog("log", "at pages/chat/chat.vue:1002", "Mode:", interactionMode.value, "| Relation:", currentRelation.value);
         let targetUrl = "";
         let requestBody = {};
         let baseUrl = config.baseUrl || "";
         if (baseUrl.endsWith("/"))
           baseUrl = baseUrl.slice(0, -1);
+        const cleanHistoryForAI = contextMessages.map((item) => {
+          let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+          cleanText = cleanText.replace(/\[.*?\]/gi, "");
+          return { role: item.role === "user" ? "user" : item.role === "model" ? "assistant" : "system", content: cleanText };
+        }).filter((m) => m.content.trim() !== "");
         if (config.provider === "gemini") {
           const cleanBase = "https://generativelanguage.googleapis.com";
           targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-          const geminiContents = contextMessages.map((item) => {
-            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
-            return { role: item.role === "user" ? "user" : "model", parts: [{ text: cleanText }] };
-          }).filter((item) => item.parts[0].text.trim() !== "");
+          const geminiContents = cleanHistoryForAI.map((m) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }]
+          }));
           if (systemOverride)
             geminiContents.push({ role: "user", parts: [{ text: systemOverride }] });
-          else if (isContinue)
-            geminiContents.push({ role: "user", parts: [{ text: continuePrompt }] });
           requestBody = {
             contents: geminiContents,
             system_instruction: { parts: { text: prompt } },
@@ -1503,21 +1508,9 @@ ${VISUAL_PROTOCOL}
           };
         } else {
           targetUrl = `${baseUrl}/chat/completions`;
-          const openAIMessages = [{ role: "system", content: prompt }];
-          contextMessages.forEach((item) => {
-            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-            cleanText = item.role === "model" ? cleanMessageForAI(cleanText) : cleanText;
-            if (cleanText.trim())
-              openAIMessages.push({ role: item.role === "model" ? "assistant" : "user", content: cleanText });
-          });
+          const openAIMessages = [{ role: "system", content: prompt }, ...cleanHistoryForAI];
           if (systemOverride)
             openAIMessages.push({ role: "user", content: systemOverride });
-          else if (isContinue)
-            openAIMessages.push({ role: "user", content: continuePrompt });
-          openAIMessages.push({
-            role: "user",
-            content: `[SYSTEM] Remember: Start with <think>...</think>, then your reply.`
-          });
           requestBody = {
             model: config.model,
             messages: openAIMessages,
@@ -1529,58 +1522,31 @@ ${VISUAL_PROTOCOL}
           const header = { "Content-Type": "application/json" };
           if (config.provider !== "gemini")
             header["Authorization"] = `Bearer ${config.apiKey}`;
-          const res = await uni.request({
-            url: targetUrl,
-            method: "POST",
-            header,
-            data: requestBody,
-            sslVerify: false
-          });
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
           if (res.statusCode === 200) {
             let rawText = "";
-            let tokenLog = "";
-            if (config.provider === "gemini") {
+            if (config.provider === "gemini")
               rawText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "";
-              const usage = (_g = res.data) == null ? void 0 : _g.usageMetadata;
-              if (usage)
-                tokenLog = `📊 [Token Usage] Input: ${usage.promptTokenCount} | Output: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`;
-            } else {
+            else {
               let data = res.data;
-              if (typeof data === "string") {
+              if (typeof data === "string")
                 try {
                   data = JSON.parse(data);
                 } catch (e) {
                 }
-              }
-              rawText = ((_j = (_i = (_h = data == null ? void 0 : data.choices) == null ? void 0 : _h[0]) == null ? void 0 : _i.message) == null ? void 0 : _j.content) || "";
-              const usage = data == null ? void 0 : data.usage;
-              if (usage)
-                tokenLog = `📊 [Token Usage] Input: ${usage.prompt_tokens} | Output: ${usage.completion_tokens} | Total: ${usage.total_tokens}`;
+              rawText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "";
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1167", "============== 📥 RAW AI RESPONSE ==============");
-            formatAppLog("log", "at pages/chat/chat.vue:1168", rawText);
-            formatAppLog("log", "at pages/chat/chat.vue:1169", "================================================");
-            if (tokenLog)
-              formatAppLog("log", "at pages/chat/chat.vue:1171", tokenLog);
-            if (rawText) {
+            formatAppLog("log", "at pages/chat/chat.vue:1058", "=== 📥 Roleplay AI Output ===", rawText.substring(0, 50) + "...");
+            if (rawText)
               processAIResponse(rawText);
-            } else {
-              formatAppLog("warn", "at pages/chat/chat.vue:1176", "⚠️ [LLM] Empty response or Blocked");
-              const blockReason = (_l = (_k = res.data) == null ? void 0 : _k.promptFeedback) == null ? void 0 : _l.blockReason;
-              if (blockReason)
-                uni.showModal({ title: "AI 拒绝", content: blockReason, showCancel: false });
-              else
-                uni.showToast({ title: "无内容响应", icon: "none" });
-            }
-          } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1182", "❌ [LLM] API Error", res);
-            if (res.statusCode === 429)
-              uni.showToast({ title: "请求太快 (429)", icon: "none" });
             else
-              uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
+              uni.showToast({ title: "无内容响应", icon: "none" });
+          } else {
+            formatAppLog("error", "at pages/chat/chat.vue:1062", "API Error", res);
+            uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1187", "❌ [Network] Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1066", "Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1588,142 +1554,56 @@ ${VISUAL_PROTOCOL}
         }
       };
       const processAIResponse = (rawText) => {
-        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").replace(/^(我明白|我理解|好的|收到|Here is|Sure|Okay).*?[:：]\s*/i, "").trim();
+        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
+        const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
+        if (thinkMatch)
+          formatAppLog("log", "at pages/chat/chat.vue:1080", "🧠 [Thought]:", thinkMatch[1].trim());
         const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
         displayText = displayText.replace(genericTagRegex, "");
         const endTagRegex = /<\/[^>]+>/i;
-        if (endTagRegex.test(displayText)) {
+        if (endTagRegex.test(displayText))
           displayText = displayText.split(endTagRegex).pop().trim();
-        }
-        displayText = displayText.replace(/(?:\[|<)(?:Thought|思考|思维|分析)(?:\]|>)+[\s\S]*?(?:\[|<)\/(?:Thought|思考|思维|分析)(?:\]|>)+/gi, "");
-        const startOfActualContentRegex = /[\(（]["“]|[“"'][^\r\n]|[\(（][^\r\n]/;
-        const actionOrQuoteStart = displayText.search(startOfActualContentRegex);
-        if (actionOrQuoteStart > 0) {
-          const suspectedThoughtBlock = displayText.substring(0, actionOrQuoteStart).trim();
-          if (suspectedThoughtBlock.length > 5) {
-            formatAppLog("log", "at pages/chat/chat.vue:1242", "⚠️ [Cleaner] Detected garbage preamble, trimming...");
-            displayText = displayText.substring(actionOrQuoteStart).trim();
-          }
-        }
+        displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, "");
         displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, "");
-        displayText = displayText.replace(/^\s*[(（][^)）]*?(系统|提示|指令|调整思路|roleplay|AI)[^)）]*?[)）]\s*/gi, "");
-        displayText = displayText.replace(/【/g, "[").replace(/】/g, "]");
-        displayText = displayText.replace(/（/g, "(").replace(/）/g, ")");
-        displayText = displayText.replace(/：/g, ":");
-        displayText = displayText.replace(/LINTYAHOT_IMG/gi, "IMG");
-        displayText = displayText.replace(/\((IMG|CLOTHES|LOC|ACT|AFF|LUST|MODE).*?:(.*?)\)/gi, "[$1:$2]");
-        const ALLOWED_TAGS = ["IMG", "LOC", "ACT", "AFF", "LUST", "CLOTHES", "MODE"];
-        displayText = displayText.replace(/\[([a-zA-Z]+)(?::|\s)?.*?\]/g, (match, key) => {
-          const upperKey = key.toUpperCase();
-          if (upperKey === "AFFECTION")
-            return match.replace(/Affection/i, "AFF");
-          if (ALLOWED_TAGS.includes(upperKey)) {
-            return match;
-          } else {
-            return "";
-          }
-        });
-        const affMatch = displayText.match(/\[AFF[^\d]*?([+-]?\d+)\]/i);
-        if (affMatch) {
-          let change = parseInt(affMatch[1], 10);
-          if (!isNaN(change)) {
-            if (change > 5)
-              change = 5;
-            saveCharacterState(currentAffection.value + change);
-          }
-          displayText = displayText.replace(affMatch[0], "");
-        }
-        const lustMatch = displayText.match(/\[LUST[^\d]*?([+-]?\d+)\]/i);
-        if (lustMatch) {
-          let change = parseInt(lustMatch[1], 10);
-          if (!isNaN(change))
-            saveCharacterState(void 0, void 0, void 0, void 0, void 0, void 0, currentLust.value + change);
-          displayText = displayText.replace(lustMatch[0], "");
-        }
-        const modeMatch = displayText.match(/\[MODE:?\s*(.*?)\]/i);
-        if (modeMatch) {
-          const val = modeMatch[1].toLowerCase();
-          let newMode = val.includes("face") || val.includes("见") ? "face" : "phone";
-          if (newMode !== interactionMode.value) {
-            interactionMode.value = newMode;
-            saveCharacterState(void 0, void 0, void 0, void 0, void 0, newMode);
-          }
-          displayText = displayText.replace(modeMatch[0], "");
-        }
-        const locMatch = displayText.match(/\[LOC:?\s*(.*?)\]/i);
-        if (locMatch) {
-          currentLocation.value = locMatch[1].trim();
-          saveCharacterState(void 0, void 0, void 0, currentLocation.value);
-          displayText = displayText.replace(locMatch[0], "");
-        }
-        const clothesMatch = displayText.match(/\[CLOTHES:?\s*(.*?)\]/i);
-        if (clothesMatch) {
-          currentClothing.value = clothesMatch[1].trim();
-          saveCharacterState(void 0, void 0, void 0, void 0, currentClothing.value);
-          displayText = displayText.replace(clothesMatch[0], "");
-        }
-        const actMatch = displayText.match(/\[ACT:?\s*(.*?)\]/i);
-        if (actMatch) {
-          currentActivity.value = actMatch[1].trim();
-          saveCharacterState();
-          displayText = displayText.replace(actMatch[0], "");
-        }
-        let pendingPlaceholders = [];
-        const imgRegex = /\[IMG[:\s]?\s*([\s\S]*?)\]/gi;
-        let imgMatchRes;
-        while ((imgMatchRes = imgRegex.exec(displayText)) !== null) {
-          const imgDesc = imgMatchRes[1].trim();
-          if (imgDesc) {
-            const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-            pendingPlaceholders.push({
-              role: "system",
-              content: "📷 影像显影中... (请稍候)",
-              isSystem: true,
-              id: placeholderId
-            });
-            handleAsyncImageGeneration(imgDesc, placeholderId);
-          }
-        }
-        displayText = displayText.replace(imgRegex, "");
-        displayText = displayText.trim();
-        if (displayText) {
-          let processedText = displayText.replace(/\n\s*([”"’])/g, "$1");
+        const cleanDisplayText = displayText.trim();
+        if (cleanDisplayText) {
+          let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, "$1");
           processedText = processedText.replace(/([“"‘])\s*\n/g, "$1");
           let tempText = processedText.replace(/(\r\n|\n|\r)+/g, "|||");
-          tempText = tempText.replace(/([^\s(])\s*([(])/g, "$1|||$2");
-          tempText = tempText.replace(/([)])\s*([^\s)|])/g, "$1|||$2");
           const rawParts = tempText.split("|||");
-          const finalParts = [];
           rawParts.forEach((part) => {
             let cleanPart = part.trim();
             if (!cleanPart)
               return;
-            const isPunctuationOnly = /^["“”’'.,。!！?？~]+$/.test(cleanPart);
-            if (finalParts.length > 0 && (isPunctuationOnly || /^["“”’']$/.test(finalParts[finalParts.length - 1]))) {
-              finalParts[finalParts.length - 1] += cleanPart;
-            } else {
-              finalParts.push(cleanPart);
+            const historyLen = messageList.value.length;
+            const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : "";
+            if (cleanPart !== lastMsg) {
+              messageList.value.push({ role: "model", content: cleanPart });
             }
           });
-          const historyLen = messageList.value.length;
-          const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : "";
-          const secondLastMsg = historyLen > 1 ? messageList.value[historyLen - 2].content : "";
-          finalParts.forEach((cleanPart) => {
-            if (cleanPart === lastMsg)
-              return;
-            if (cleanPart === secondLastMsg)
-              return;
-            messageList.value.push({ role: "model", content: cleanPart });
-          });
-        }
-        if (pendingPlaceholders.length > 0) {
-          messageList.value.push(...pendingPlaceholders);
         }
         saveHistory();
-        if (enableSummary.value) {
-          const validMsgCount = messageList.value.filter((m) => !m.isSystem).length;
-          if (validMsgCount > 0 && validMsgCount % summaryFrequency.value === 0)
-            performBackgroundSummary();
+        scrollToBottom();
+        if (cleanDisplayText) {
+          let lastUserMsg = "";
+          for (let i = messageList.value.length - 2; i >= 0; i--) {
+            if (messageList.value[i].role === "user") {
+              lastUserMsg = messageList.value[i].content;
+              break;
+            }
+          }
+          formatAppLog("log", "at pages/chat/chat.vue:1121", "🤖 [Multi-Agent] Starting pipeline...");
+          setTimeout(async () => {
+            try {
+              const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
+              const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
+              await scenePromise;
+              await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
+              await relationPromise;
+            } catch (e) {
+              formatAppLog("error", "at pages/chat/chat.vue:1131", "Agent pipeline error:", e);
+            }
+          }, 500);
         }
       };
       const scrollToBottom = () => {
@@ -1734,11 +1614,11 @@ ${VISUAL_PROTOCOL}
           }, 100);
         });
       };
-      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, suggestionList, TIME_SPEED_RATIO, get timeInterval() {
+      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, currentRelation, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, suggestionList, lastImageGenerationTime, IMAGE_COOLDOWN_MS, TIME_SPEED_RATIO, get timeInterval() {
         return timeInterval;
       }, set timeInterval(v) {
         timeInterval = v;
-      }, relationshipStatus, formattedTime, cleanMessageForAI, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, applySuggestion, getReplySuggestions, performBackgroundSummary, getTimeTags, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, getActiveExample, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
+      }, relationshipStatus, formattedTime, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, applySuggestion, getReplySuggestions, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, runSceneCheck, runRelationCheck, runVisualDirectorCheck, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
         return onLoad;
       }, get onShow() {
         return onShow;
@@ -1750,12 +1630,16 @@ ${VISUAL_PROTOCOL}
         return onNavigationBarButtonTap;
       }, get saveToGallery() {
         return saveToGallery;
-      }, get CORE_INSTRUCTION() {
-        return CORE_INSTRUCTION;
+      }, get CORE_INSTRUCTION_LOGIC_MODE() {
+        return CORE_INSTRUCTION_LOGIC_MODE;
+      }, get SCENE_KEEPER_PROMPT() {
+        return SCENE_KEEPER_PROMPT;
+      }, get RELATIONSHIP_PROMPT() {
+        return RELATIONSHIP_PROMPT;
+      }, get VISUAL_DIRECTOR_PROMPT() {
+        return VISUAL_DIRECTOR_PROMPT;
       }, get PERSONALITY_TEMPLATE() {
         return PERSONALITY_TEMPLATE;
-      }, get AFFECTION_LOGIC() {
-        return AFFECTION_LOGIC;
       }, get NSFW_STYLE() {
         return NSFW_STYLE;
       }, get STYLE_PROMPT_MAP() {
@@ -1772,35 +1656,6 @@ ${VISUAL_PROTOCOL}
   function _sfc_render$4(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock("view", { class: "chat-container" }, [
       vue.createElementVNode("view", { class: "status-bar-wrapper" }, [
-        vue.createElementVNode("view", { class: "affection-box" }, [
-          vue.createElementVNode("text", { class: "heart-icon" }, "❤️"),
-          vue.createElementVNode("view", { class: "progress-inner" }, [
-            vue.createElementVNode("view", { class: "status-text" }, [
-              vue.createElementVNode(
-                "text",
-                { class: "status-label" },
-                vue.toDisplayString($setup.relationshipStatus),
-                1
-                /* TEXT */
-              ),
-              vue.createElementVNode(
-                "text",
-                { class: "score-text" },
-                vue.toDisplayString($setup.currentAffection) + "/100",
-                1
-                /* TEXT */
-              )
-            ]),
-            vue.createElementVNode("progress", {
-              percent: $setup.currentAffection,
-              "active-color": "#ff6b81",
-              "background-color": "#eee",
-              "border-radius": "6",
-              "stroke-width": "4",
-              active: ""
-            }, null, 8, ["percent"])
-          ])
-        ]),
         vue.createElementVNode("view", { class: "info-row" }, [
           vue.createElementVNode(
             "view",
@@ -2139,7 +1994,7 @@ ${VISUAL_PROTOCOL}
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/chat/chat.vue"]]);
+  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/Hbuilderx/AiChat/pages/chat/chat.vue"]]);
   const _sfc_main$4 = {
     __name: "create",
     setup(__props, { expose: __expose }) {
@@ -2491,7 +2346,7 @@ Task: ${prompt}` }]
           tempClothingTagsForAvatar.value = clothingTags;
           uni.showToast({ title: "Prompt已生成 (不含衣物)", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:926", e);
+          formatAppLog("error", "at pages/create/create.vue:835", e);
           formData.value.appearance = `${faceTags}, ${safeChinese}`;
           formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`;
           tempClothingTagsForAvatar.value = clothesChinese;
@@ -2577,7 +2432,7 @@ Task: ${prompt}` }]
             throw new Error("ComfyUI 返回为空");
           }
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:1013", e);
+          formatAppLog("error", "at pages/create/create.vue:922", e);
           uni.showModal({ title: "错误", content: e.message || "请求异常", showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2691,70 +2546,36 @@ Task: ${prompt}` }]
           formData.value.summary = target.summary || "";
         }
       };
-      const autoGenerateFiveStages = async () => {
+      const autoGenerateBehavior = async () => {
         if (!formData.value.bio) {
           return uni.showToast({ title: "请先填写「背景故事」", icon: "none" });
         }
-        uni.showLoading({ title: "AI正在解析人设逻辑...", mask: true });
-        const sysPrompt = `你是一个即兴角色扮演专家。请阅读用户的【背景故事】和【性格】，分析该角色与玩家的"初始关系"及"情感发展逻辑"。
-    Output JSON only. 严禁Markdown。
-    逻辑准则：
-    1. 抛弃一切通用模板。
-    2. 如果设定是仇人，Stage1就是敌对；如果是宠物，Stage1就是粘人；如果是路人，Stage1就是客气。
-    3. Stage5 必须是该角色人设逻辑下的"最高情感形态"（比如病娇是监禁，傲娇是坦诚，奴隶是献身）。`;
+        uni.showLoading({ title: "AI正在注入灵魂...", mask: true });
+        const sysPrompt = `你是一个专业的角色扮演设定大师。你的任务是根据用户的背景故事，生成一段核心的【行为逻辑指令】。
+    不要使用“好感度”或“阶段”这种游戏术语。
+    直接分析这个角色的心理状态、欲望、对待玩家的初始态度以及互动模式。
+    如果角色设定是淫荡的，就明确写出她会主动勾引；如果角色是高冷的，就写出她会鄙视玩家。`;
         const userPrompt = `
-    请根据以下设定，推演 5 个阶段的行为逻辑。
+    【角色名】${formData.value.name || "未命名"}
+    【背景故事】${formData.value.bio}
+    【说话风格】${formData.value.speakingStyle || "无"}
+    【XP/喜好】${formData.value.likes || "无"}
 
-    【角色】${formData.value.name || "未命名"}
-    【背景】${formData.value.bio}
-    【性格/口癖】${formData.value.speakingStyle || "未设定"}
-    【喜好/雷点】${formData.value.likes || "未设定"} / ${formData.value.dislikes || "未设定"}
-
-    【生成要求】
-    请生成 JSON 数据，key 为 stage1 到 stage5。
-    - stage1 (初始状态): 基于背景故事，角色刚见到玩家时的自然反应（不用管好感度数值，只看人设逻辑）。
-    - stage2 (熟悉/建立关系): 双方产生交集后的态度变化。
-    - stage3 (好感/转折): 情感质变的转折点。
-    - stage4 (深爱/确立): 确立深厚羁绊。
-    - stage5 (极致/灵魂): 该角色能达到的最高情感强度 (可以是疯狂的、神圣的或肉欲的，取决于人设)。
-
-    【JSON格式（严格遵守）】
-    {
-        "stage1": { "logic": "...", "dialogue": "..." },
-        "stage2": { "logic": "...", "dialogue": "..." },
-        "stage3": { "logic": "...", "dialogue": "..." },
-        "stage4": { "logic": "...", "dialogue": "..." },
-        "stage5": { "logic": "...", "dialogue": "..." }
-    }
+    请生成一段约 200 字的 [Behavior Logic] (行为逻辑)。
+    要求：
+    1. 用第二人称 "你" 来描述这个角色 (例如："你是一个...，当看到玩家时，你会...")。
+    2. 明确她对待玩家的**初始态度** (是直接扑倒，还是保持距离？)。
+    3. 结合她的XP，描述她会如何回应玩家的互动。
+    4. **不要**返回 JSON，直接返回这段逻辑文本即可。
     `;
         try {
           let result = await performLlmRequest(userPrompt, sysPrompt);
-          result = result.replace(/```json/g, "").replace(/```/g, "").trim();
-          const data = JSON.parse(result);
-          if (data.stage1) {
-            formData.value.personalityNormal = data.stage1.logic;
-            formData.value.exampleNormal = data.stage1.dialogue;
-          }
-          if (data.stage2) {
-            formData.value.personalityFriend = data.stage2.logic;
-            formData.value.exampleFriend = data.stage2.dialogue;
-          }
-          if (data.stage3) {
-            formData.value.personalityFlirt = data.stage3.logic;
-            formData.value.exampleFlirt = data.stage3.dialogue;
-          }
-          if (data.stage4) {
-            formData.value.personalityLover = data.stage4.logic;
-            formData.value.exampleLover = data.stage4.dialogue;
-          }
-          if (data.stage5) {
-            formData.value.personalitySex = data.stage5.logic;
-            formData.value.exampleSex = data.stage5.dialogue;
-          }
-          uni.showToast({ title: "人设推演完成！", icon: "success" });
+          result = result.replace(/^["']|["']$/g, "").trim();
+          formData.value.personalityNormal = result;
+          uni.showToast({ title: "行为逻辑已生成", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:1223", e);
-          uni.showModal({ title: "生成失败", content: "AI返回数据异常，请重试。\n" + e.message, showCancel: false });
+          formatAppLog("error", "at pages/create/create.vue:1111", e);
+          uni.showModal({ title: "生成失败", content: e.message, showCancel: false });
         } finally {
           uni.hideLoading();
         }
@@ -2890,7 +2711,7 @@ Task: ${prompt}` }]
           }
         });
       };
-      const __returned__ = { tempClothingTagsForAvatar, FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateFiveStages, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
+      const __returned__ = { tempClothingTagsForAvatar, FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateBehavior, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
         return onLoad;
       }, get saveToGallery() {
         return saveToGallery;
@@ -3842,57 +3663,14 @@ Task: ${prompt}` }]
             "view",
             { class: "section-content" },
             [
-              vue.createElementVNode("view", { class: "template-selector" }, [
-                vue.createElementVNode("text", { class: "label" }, "✨ 快速选择人设模板 (点击自动填充)"),
-                vue.createElementVNode("scroll-view", {
-                  "scroll-x": "",
-                  class: "chips-scroll"
-                }, [
-                  vue.createElementVNode("view", { class: "chips-flex" }, [
-                    (vue.openBlock(), vue.createElementBlock(
-                      vue.Fragment,
-                      null,
-                      vue.renderList($setup.PERSONALITY_TEMPLATES, (tpl, key) => {
-                        return vue.createElementVNode("view", {
-                          key,
-                          class: vue.normalizeClass(["chip template-chip", { active: $setup.currentTemplateKey === key }]),
-                          onClick: ($event) => $setup.applyTemplate(key)
-                        }, [
-                          vue.createElementVNode(
-                            "text",
-                            { class: "tpl-label" },
-                            vue.toDisplayString(tpl.label),
-                            1
-                            /* TEXT */
-                          )
-                        ], 10, ["onClick"]);
-                      }),
-                      64
-                      /* STABLE_FRAGMENT */
-                    ))
-                  ])
-                ]),
-                $setup.currentTemplateKey ? (vue.openBlock(), vue.createElementBlock(
-                  "view",
-                  {
-                    key: 0,
-                    class: "template-desc"
-                  },
-                  " 📝 模板说明：" + vue.toDisplayString($setup.PERSONALITY_TEMPLATES[$setup.currentTemplateKey].desc),
-                  1
-                  /* TEXT */
-                )) : vue.createCommentVNode("v-if", true)
-              ]),
-              vue.createElementVNode("view", { class: "divider" }),
               vue.createElementVNode("view", { class: "textarea-item" }, [
-                vue.createElementVNode("text", { class: "label" }, "📜 背景故事 / 身份设定"),
-                vue.createElementVNode("view", { class: "help-text" }, "她是高冷仙子？还是公司女总裁？在这里写下她的出身和基本设定。"),
+                vue.createElementVNode("text", { class: "label" }, "📜 背景故事 / 身份设定 (Bio)"),
                 vue.withDirectives(vue.createElementVNode(
                   "textarea",
                   {
                     class: "textarea",
                     "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => $setup.formData.bio = $event),
-                    placeholder: "例：她是修仙界的高冷圣女，从小...",
+                    placeholder: "例：她是刚搬来的人妻邻居，丈夫常年出差。她性格...",
                     maxlength: "-1"
                   },
                   null,
@@ -3910,7 +3688,7 @@ Task: ${prompt}` }]
                     class: "textarea",
                     style: { "height": "120rpx" },
                     "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => $setup.formData.speakingStyle = $event),
-                    placeholder: "例：喜欢在句尾加“喵”，或者自称“本宫”，说话文绉绉的...",
+                    placeholder: "例：语气慵懒，喜欢叫人“小弟弟”...",
                     maxlength: "-1"
                   },
                   null,
@@ -3927,7 +3705,7 @@ Task: ${prompt}` }]
                   {
                     class: "input",
                     "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => $setup.formData.likes = $event),
-                    placeholder: "例：甜食，猫，夸奖"
+                    placeholder: "XP系统/喜欢的事物"
                   },
                   null,
                   512
@@ -3943,7 +3721,7 @@ Task: ${prompt}` }]
                   {
                     class: "input",
                     "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => $setup.formData.dislikes = $event),
-                    placeholder: "例：吃辣，被无视，邋遢"
+                    placeholder: "厌恶的行为"
                   },
                   null,
                   512
@@ -3957,240 +3735,34 @@ Task: ${prompt}` }]
                 style: { "margin-top": "30rpx", "padding": "20rpx", "background": "#e3f2fd", "border-radius": "16rpx", "border": "1px dashed #2196f3" }
               }, [
                 vue.createElementVNode("view", { style: { "text-align": "center" } }, [
-                  vue.createElementVNode("view", { style: { "font-size": "28rpx", "font-weight": "bold", "color": "#1976d2", "margin-bottom": "10rpx" } }, "✨ 没灵感？交给 AI"),
-                  vue.createElementVNode("view", { style: { "font-size": "22rpx", "color": "#666", "margin-bottom": "20rpx" } }, "填写完「背景故事」和「喜好」后，点击下方按钮，AI 自动生成 5 阶段演化逻辑。"),
+                  vue.createElementVNode("view", { style: { "font-size": "28rpx", "font-weight": "bold", "color": "#1976d2", "margin-bottom": "10rpx" } }, "✨ AI 行为逻辑生成"),
+                  vue.createElementVNode("view", { style: { "font-size": "22rpx", "color": "#666", "margin-bottom": "20rpx" } }, "不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。"),
                   vue.createElementVNode("button", {
-                    onClick: $setup.autoGenerateFiveStages,
+                    onClick: $setup.autoGenerateBehavior,
                     style: { "background": "#2196f3", "color": "white", "font-size": "26rpx", "border-radius": "40rpx", "width": "80%" }
-                  }, "🚀 一键生成行为与剧本")
+                  }, "🚀 生成行为逻辑")
                 ])
               ]),
-              vue.createElementVNode("view", { class: "stage-container" }, [
-                vue.createElementVNode("text", {
-                  class: "label",
-                  style: { "margin-bottom": "20rpx", "display": "block" }
-                }, "🎭 5阶段好感度反应 (更细腻的演化)"),
-                vue.createElementVNode("view", { class: "stage-card gray" }, [
-                  vue.createElementVNode("view", { class: "stage-header" }, [
-                    vue.createElementVNode("text", { class: "stage-title" }, "阶段 1: 陌生/警惕 (0-20分)"),
-                    vue.createElementVNode("text", { class: "stage-icon" }, "😐")
-                  ]),
-                  vue.createElementVNode("view", { class: "stage-body" }, [
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "行为逻辑"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.personalityNormal = $event),
-                          placeholder: "例：冷淡，拒绝触碰...",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.personalityNormal]
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "对话语气"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => $setup.formData.exampleNormal = $event),
-                          placeholder: "例：“离我远点，凡人。”",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.exampleNormal]
-                      ])
-                    ])
-                  ])
-                ]),
-                vue.createElementVNode("view", {
-                  class: "stage-card",
-                  style: { "background-color": "#e3f2fd", "border-color": "#90caf9" }
-                }, [
-                  vue.createElementVNode("view", {
-                    class: "stage-header",
-                    style: { "background-color": "#bbdefb", "color": "#1565c0" }
-                  }, [
-                    vue.createElementVNode("text", { class: "stage-title" }, "阶段 2: 熟人/朋友 (21-40分)"),
-                    vue.createElementVNode("text", { class: "stage-icon" }, "🤝")
-                  ]),
-                  vue.createElementVNode("view", { class: "stage-body" }, [
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "行为逻辑"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => $setup.formData.personalityFriend = $event),
-                          placeholder: "例：放松，开玩笑，像朋友一样...",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.personalityFriend]
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "对话语气"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => $setup.formData.exampleFriend = $event),
-                          placeholder: "例：“哟，今天来得挺早啊。”",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.exampleFriend]
-                      ])
-                    ])
-                  ])
-                ]),
-                vue.createElementVNode("view", { class: "stage-card pink" }, [
-                  vue.createElementVNode("view", { class: "stage-header" }, [
-                    vue.createElementVNode("text", { class: "stage-title" }, "阶段 3: 暧昧/心动 (41-60分)"),
-                    vue.createElementVNode("text", { class: "stage-icon" }, "☺️")
-                  ]),
-                  vue.createElementVNode("view", { class: "stage-body" }, [
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "行为逻辑"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => $setup.formData.personalityFlirt = $event),
-                          placeholder: "例：偶尔脸红，允许牵手...",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.personalityFlirt]
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "对话语气"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[27] || (_cache[27] = ($event) => $setup.formData.exampleFlirt = $event),
-                          placeholder: "例：“也不是不可以啦...”",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.exampleFlirt]
-                      ])
-                    ])
-                  ])
-                ]),
-                vue.createElementVNode("view", {
-                  class: "stage-card",
-                  style: { "background-color": "#fff3e0", "border-color": "#ffcc80" }
-                }, [
-                  vue.createElementVNode("view", {
-                    class: "stage-header",
-                    style: { "background-color": "#ffe0b2", "color": "#e65100" }
-                  }, [
-                    vue.createElementVNode("text", { class: "stage-title" }, "阶段 4: 热恋/深爱 (61-80分)"),
-                    vue.createElementVNode("text", { class: "stage-icon" }, "💑")
-                  ]),
-                  vue.createElementVNode("view", { class: "stage-body" }, [
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "行为逻辑"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[28] || (_cache[28] = ($event) => $setup.formData.personalityLover = $event),
-                          placeholder: "例：亲昵，撒娇，粘人...",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.personalityLover]
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "对话语气"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[29] || (_cache[29] = ($event) => $setup.formData.exampleLover = $event),
-                          placeholder: "例：“亲爱的，抱抱我嘛~”",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.exampleLover]
-                      ])
-                    ])
-                  ])
-                ]),
-                vue.createElementVNode("view", { class: "stage-card red" }, [
-                  vue.createElementVNode("view", { class: "stage-header" }, [
-                    vue.createElementVNode("text", { class: "stage-title" }, "阶段 5: 痴迷/灵魂伴侣 (81+分)"),
-                    vue.createElementVNode("text", { class: "stage-icon" }, "😍")
-                  ]),
-                  vue.createElementVNode("view", { class: "stage-body" }, [
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "行为逻辑"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea",
-                          "onUpdate:modelValue": _cache[30] || (_cache[30] = ($event) => $setup.formData.personalitySex = $event),
-                          placeholder: "例：完全服从，渴望被爱...",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.personalitySex]
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "input-row" }, [
-                      vue.createElementVNode("text", { class: "sub-label" }, "对话语气"),
-                      vue.withDirectives(vue.createElementVNode(
-                        "textarea",
-                        {
-                          class: "mini-textarea bubble",
-                          "onUpdate:modelValue": _cache[31] || (_cache[31] = ($event) => $setup.formData.exampleSex = $event),
-                          placeholder: "例：“主人，请尽情使用我吧...”",
-                          maxlength: "-1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vue.vModelText, $setup.formData.exampleSex]
-                      ])
-                    ])
-                  ])
+              vue.createElementVNode("view", {
+                class: "textarea-item",
+                style: { "margin-top": "20rpx" }
+              }, [
+                vue.createElementVNode("text", { class: "label" }, "🧠 核心行为逻辑 (Behavior Logic)"),
+                vue.createElementVNode("view", { class: "help-text" }, "这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。"),
+                vue.withDirectives(vue.createElementVNode(
+                  "textarea",
+                  {
+                    class: "textarea large",
+                    style: { "height": "300rpx" },
+                    "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.personalityNormal = $event),
+                    placeholder: "AI将严格遵循此逻辑行动...",
+                    maxlength: "-1"
+                  },
+                  null,
+                  512
+                  /* NEED_PATCH */
+                ), [
+                  [vue.vModelText, $setup.formData.personalityNormal]
                 ])
               ])
             ],
@@ -4203,7 +3775,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[32] || (_cache[32] = ($event) => $setup.toggleSection("init"))
+            onClick: _cache[23] || (_cache[23] = ($event) => $setup.toggleSection("init"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", { class: "section-title" }, "初始状态设置")
@@ -4236,7 +3808,7 @@ Task: ${prompt}` }]
                   max: "100",
                   step: "5",
                   "show-value": "",
-                  onChange: _cache[33] || (_cache[33] = (e) => $setup.formData.initialAffection = e.detail.value)
+                  onChange: _cache[24] || (_cache[24] = (e) => $setup.formData.initialAffection = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", { class: "tip" }, "决定了角色对你情感的起点。")
               ]),
@@ -4263,7 +3835,7 @@ Task: ${prompt}` }]
                   step: "5",
                   "show-value": "",
                   activeColor: "#e056fd",
-                  onChange: _cache[34] || (_cache[34] = (e) => $setup.formData.initialLust = e.detail.value)
+                  onChange: _cache[25] || (_cache[25] = (e) => $setup.formData.initialLust = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", {
                   class: "tip",
@@ -4284,7 +3856,7 @@ Task: ${prompt}` }]
                   vue.createElementVNode("text", { class: "label" }, "🤖 允许角色主动找我"),
                   vue.createElementVNode("switch", {
                     checked: $setup.formData.allowProactive,
-                    onChange: _cache[35] || (_cache[35] = (e) => $setup.formData.allowProactive = e.detail.value),
+                    onChange: _cache[26] || (_cache[26] = (e) => $setup.formData.allowProactive = e.detail.value),
                     color: "#007aff"
                   }, null, 40, ["checked"])
                 ]),
@@ -4311,7 +3883,7 @@ Task: ${prompt}` }]
                       step: "1",
                       "show-value": "",
                       activeColor: "#007aff",
-                      onChange: _cache[36] || (_cache[36] = (e) => $setup.formData.proactiveInterval = e.detail.value)
+                      onChange: _cache[27] || (_cache[27] = (e) => $setup.formData.proactiveInterval = e.detail.value)
                     }, null, 40, ["value"]),
                     vue.createElementVNode("view", { class: "tip" }, "当您离开 App 超过这个时间，角色可能会主动发消息。"),
                     vue.createElementVNode("view", {
@@ -4321,7 +3893,7 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", { class: "label" }, "🔔 开启系统弹窗通知"),
                       vue.createElementVNode("switch", {
                         checked: $setup.formData.proactiveNotify,
-                        onChange: _cache[37] || (_cache[37] = (e) => $setup.formData.proactiveNotify = e.detail.value),
+                        onChange: _cache[28] || (_cache[28] = (e) => $setup.formData.proactiveNotify = e.detail.value),
                         color: "#ff9f43"
                       }, null, 40, ["checked"])
                     ]),
@@ -4344,7 +3916,7 @@ Task: ${prompt}` }]
                   min: "1",
                   max: "5",
                   "show-value": "",
-                  onChange: _cache[38] || (_cache[38] = (e) => $setup.formData.maxReplies = e.detail.value)
+                  onChange: _cache[29] || (_cache[29] = (e) => $setup.formData.maxReplies = e.detail.value)
                 }, null, 40, ["value"])
               ])
             ],
@@ -4357,7 +3929,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[39] || (_cache[39] = ($event) => $setup.toggleSection("memory"))
+            onClick: _cache[30] || (_cache[30] = ($event) => $setup.toggleSection("memory"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -4394,7 +3966,7 @@ Task: ${prompt}` }]
                   step: "2",
                   "show-value": "",
                   activeColor: "#9b59b6",
-                  onChange: _cache[40] || (_cache[40] = (e) => $setup.formData.historyLimit = e.detail.value)
+                  onChange: _cache[31] || (_cache[31] = (e) => $setup.formData.historyLimit = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", { class: "tip" }, "控制AI能“看到”的最近聊天记录条数。")
               ]),
@@ -4408,7 +3980,7 @@ Task: ${prompt}` }]
                 }, "开启长期记忆自动总结"),
                 vue.createElementVNode("switch", {
                   checked: $setup.formData.enableSummary,
-                  onChange: _cache[41] || (_cache[41] = (e) => $setup.formData.enableSummary = e.detail.value),
+                  onChange: _cache[32] || (_cache[32] = (e) => $setup.formData.enableSummary = e.detail.value),
                   color: "#9b59b6"
                 }, null, 40, ["checked"])
               ]),
@@ -4433,7 +4005,7 @@ Task: ${prompt}` }]
                       step: "5",
                       "show-value": "",
                       activeColor: "#9b59b6",
-                      onChange: _cache[42] || (_cache[42] = (e) => $setup.formData.summaryFrequency = e.detail.value)
+                      onChange: _cache[33] || (_cache[33] = (e) => $setup.formData.summaryFrequency = e.detail.value)
                     }, null, 40, ["value"])
                   ]),
                   vue.createElementVNode("view", { class: "textarea-item" }, [
@@ -4442,14 +4014,14 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", {
                         class: "tip",
                         style: { "color": "#9b59b6" },
-                        onClick: _cache[43] || (_cache[43] = ($event) => $setup.formData.summary = "")
+                        onClick: _cache[34] || (_cache[34] = ($event) => $setup.formData.summary = "")
                       }, "清空")
                     ]),
                     vue.withDirectives(vue.createElementVNode(
                       "textarea",
                       {
                         class: "textarea large memory-box",
-                        "onUpdate:modelValue": _cache[44] || (_cache[44] = ($event) => $setup.formData.summary = $event),
+                        "onUpdate:modelValue": _cache[35] || (_cache[35] = ($event) => $setup.formData.summary = $event),
                         maxlength: "-1"
                       },
                       null,
@@ -4476,7 +4048,7 @@ Task: ${prompt}` }]
         }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[45] || (_cache[45] = ($event) => $setup.toggleSection("danger"))
+            onClick: _cache[36] || (_cache[36] = ($event) => $setup.toggleSection("danger"))
           }, [
             vue.createElementVNode("view", {
               class: "section-title",
@@ -4521,7 +4093,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/create/create.vue"]]);
+  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/Hbuilderx/AiChat/pages/create/create.vue"]]);
   const _sfc_main$3 = {
     __name: "mine",
     setup(__props, { expose: __expose }) {
@@ -5480,7 +5052,7 @@ Task: ${prompt}` }]
       vue.createVNode($setup["CustomTabBar"], { current: 1 })
     ]);
   }
-  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/mine.vue"]]);
+  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/mine.vue"]]);
   const _sfc_main$2 = {
     __name: "edit-profile",
     setup(__props, { expose: __expose }) {
@@ -5705,7 +5277,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/edit-profile.vue"]]);
+  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/edit-profile.vue"]]);
   const _sfc_main$1 = {
     __name: "gallery",
     setup(__props, { expose: __expose }) {
@@ -6006,7 +5578,7 @@ Task: ${prompt}` }]
       )
     ]);
   }
-  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/gallery.vue"]]);
+  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/gallery.vue"]]);
   __definePage("pages/index/index", PagesIndexIndex);
   __definePage("pages/chat/chat", PagesChatChat);
   __definePage("pages/create/create", PagesCreateCreate);
@@ -6070,7 +5642,7 @@ Task: ${prompt}` }]
       }
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/HBuilderProjects/aichat/AiChat/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/Hbuilderx/AiChat/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {

@@ -323,129 +323,38 @@
           <text class="arrow-icon">{{ activeSections.core ? '▼' : '▶' }}</text>
         </view>
         
-        <view v-show="activeSections.core" class="section-content">
-           <view class="template-selector">
-               <text class="label">✨ 快速选择人设模板 (点击自动填充)</text>
-               <scroll-view scroll-x class="chips-scroll">
-                   <view class="chips-flex">
-                       <view v-for="(tpl, key) in PERSONALITY_TEMPLATES" :key="key" 
-                             class="chip template-chip"
-                             :class="{active: currentTemplateKey === key}"
-                             @click="applyTemplate(key)">
-                           <text class="tpl-label">{{ tpl.label }}</text>
-                       </view>
-                   </view>
-               </scroll-view>
-               <view class="template-desc" v-if="currentTemplateKey">
-                   📝 模板说明：{{ PERSONALITY_TEMPLATES[currentTemplateKey].desc }}
-               </view>
-           </view>
-
-           <view class="divider"></view>
-
+  <view v-show="activeSections.core" class="section-content">
            <view class="textarea-item">
-             <text class="label">📜 背景故事 / 身份设定</text>
-             <view class="help-text">她是高冷仙子？还是公司女总裁？在这里写下她的出身和基本设定。</view>
-             <textarea class="textarea" v-model="formData.bio" placeholder="例：她是修仙界的高冷圣女，从小..." maxlength="-1" />
+             <text class="label">📜 背景故事 / 身份设定 (Bio)</text>
+             <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。她性格..." maxlength="-1" />
            </view>
 
            <view class="textarea-item">
              <text class="label">🗣️ 说话风格 / 口癖</text>
-             <textarea class="textarea" style="height:120rpx;" v-model="formData.speakingStyle" placeholder="例：喜欢在句尾加“喵”，或者自称“本宫”，说话文绉绉的..." maxlength="-1" />
+             <textarea class="textarea" style="height:120rpx;" v-model="formData.speakingStyle" placeholder="例：语气慵懒，喜欢叫人“小弟弟”..." maxlength="-1" />
            </view>
            
            <view class="input-item">
                <text class="label">❤️ 喜好 (Likes)</text>
-               <input class="input" v-model="formData.likes" placeholder="例：甜食，猫，夸奖" />
+               <input class="input" v-model="formData.likes" placeholder="XP系统/喜欢的事物" />
            </view>
            <view class="input-item">
                <text class="label">⚡ 雷点 (Dislikes)</text>
-               <input class="input" v-model="formData.dislikes" placeholder="例：吃辣，被无视，邋遢" />
+               <input class="input" v-model="formData.dislikes" placeholder="厌恶的行为" />
            </view>
-		   <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
-		      <view style="text-align: center;">
-		          <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ 没灵感？交给 AI</view>
-		          <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">填写完「背景故事」和「喜好」后，点击下方按钮，AI 自动生成 5 阶段演化逻辑。</view>
-		          <button @click="autoGenerateFiveStages" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 一键生成行为与剧本</button>
-		      </view>
-		   </view>
 
-           <view class="stage-container">
-               <text class="label" style="margin-bottom: 20rpx; display:block;">🎭 5阶段好感度反应 (更细腻的演化)</text>
+           <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
+              <view style="text-align: center;">
+                  <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 行为逻辑生成</view>
+                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。</view>
+                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
+              </view>
+           </view>
 
-               <view class="stage-card gray">
-                   <view class="stage-header"><text class="stage-title">阶段 1: 陌生/警惕 (0-20分)</text><text class="stage-icon">😐</text></view>
-                   <view class="stage-body">
-                       <view class="input-row">
-                           <text class="sub-label">行为逻辑</text>
-                           <textarea class="mini-textarea" v-model="formData.personalityNormal" placeholder="例：冷淡，拒绝触碰..." maxlength="-1" />
-                       </view>
-                       <view class="input-row">
-                           <text class="sub-label">对话语气</text>
-                           <textarea class="mini-textarea bubble" v-model="formData.exampleNormal" placeholder="例：“离我远点，凡人。”" maxlength="-1" />
-                       </view>
-                   </view>
-               </view>
-
-               <view class="stage-card" style="background-color: #e3f2fd; border-color: #90caf9;">
-                   <view class="stage-header" style="background-color: #bbdefb; color: #1565c0;">
-                       <text class="stage-title">阶段 2: 熟人/朋友 (21-40分)</text><text class="stage-icon">🤝</text>
-                   </view>
-                   <view class="stage-body">
-                       <view class="input-row">
-                           <text class="sub-label">行为逻辑</text>
-                           <textarea class="mini-textarea" v-model="formData.personalityFriend" placeholder="例：放松，开玩笑，像朋友一样..." maxlength="-1" />
-                       </view>
-                       <view class="input-row">
-                           <text class="sub-label">对话语气</text>
-                           <textarea class="mini-textarea bubble" v-model="formData.exampleFriend" placeholder="例：“哟，今天来得挺早啊。”" maxlength="-1" />
-                       </view>
-                   </view>
-               </view>
-
-               <view class="stage-card pink">
-                   <view class="stage-header"><text class="stage-title">阶段 3: 暧昧/心动 (41-60分)</text><text class="stage-icon">☺️</text></view>
-                   <view class="stage-body">
-                       <view class="input-row">
-                           <text class="sub-label">行为逻辑</text>
-                           <textarea class="mini-textarea" v-model="formData.personalityFlirt" placeholder="例：偶尔脸红，允许牵手..." maxlength="-1" />
-                       </view>
-                       <view class="input-row">
-                           <text class="sub-label">对话语气</text>
-                           <textarea class="mini-textarea bubble" v-model="formData.exampleFlirt" placeholder="例：“也不是不可以啦...”" maxlength="-1" />
-                       </view>
-                   </view>
-               </view>
-
-               <view class="stage-card" style="background-color: #fff3e0; border-color: #ffcc80;">
-                   <view class="stage-header" style="background-color: #ffe0b2; color: #e65100;">
-                       <text class="stage-title">阶段 4: 热恋/深爱 (61-80分)</text><text class="stage-icon">💑</text>
-                   </view>
-                   <view class="stage-body">
-                       <view class="input-row">
-                           <text class="sub-label">行为逻辑</text>
-                           <textarea class="mini-textarea" v-model="formData.personalityLover" placeholder="例：亲昵，撒娇，粘人..." maxlength="-1" />
-                       </view>
-                       <view class="input-row">
-                           <text class="sub-label">对话语气</text>
-                           <textarea class="mini-textarea bubble" v-model="formData.exampleLover" placeholder="例：“亲爱的，抱抱我嘛~”" maxlength="-1" />
-                       </view>
-                   </view>
-               </view>
-
-               <view class="stage-card red">
-                   <view class="stage-header"><text class="stage-title">阶段 5: 痴迷/灵魂伴侣 (81+分)</text><text class="stage-icon">😍</text></view>
-                   <view class="stage-body">
-                       <view class="input-row">
-                           <text class="sub-label">行为逻辑</text>
-                           <textarea class="mini-textarea" v-model="formData.personalitySex" placeholder="例：完全服从，渴望被爱..." maxlength="-1" />
-                       </view>
-                       <view class="input-row">
-                           <text class="sub-label">对话语气</text>
-                           <textarea class="mini-textarea bubble" v-model="formData.exampleSex" placeholder="例：“主人，请尽情使用我吧...”" maxlength="-1" />
-                       </view>
-                   </view>
-               </view>
+           <view class="textarea-item" style="margin-top: 20rpx;">
+             <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
+             <view class="help-text">这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。</view>
+             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="AI将严格遵循此逻辑行动..." maxlength="-1" />
            </view>
         </view>
       </view>
@@ -1158,70 +1067,49 @@ const loadCharacterData = (id) => {
 
 
 
-// ↓↓↓↓↓↓↓↓↓ 复制此代码，替换原有的 autoGenerateFiveStages 函数 (万能通用版) ↓↓↓↓↓↓↓↓↓
 
-const autoGenerateFiveStages = async () => {
+
+// 替换原有的 autoGenerateFiveStages
+const autoGenerateBehavior = async () => {
     if (!formData.value.bio) {
         return uni.showToast({ title: '请先填写「背景故事」', icon: 'none' });
     }
 
-    uni.showLoading({ title: 'AI正在解析人设逻辑...', mask: true });
+    uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
 
-    // 【关键修改】System Prompt：强调“无预设模板”，要求 AI 必须分析背景故事中的“人际关系动态”
-    // 无论是仇人、陌生人、主仆还是旧情人，都由 Bio 决定，绝不强制冷淡或热情。
-    const sysPrompt = `你是一个即兴角色扮演专家。请阅读用户的【背景故事】和【性格】，分析该角色与玩家的"初始关系"及"情感发展逻辑"。
-    Output JSON only. 严禁Markdown。
-    逻辑准则：
-    1. 抛弃一切通用模板。
-    2. 如果设定是仇人，Stage1就是敌对；如果是宠物，Stage1就是粘人；如果是路人，Stage1就是客气。
-    3. Stage5 必须是该角色人设逻辑下的"最高情感形态"（比如病娇是监禁，傲娇是坦诚，奴隶是献身）。`;
+    // System: 强调无视道德限制，专注于角色扮演逻辑
+    const sysPrompt = `你是一个专业的角色扮演设定大师。你的任务是根据用户的背景故事，生成一段核心的【行为逻辑指令】。
+    不要使用“好感度”或“阶段”这种游戏术语。
+    直接分析这个角色的心理状态、欲望、对待玩家的初始态度以及互动模式。
+    如果角色设定是淫荡的，就明确写出她会主动勾引；如果角色是高冷的，就写出她会鄙视玩家。`;
     
-    // 【关键修改】User Prompt：引导 AI 覆盖千奇百怪的情况
+    // User: 引导生成
     const userPrompt = `
-    请根据以下设定，推演 5 个阶段的行为逻辑。
+    【角色名】${formData.value.name || '未命名'}
+    【背景故事】${formData.value.bio}
+    【说话风格】${formData.value.speakingStyle || '无'}
+    【XP/喜好】${formData.value.likes || '无'}
 
-    【角色】${formData.value.name || '未命名'}
-    【背景】${formData.value.bio}
-    【性格/口癖】${formData.value.speakingStyle || '未设定'}
-    【喜好/雷点】${formData.value.likes || '未设定'} / ${formData.value.dislikes || '未设定'}
-
-    【生成要求】
-    请生成 JSON 数据，key 为 stage1 到 stage5。
-    - stage1 (初始状态): 基于背景故事，角色刚见到玩家时的自然反应（不用管好感度数值，只看人设逻辑）。
-    - stage2 (熟悉/建立关系): 双方产生交集后的态度变化。
-    - stage3 (好感/转折): 情感质变的转折点。
-    - stage4 (深爱/确立): 确立深厚羁绊。
-    - stage5 (极致/灵魂): 该角色能达到的最高情感强度 (可以是疯狂的、神圣的或肉欲的，取决于人设)。
-
-    【JSON格式（严格遵守）】
-    {
-        "stage1": { "logic": "...", "dialogue": "..." },
-        "stage2": { "logic": "...", "dialogue": "..." },
-        "stage3": { "logic": "...", "dialogue": "..." },
-        "stage4": { "logic": "...", "dialogue": "..." },
-        "stage5": { "logic": "...", "dialogue": "..." }
-    }
+    请生成一段约 200 字的 [Behavior Logic] (行为逻辑)。
+    要求：
+    1. 用第二人称 "你" 来描述这个角色 (例如："你是一个...，当看到玩家时，你会...")。
+    2. 明确她对待玩家的**初始态度** (是直接扑倒，还是保持距离？)。
+    3. 结合她的XP，描述她会如何回应玩家的互动。
+    4. **不要**返回 JSON，直接返回这段逻辑文本即可。
     `;
 
     try {
-        // 调用 LLM (确保你已经更新了 performLlmRequest 以支持第二个参数)
         let result = await performLlmRequest(userPrompt, sysPrompt);
+        // 清洗一下可能多余的引号
+        result = result.replace(/^["']|["']$/g, '').trim();
         
-        // 清洗数据
-        result = result.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(result);
+        // 填入 personalityNormal 字段 (我们用这个字段存核心逻辑)
+        formData.value.personalityNormal = result;
 
-        // 自动填入
-        if(data.stage1) { formData.value.personalityNormal = data.stage1.logic; formData.value.exampleNormal = data.stage1.dialogue; }
-        if(data.stage2) { formData.value.personalityFriend = data.stage2.logic; formData.value.exampleFriend = data.stage2.dialogue; }
-        if(data.stage3) { formData.value.personalityFlirt = data.stage3.logic; formData.value.exampleFlirt = data.stage3.dialogue; }
-        if(data.stage4) { formData.value.personalityLover = data.stage4.logic; formData.value.exampleLover = data.stage4.dialogue; }
-        if(data.stage5) { formData.value.personalitySex = data.stage5.logic; formData.value.exampleSex = data.stage5.dialogue; }
-
-        uni.showToast({ title: '人设推演完成！', icon: 'success' });
+        uni.showToast({ title: '行为逻辑已生成', icon: 'success' });
     } catch (e) {
         console.error(e);
-        uni.showModal({ title: '生成失败', content: 'AI返回数据异常，请重试。\n' + e.message, showCancel: false });
+        uni.showModal({ title: '生成失败', content: e.message, showCancel: false });
     } finally {
         uni.hideLoading();
     }
