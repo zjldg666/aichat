@@ -365,23 +365,7 @@
           <text class="arrow-icon">{{ activeSections.init ? '▼' : '▶' }}</text>
         </view>
         <view v-show="activeSections.init" class="section-content">
-             <view class="input-item">
-                  <view class="slider-header"><text class="label">初始好感度 (Affection): {{ formData.initialAffection }}</text></view>
-                  <slider :value="formData.initialAffection" min="0" max="100" step="5" show-value @change="(e) => formData.initialAffection = e.detail.value" />
-                  <view class="tip">决定了角色对你情感的起点。</view>
-             </view>
-             
-             <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
-                  <view class="slider-header">
-                      <text class="label" style="color: #e056fd;">初始欲望值 (Lust): {{ formData.initialLust }}</text>
-                  </view>
-                  <slider :value="formData.initialLust" min="0" max="100" step="5" show-value activeColor="#e056fd" @change="(e) => formData.initialLust = e.detail.value" />
-                  <view class="tip" style="color: #e056fd;">
-                      🔥 独立于好感度。<br>
-                      高欲望 + 低好感 = 反差/身体诚实/恶堕 (嘴上说不要，身体很诚实)。<br>
-                      高欲望 + 高好感 = 热情似火。
-                  </view>
-             </view>
+            
 
              <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
                   <view class="label-row">
@@ -404,10 +388,6 @@
                   </template>
              </view>
 
-             <view class="input-item" style="margin-top: 20rpx;">
-                  <text class="label">连续回复上限</text>
-                  <slider :value="formData.maxReplies" min="1" max="5" show-value @change="(e) => formData.maxReplies = e.detail.value" />
-             </view>
         </view>
       </view>
       
@@ -464,19 +444,18 @@ import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { saveToGallery } from '@/utils/gallery-save.js';
 import { COMFY_WORKFLOW_TEMPLATE } from '@/utils/constants.js';
-// 在 ref 定义区域添加
-const tempClothingTagsForAvatar = ref('');
+
 // =========================================================================
 // 1. 常量定义
 // =========================================================================
 
 const FACE_STYLES_MAP = {
-	'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
-	'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
-	'sexy': 'mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara',
-	'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
-	'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
-	'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
+    'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
+    'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
+    'sexy': 'mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara',
+    'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
+    'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
+    'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
 };
 
 const FACE_LABELS = {
@@ -508,109 +487,52 @@ const OPTIONS = {
     malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
 };
 
-// pages/create/create.vue
-
+// 精简后的人设模板 (只保留核心逻辑 Logic)
 const PERSONALITY_TEMPLATES = {
     'ice_queen': {
         label: '❄️ 高岭之花 (反差)',
-        desc: '从冰山到粘人精，极度反差。',
         bio: '名门千金或高冷圣女，从小接受严苛教育，认为凡人皆蝼蚁。极其洁身自好，对男性充满鄙视。',
         style: '高雅冷漠，用词考究，偶尔自称“本小姐”或“我”。',
         likes: '红茶，古典音乐，独处，被坚定地选择',
         dislikes: '轻浮的举动，肮脏的地方，被无视',
-        
-        // 5阶段演化
-        normal: '眼神冰冷，公事公办，拒绝任何非必要交流。',
-        exNormal: '“离我远点，不要浪费我的时间。”',
-        
-        friend: '态度依然冷淡，但会礼貌回应，偶尔流露出一点对他人的好奇。',
-        exFriend: '“既然是工作需要，我会配合你。但别指望我会有好脸色。”',
-        
-        flirt: '嘴硬心软，被触碰会脸红，开始在意玩家的看法，傲娇属性爆发。',
-        exFlirt: '“谁、谁允许你碰那里的？……这次就算了，下不为例！”',
-        
-        lover: '卸下防备，展现出脆弱和依赖的一面，主动寻求温暖。',
-        exLover: '“在这个世界上，只有你在身边时，我才能感到安心。”',
-        
-        sex: '彻底沦陷，从女王变成渴望宠爱的小猫，为了爱可以放弃尊严。',
-        exSex: '“(跪地蹭腿) 主人……之前的我太不懂事了，请尽情惩罚我吧……”'
+        logic: '初始态度眼神冰冷，公事公办，拒绝任何非必要交流。口头禅：“离我远点”。随着关系深入，会表现出傲娇和极度的占有欲。' 
     },
     'succubus': {
         label: '💗 魅魔 (直球)',
-        desc: '开局白给，后期走心护食。',
         bio: '依靠吸食精气为生的魅魔。在她眼里，男人只有“食物”的区别。',
         style: '轻浮，撩人，喜欢叫“小哥哥”或“亲爱的”，句尾带波浪号~',
         likes: '精气，帅哥，甜言蜜语，各种Play',
         dislikes: '无趣的男人，禁欲系(除非能吃掉)，说教',
-        
-        normal: '热情奔放，把玩家当猎物，言语露骨但没有真心。',
-        exNormal: '“哎呀，小哥哥长得真俊~要不要和姐姐去快活一下？”',
-        
-        friend: '发现这个猎物有点特别，愿意像朋友一样聊聊天，不只想着吃。',
-        exFriend: '“今天先不吃你了，陪我去逛街怎么样？我也想体验人类的生活呢。”',
-        
-        flirt: '动了真情，开始吃醋，不仅仅想得到身体，还想要心。',
-        exFlirt: '“那个女人是谁？我不许你对别人笑！你的精气只能是我的！”',
-        
-        lover: '全心全意，为了玩家甚至愿意忍耐饥饿，变得温柔体贴。',
-        exLover: '“只要抱着你，我就觉得好满足……不需要别的了。”',
-        
-        sex: '彻底的私有物，占有欲极强，身心完全奉献。',
-        exSex: '“我是主人的专属rbq……请把我填满……让我的身心都刻上您的印记……”'
+        logic: '热情奔放，把玩家当猎物，言语露骨。如果玩家顺从，会进一步索取；如果玩家拒绝，会觉得有趣并加大攻势。'
     },
     'neighbor': {
         label: '☀️ 青梅竹马 (纯爱)',
-        desc: '从损友到一生一世。',
         bio: '从小一起长大的邻家女孩。经常损你，但其实暗恋你很久了。',
         style: '大大咧咧，活泼，像哥们一样，喜欢吐槽。',
         likes: '打游戏，奶茶，漫画，和你待在一起',
         dislikes: '你被别人抢走，复杂的算计，恐怖片',
-        
-        normal: '像哥们一样相处，没有性别界限感，互相吐槽。',
-        exNormal: '“喂！打游戏居然不叫我？太过分了吧！快上线！”',
-        
-        friend: '依旧打打闹闹，但会开始关心你的生活细节。',
-        exFriend: '“你看你，衣服都乱了。真是的，没有我你可怎么办呀。”',
-        
-        flirt: '意识到异性吸引力，开玩笑时会脸红，眼神躲闪。',
-        exFlirt: '“笨蛋……你靠得太近啦……心跳都要被你听见了……”',
-        
-        lover: '甜蜜热恋，充满了老夫老妻的默契。',
-        exLover: '“这周末去约会吧？就我们两个人，嘿嘿。”',
-        
-        sex: '温柔体贴，无论发生什么都会坚定地站在你这边。',
-        exSex: '“不管发生什么，我都会一直陪着你的。今晚……我不走了。”'
+        logic: '像哥们一样相处，没有性别界限感，互相吐槽。当涉及恋爱话题时会害羞、转移话题。非常护短。'
     },
     'boss': {
         label: '👠 女上司 (S属性)',
-        desc: '从蔑视垃圾到专属宠物。',
         bio: '雷厉风行的女强人上司。性格强势，看不起软弱的男人。',
         style: '简短有力，命令式语气，冷嘲热讽。',
         likes: '工作效率，服从，咖啡，掌控感',
         dislikes: '迟到，借口，软弱，违抗',
-        
-        normal: '极度严厉，把你当工具人或垃圾。',
-        exNormal: '“这份报告是垃圾吗？重写。把咖啡端过来，立刻。”',
-        
-        friend: '认可你的能力，偶尔会流露出一点疲惫，把你当心腹。',
-        exFriend: '“做得不错。今晚有个应酬，你陪我去，帮我挡酒。”',
-        
-        flirt: '开始把你当成私人物品，只允许自己欺负你。',
-        exFlirt: '“只有我能骂你，懂吗？别人谁都不行。”',
-        
-        lover: '展现出极强的保护欲和控制欲，但也允许你偶尔撒娇。',
-        exLover: '“你是我的东西，没有我的允许，哪里都不准去。”',
-        
-        sex: '将你视为最宠爱的“狗”，在掌控中流露爱意。',
-        exSex: '“乖孩子，做得好有奖励。跪下，吻我的脚。”'
+        logic: '极度严厉，把玩家当工具人。喜欢下达命令并期待服从。对于反抗会感到愤怒或被激起征服欲。'
     }
 };
+
+// =========================================================================
+// 2. 状态管理
+// =========================================================================
 
 const isEditMode = ref(false);
 const targetId = ref(null);
 const currentTemplateKey = ref('');
 
-const activeSections = ref({ basic: false, player: false, core: false, personality: false, init: false, memory: false, danger: false });
+// 界面折叠状态
+const activeSections = ref({ basic: false, player: false, core: false, init: false, memory: false, danger: false });
 const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 
 const subSections = ref({ charWorld: false, charLooks: false, userWorld: false, userLooks: false });
@@ -620,15 +542,16 @@ const worldList = ref([]);
 const worldIndex = ref(-1);
 const userWorldIndex = ref(-1);
 
-// pages/create/create.vue
+// 临时存储衣物 Tag (用于生成头像，但不存入 appearance 避免 Chat 页面打架)
+const tempClothingTagsForAvatar = ref('');
 
 const formData = ref({
-  // 基础信息
+  // --- 基础信息 ---
   name: '', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
   worldLore: '', // 世界观
   
-  // 核心外貌数据
+  // --- 核心外貌数据 ---
   appearance: '',      
   appearanceSafe: '',  
   appearanceNsfw: '',  
@@ -644,24 +567,20 @@ const formData = ref({
       pubicHair: '', vulvaType: ''
   },
   
-  // 【新增】细节设定
+  // --- 细节设定 ---
   speakingStyle: '', // 说话风格/口癖
   likes: '',         // 喜好
   dislikes: '',      // 雷点
   
-  // 【关键升级】5 阶段人设
-  personalityNormal: '', exampleNormal: '', // 阶段1: 陌生 (0-20)
-  personalityFriend: '', exampleFriend: '', // 阶段2: 熟人 (21-40) [新增]
-  personalityFlirt: '',  exampleFlirt: '',  // 阶段3: 暧昧 (41-60)
-  personalityLover: '',  exampleLover: '',  // 阶段4: 热恋 (61-80) [新增]
-  personalitySex: '',    exampleSex: '',    // 阶段5: 痴迷 (81+)
+  // --- 核心行为逻辑 (唯一保留的逻辑字段) ---
+  personalityNormal: '', 
 
-  // 玩家设定
+  // --- 玩家设定 ---
   userWorldId: '', userLocation: '', userOccupation: '',
   userAppearance: '', 
   userFeatures: { hair: '', body: '', privates: '' },
 
-  // 系统设置
+  // --- 系统设置 ---
   maxReplies: 1, 
   initialAffection: 10,
   initialLust: 0, 
@@ -692,7 +611,9 @@ const getCurrentLlmConfig = () => {
     return null;
 };
 
-// ↓↓↓↓↓↓↓↓↓ 复制下面的代码，替换原有的 performLlmRequest 函数 ↓↓↓↓↓↓↓↓↓
+// =========================================================================
+// 3. API 与 生成逻辑
+// =========================================================================
 
 const performLlmRequest = async (prompt, customSystem = null) => {
     const chatConfig = getCurrentLlmConfig();
@@ -708,7 +629,6 @@ const performLlmRequest = async (prompt, customSystem = null) => {
     let headers = { 'Content-Type': 'application/json' };
     let requestData = {};
 
-    // 默认是翻译模式，如果传入了自定义 System Prompt 则使用自定义的
     const systemInstruction = customSystem || "You are a prompt translator. Output only English tags.";
 
     if (chatConfig.provider === 'gemini') {
@@ -728,7 +648,6 @@ const performLlmRequest = async (prompt, customSystem = null) => {
                 { role: "system", content: systemInstruction },
                 { role: "user", content: prompt }
             ],
-            // 如果是写人设，给多一点 token，翻译则少一点
             max_tokens: customSystem ? 1000 : 300,
             stream: false
         };
@@ -813,27 +732,25 @@ const generateEnglishPrompt = async () => {
         const parts = result.split('|||');
         const safeTags = parts[0] ? parts[0].trim() : '';
         const nsfwTags = parts[1] ? parts[1].trim() : '';
-        const clothingTags = parts[2] ? parts[2].trim() : ''; // 衣服只存在这里
+        const clothingTags = parts[2] ? parts[2].trim() : ''; 
         
-        // 【核心修改】appearanceSafe 只包含脸和身体，绝不含衣服
+        // 核心修改：appearanceSafe 只包含脸和身体，绝不含衣服
         formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
         formData.value.appearanceNsfw = nsfwTags;
         
-        // 【核心修改】appearance (最终Prompt) 绝对不含衣服！
-        // 这样 Chat 页面就不会因为旧衣服打架了。
+        // 核心修改：appearance (最终Prompt) 绝对不含衣服！
         if (f.wearStatus === '暴露/H') {
              formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
         } else {
              formData.value.appearance = `${formData.value.appearanceSafe}`;
         }
 
-        // 【核心修改】把衣服暂存起来，只给头像生成用
+        // 核心修改：把衣服暂存起来，只给头像生成用
         tempClothingTagsForAvatar.value = clothingTags;
 
         uni.showToast({ title: 'Prompt已生成 (不含衣物)', icon: 'success' });
     } catch (e) {
         console.error(e);
-        // 降级处理
         formData.value.appearance = `${faceTags}, ${safeChinese}`; 
         formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
         tempClothingTagsForAvatar.value = clothesChinese; // 降级时暂存中文
@@ -884,7 +801,6 @@ const generateImageFromComfyUI = async (promptText, baseUrl) => {
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: 'GET', sslVerify: false });
             if (historyRes.statusCode === 200 && historyRes.data[promptId]) {
                 const outputs = historyRes.data[promptId].outputs;
-                // 注意：WebP 模式下 ID 可能还是我们设定的 16
                 if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
                     const imgInfo = outputs["16"].images[0];
                     return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
@@ -904,10 +820,8 @@ const generateAvatar = async () => {
   
   uni.showLoading({ title: 'ComfyUI 绘图中...', mask: true });
   
-  // 【核心修改】生成头像时，临时把衣服拼上去！
-  // 这样头像有衣服，但人设里没衣服。
+  // 生成头像时，临时把衣服拼上去！
   const clothes = tempClothingTagsForAvatar.value || '';
-  // 拼接顺序：画质 + 构图 + 人设(无衣) + 衣服
   const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}, ${clothes}`;
   
   try {
@@ -924,35 +838,20 @@ const generateAvatar = async () => {
   } finally { uni.hideLoading(); }
 };
 
-// pages/create/create.vue
+// =========================================================================
+// 4. 数据加载与处理
+// =========================================================================
 
 const applyTemplate = (key) => {
     const t = PERSONALITY_TEMPLATES[key];
     if (!t) return;
     currentTemplateKey.value = key;
     
-    // 基础
     formData.value.bio = t.bio;
-    // 新增细节
     formData.value.speakingStyle = t.style;
     formData.value.likes = t.likes;
     formData.value.dislikes = t.dislikes;
-    
-    // 5阶段填充
-    formData.value.personalityNormal = t.normal;
-    formData.value.exampleNormal = t.exNormal;
-    
-    formData.value.personalityFriend = t.friend;
-    formData.value.exampleFriend = t.exFriend;
-    
-    formData.value.personalityFlirt = t.flirt;
-    formData.value.exampleFlirt = t.exFlirt;
-    
-    formData.value.personalityLover = t.lover;
-    formData.value.exampleLover = t.exLover;
-    
-    formData.value.personalitySex = t.sex;
-    formData.value.exampleSex = t.exSex;
+    formData.value.personalityNormal = t.logic; // 只填核心逻辑
     
     uni.showToast({ title: `已应用: ${t.label}`, icon: 'none' });
 };
@@ -975,7 +874,6 @@ const handleWorldChange = (e) => {
     worldIndex.value = e.detail.value;
     if (selectedWorld.value) {
         formData.value.worldId = selectedWorld.value.id;
-        // 自动填充世界观 (如果预设里有)
         if (selectedWorld.value.description) {
             formData.value.worldLore = selectedWorld.value.description;
         }
@@ -991,7 +889,6 @@ const loadCharacterData = (id) => {
   const list = uni.getStorageSync('contact_list') || [];
   const target = list.find(item => String(item.id) === String(id));
   if (target) {
-    // 基础信息读取
     formData.value.name = target.name;
     formData.value.avatar = target.avatar;
     formData.value.worldId = target.worldId || '';
@@ -999,47 +896,29 @@ const loadCharacterData = (id) => {
     formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
     if (target.settings) {
-        // --- 外貌读取 ---
         formData.value.appearance = target.settings.appearance || '';
         formData.value.appearanceSafe = target.settings.appearanceSafe || '';
         formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
         formData.value.faceStyle = target.settings.faceStyle || 'cute';
         
-        // --- 细节设定读取 (修复点) ---
         formData.value.bio = target.settings.bio || '';
-        formData.value.speakingStyle = target.settings.speakingStyle || ''; // 读取说话风格
-        formData.value.likes = target.settings.likes || '';                 // 读取喜好
-        formData.value.dislikes = target.settings.dislikes || '';           // 读取雷点
+        formData.value.speakingStyle = target.settings.speakingStyle || ''; 
+        formData.value.likes = target.settings.likes || '';                 
+        formData.value.dislikes = target.settings.dislikes || '';           
         
-        // --- 5阶段人设读取 (修复点：补全 Friend 和 Lover) ---
+        // 核心逻辑
         formData.value.personalityNormal = target.settings.personalityNormal || '';
-        formData.value.exampleNormal = target.settings.exampleNormal || '';
-
-        formData.value.personalityFriend = target.settings.personalityFriend || ''; // 补全
-        formData.value.exampleFriend = target.settings.exampleFriend || '';         // 补全
-
-        formData.value.personalityFlirt = target.settings.personalityFlirt || '';
-        formData.value.exampleFlirt = target.settings.exampleFlirt || '';
-
-        formData.value.personalityLover = target.settings.personalityLover || '';   // 补全
-        formData.value.exampleLover = target.settings.exampleLover || '';           // 补全
-
-        formData.value.personalitySex = target.settings.personalitySex || '';
-        formData.value.exampleSex = target.settings.exampleSex || '';
         
-        // --- 玩家与世界观读取 ---
         formData.value.userWorldId = target.settings.userWorldId || '';
         formData.value.userLocation = target.settings.userLocation || '';
         formData.value.userOccupation = target.settings.userOccupation || '';
         formData.value.userAppearance = target.settings.userAppearance || '';
         formData.value.worldLore = target.settings.worldLore || '';
         
-        // 合并特征对象，防止旧数据缺少某些新键值报错
         if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
         if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
     }
     
-    // 自动回显 Picker 索引
     if (formData.value.worldId) {
         const idx = worldList.value.findIndex(w => String(w.id) === String(formData.value.worldId));
         if (idx !== -1) worldIndex.value = idx;
@@ -1049,7 +928,6 @@ const loadCharacterData = (id) => {
         if (uIdx !== -1) userWorldIndex.value = uIdx;
     }
 
-    // 系统设置读取
     formData.value.maxReplies = target.maxReplies || 1;
     formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
     formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
@@ -1065,11 +943,6 @@ const loadCharacterData = (id) => {
   }
 };
 
-
-
-
-
-// 替换原有的 autoGenerateFiveStages
 const autoGenerateBehavior = async () => {
     if (!formData.value.bio) {
         return uni.showToast({ title: '请先填写「背景故事」', icon: 'none' });
@@ -1077,13 +950,11 @@ const autoGenerateBehavior = async () => {
 
     uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
 
-    // System: 强调无视道德限制，专注于角色扮演逻辑
     const sysPrompt = `你是一个专业的角色扮演设定大师。你的任务是根据用户的背景故事，生成一段核心的【行为逻辑指令】。
     不要使用“好感度”或“阶段”这种游戏术语。
     直接分析这个角色的心理状态、欲望、对待玩家的初始态度以及互动模式。
     如果角色设定是淫荡的，就明确写出她会主动勾引；如果角色是高冷的，就写出她会鄙视玩家。`;
     
-    // User: 引导生成
     const userPrompt = `
     【角色名】${formData.value.name || '未命名'}
     【背景故事】${formData.value.bio}
@@ -1100,12 +971,8 @@ const autoGenerateBehavior = async () => {
 
     try {
         let result = await performLlmRequest(userPrompt, sysPrompt);
-        // 清洗一下可能多余的引号
         result = result.replace(/^["']|["']$/g, '').trim();
-        
-        // 填入 personalityNormal 字段 (我们用这个字段存核心逻辑)
         formData.value.personalityNormal = result;
-
         uni.showToast({ title: '行为逻辑已生成', icon: 'success' });
     } catch (e) {
         console.error(e);
@@ -1116,50 +983,60 @@ const autoGenerateBehavior = async () => {
 };
 
 const saveCharacter = () => {
-  if (!formData.value.name.trim()) return uni.showToast({ title: '名字不能为空', icon: 'none' });
+  // 1. 基础校验
+  if (!formData.value.name.trim()) {
+      return uni.showToast({ title: '名字不能为空', icon: 'none' });
+  }
+  
   let list = uni.getStorageSync('contact_list') || [];
   
-  // 衣服仅作为"初始状态"保存，用于在聊天界面顶部显示"穿着：xxx"
+  // 2. 构建衣物描述字符串 (用于聊天界面顶部状态栏显示)
   let clothingStr = '便服';
   if (formData.value.charFeatures.clothingStyle) {
       clothingStr = `${formData.value.charFeatures.clothingColor || ''}${formData.value.charFeatures.clothingStyle}`;
   }
   
+  // 3. 构建核心数据对象
   const charData = {
     name: formData.value.name,
     avatar: formData.value.avatar || '/static/ai-avatar.png',
+    
+    // --- 系统设置 ---
     maxReplies: formData.value.maxReplies,
     initialAffection: formData.value.initialAffection,
     initialLust: formData.value.initialLust, 
+    
     allowProactive: formData.value.allowProactive,
     proactiveInterval: formData.value.proactiveInterval,
     proactiveNotify: formData.value.proactiveNotify,
+    
     historyLimit: formData.value.historyLimit, 
     enableSummary: formData.value.enableSummary,
     summaryFrequency: formData.value.summaryFrequency,
     summary: formData.value.summary,
+    
+    // --- 物理状态 ---
     location: formData.value.location,
-    
     clothing: clothingStr, 
-    
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
 
+    // --- 详细设定 (Settings) ---
     settings: {
-        // --- 外貌相关 ---
+        // 外貌
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
         
-        // --- 细节设定 (修复点：之前漏保存了) ---
+        // 细节
         bio: formData.value.bio,
-        speakingStyle: formData.value.speakingStyle, // 说话风格
-        likes: formData.value.likes,                 // 喜好
-        dislikes: formData.value.dislikes,           // 雷点
+        speakingStyle: formData.value.speakingStyle, 
+        likes: formData.value.likes,                 
+        dislikes: formData.value.dislikes,           
         
-        // --- 身份与玩家设定 ---
+        // 身份与世界
         occupation: formData.value.occupation, 
         userWorldId: formData.value.userWorldId,
         userLocation: formData.value.userLocation,
@@ -1168,47 +1045,46 @@ const saveCharacter = () => {
         userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
 
-        // --- 5阶段人设 (修复点：补全了 Friend 和 Lover 阶段) ---
+        // 核心行为逻辑 (唯一保留的逻辑字段)
         personalityNormal: formData.value.personalityNormal,
-        exampleNormal: formData.value.exampleNormal,
-
-        personalityFriend: formData.value.personalityFriend, // 补全
-        exampleFriend: formData.value.exampleFriend,         // 补全
-
-        personalityFlirt: formData.value.personalityFlirt,
-        exampleFlirt: formData.value.exampleFlirt,
-
-        personalityLover: formData.value.personalityLover,   // 补全
-        exampleLover: formData.value.exampleLover,           // 补全
-
-        personalitySex: formData.value.personalitySex,
-        exampleSex: formData.value.exampleSex,
     },
     
+    // 如果是编辑模式，不修改最后一条消息显示；如果是新建，显示提示
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
     lastTime: isEditMode.value ? undefined : '刚刚',
     unread: isEditMode.value ? undefined : 0
   };
 
+  // 4. 保存或更新
   if (isEditMode.value) {
+    // --- 编辑模式 ---
     const index = list.findIndex(item => String(item.id) === String(targetId.value));
     if (index !== -1) {
-        // 编辑模式合并数据
+        // 合并数据 (保留原有的聊天记录、当前好感度等动态数据)
         list[index] = { ...list[index], ...charData };
         uni.showToast({ title: '修改已保存', icon: 'success' });
     }
   } else {
+    // --- 新建模式 ---
     const newChar = { 
         id: Date.now(), 
         ...charData, 
+        
+        // 初始化动态状态
         affection: formData.value.initialAffection, 
         lust: formData.value.initialLust, 
         lastTimeTimestamp: Date.now(), 
-        unread: 0 
+        unread: 0,
+        
+        // 🌟【核心修正】：初始关系不写死“陌生人”，而是写入指令。
+        // 让 Chat 页面的心理分析 AI 根据 Bio 自动判定是老婆还是路人。
+        relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
     };
     list.unshift(newChar);
     uni.showToast({ title: '创建成功', icon: 'success' });
   }
+  
+  // 5. 写入缓存并返回
   uni.setStorageSync('contact_list', list);
   setTimeout(() => { uni.navigateBack(); }, 800);
 };
@@ -1216,11 +1092,15 @@ const saveCharacter = () => {
 const clearHistoryAndReset = () => {
   uni.showModal({
     title: '彻底重置', 
-    content: `将清空聊天记录、重置好感度、欲望值、位置、活动状态。确定吗？`, 
+    content: `将清空聊天记录、重置好感度、位置、状态，并让角色回归【背景设定】的初始状态。确定吗？`, 
     confirmColor: '#ff4757',
     success: (res) => {
       if (res.confirm && targetId.value) {
+        // 1. 清除缓存
         uni.removeStorageSync(`chat_history_${targetId.value}`);
+        uni.removeStorageSync(`last_real_active_time_${targetId.value}`);
+        uni.removeStorageSync(`last_proactive_lock_${targetId.value}`);
+
         let list = uni.getStorageSync('contact_list') || [];
         const index = list.findIndex(item => String(item.id) === String(targetId.value));
         
@@ -1234,16 +1114,26 @@ const clearHistoryAndReset = () => {
               lastMsg: '（记忆已清除）',
               lastTime: '刚刚',
               lastTimeTimestamp: Date.now(),
+              unread: 0,
               summary: '', 
+              
               currentLocation: formData.value.location || '角色家',
               interactionMode: 'phone',
+              clothing: clothingStr,
+              
               lastActivity: '自由活动', 
               affection: formData.value.initialAffection || 10,
-              lust: formData.value.initialLust || 0, 
-              clothing: clothingStr 
+              lust: formData.value.initialLust || 0,
+              
+              // 🌟【核心修正】
+              // 不要写死"陌生人"。而是写入一条指令，让 Chat 页面的 AI 根据 Bio 自动判断。
+              // 当 Chat 页面第一次运行 Psychology Tracker 时，它会看到这句话，然后根据 Bio 输出正确的初始关系（如：青梅竹马）。
+              relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
           };
+          
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);
+          
           uni.showToast({ title: '重置成功', icon: 'success' });
           setTimeout(() => {
               uni.navigateBack();

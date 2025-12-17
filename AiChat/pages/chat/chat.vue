@@ -1,9 +1,10 @@
 <template>
   <view class="chat-container">
+    
+    <!-- 1. 顶部状态栏 -->
     <view class="status-bar-wrapper">
-      
-     
       <view class="info-row">
+        <!-- 地点与模式状态 -->
         <view class="location-box" :class="interactionMode === 'phone' ? 'phone-mode' : 'face-mode'">
           <text class="location-icon">{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
           
@@ -17,6 +18,7 @@
           </view>
         </view>
        
+        <!-- 时间显示与设置 -->
         <view class="time-box" @click="showTimeSettingPanel = true">
           <text class="time-icon">📅</text>
           <text class="time-text">{{ formattedTime }}</text>
@@ -24,11 +26,14 @@
       </view>
     </view>
 
+    <!-- 2. 聊天内容滚动区 -->
     <scroll-view class="chat-scroll" scroll-y="true" :scroll-into-view="scrollIntoView" :scroll-with-animation="true">
       <view class="chat-content">
         <view class="system-tip"><text>沉浸式扮演已就绪...</text></view>
        
         <view v-for="(msg, index) in messageList" :key="index" :id="'msg-' + index" class="message-item" :class="msg.role === 'user' ? 'right' : 'left'">
+          
+          <!-- 系统消息 / 错误重试 -->
           <view v-if="msg.isSystem" class="system-event">
             <text v-if="!msg.isError">{{ msg.content }}</text>
             <text v-else class="error-system-msg" @click="retryGenerateImage(msg)">
@@ -36,62 +41,106 @@
             </text>
           </view>
           
+          <!-- 对话消息 -->
           <template v-else>
+            <!-- 角色头像 -->
             <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
            
             <view class="bubble-wrapper">
+              <!-- 文本气泡 -->
               <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
                 <text class="msg-text" user-select>{{ msg.content }}</text>
               </view>
+              <!-- 图片气泡 -->
               <view v-else-if="msg.type === 'image'" class="bubble image-bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
                  <image :src="msg.content" mode="widthFix" class="chat-image" @click="previewImage(msg.content)"></image>
               </view>
             </view>
            
+            <!-- 用户头像 -->
             <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
           </template>
         </view>
        
+        <!-- Loading 动画 -->
         <view v-if="isLoading" class="loading-wrapper"><view class="loading-dots">...</view></view>
+        <!-- 滚动锚点 -->
         <view id="scroll-bottom" style="height: 20rpx;"></view>
       </view>
     </scroll-view>
 
-    <view class="suggestion-bar" v-if="suggestionList.length > 0">
-        <view class="suggestion-chip" 
-              v-for="(text, index) in suggestionList" 
-              :key="index"
-              @click="applySuggestion(text)">
-            {{ text }}
+    <!-- 3. 底部交互区域 (重构版) -->
+    <view class="footer-area">
+        
+        <!-- 3.1 建议气泡条 -->
+        <view class="suggestion-bar" v-if="suggestionList.length > 0">
+            <view class="suggestion-chip" 
+                  v-for="(text, index) in suggestionList" 
+                  :key="index"
+                  @click="applySuggestion(text)">
+                {{ text }}
+            </view>
+            <view class="close-suggestion" @click="suggestionList = []">×</view>
         </view>
-        <view class="close-suggestion" @click="suggestionList = []">×</view>
-    </view>
 
-    <view class="input-area">
-      <view class="action-btn" hover-class="btn-hover" @click="showTimePanel = true">
-        <text class="action-icon">⏱️</text>
-        <text class="action-text">快进</text>
-      </view>
-      
-      <view class="action-btn" hover-class="btn-hover" @click="triggerNextStep">
-        <text class="action-icon">▶️</text>
-        <text class="action-text">继续</text>
-      </view>
-      
-      <view class="action-btn" hover-class="btn-hover" @click="getReplySuggestions">
-        <text class="action-icon">💡</text>
-        <text class="action-text">提示</text>
-      </view>
-      
-      <input class="text-input" v-model="inputText" confirm-type="send" @confirm="sendMessage()" placeholder="输入对话..." :disabled="isLoading" />
-      
-      <view class="camera-btn" hover-class="btn-hover" @click="handleCameraSend">
-        <text>📷</text>
-      </view>
+        <!-- 3.2 功能工具栏 (可折叠层) -->
+        <view class="tool-bar" v-if="isToolbarOpen">
+            <!-- 快进 -->
+            <view class="tool-item" hover-class="btn-hover" @click="showTimePanel = true">
+                <view class="tool-icon">⏱️</view>
+                <text class="tool-text">快进</text>
+            </view>
 
-      <button class="send-btn" :class="{ 'disabled': isLoading }" @click="sendMessage()">发送</button>
+            <!-- 继续 -->
+            <view class="tool-item" hover-class="btn-hover" @click="triggerNextStep">
+                <view class="tool-icon">▶️</view>
+                <text class="tool-text">继续</text>
+            </view>
+
+            <!-- 提示 -->
+            <view class="tool-item" hover-class="btn-hover" @click="getReplySuggestions">
+                <view class="tool-icon">💡</view>
+                <text class="tool-text">提示</text>
+            </view>
+
+            <!-- 拍照 (根据 interactionMode 变化) -->
+            <view class="tool-item" 
+                  :class="{ 'disabled-tool': interactionMode !== 'face' }"
+                  hover-class="btn-hover" 
+                  @click="handleCameraSend">
+                <view class="tool-icon">
+                    <text>{{ interactionMode === 'face' ? '📷' : '🚫' }}</text>
+                </view>
+                <text class="tool-text">{{ interactionMode === 'face' ? '抓拍' : '禁用' }}</text>
+            </view>
+        </view>
+
+        <!-- 3.3 输入行 (常驻层) -->
+        <view class="input-row">
+            <!-- 切换工具栏按钮 (➕) -->
+            <view class="toggle-btn" hover-class="btn-hover" @click="toggleToolbar">
+                <text class="toggle-icon" :class="{ 'rotated': isToolbarOpen }">➕</text>
+            </view>
+
+            <!-- 文本输入框 -->
+            <input class="text-input" 
+                   v-model="inputText" 
+                   confirm-type="send" 
+                   @confirm="sendMessage()" 
+                   placeholder="与她对话..." 
+                   :disabled="isLoading" 
+                   :adjust-position="true"
+                   cursor-spacing="20" />
+
+            <!-- 发送按钮 -->
+            <button class="send-btn" :class="{ 'disabled': isLoading }" @click="sendMessage()">发送</button>
+        </view>
+        
+        <!-- 底部安全区适配 -->
+        <view class="safe-area-bottom"></view>
     </view>
    
+    <!-- 4. 弹窗：时间跳跃面板 -->
     <view class="time-panel-mask" v-if="showTimePanel" @click="showTimePanel = false">
       <view class="time-panel" @click.stop>
         <view class="panel-title">时间跳跃</view>
@@ -109,6 +158,7 @@
       </view>
     </view>
 
+    <!-- 5. 弹窗：具体时间设置面板 -->
     <view class="time-panel-mask" v-if="showTimeSettingPanel" @click="showTimeSettingPanel = false">
       <view class="time-panel" @click.stop>
         <view class="panel-title">设定具体时间</view>
@@ -136,12 +186,14 @@
     import { onLoad, onShow, onHide, onUnload, onNavigationBarButtonTap } from '@dcloudio/uni-app';
     import { saveToGallery } from '@/utils/gallery-save.js';
     
-    // 引入 Prompt
+
     import { 
         CORE_INSTRUCTION_LOGIC_MODE, 
         SCENE_KEEPER_PROMPT, 
         RELATIONSHIP_PROMPT, 
-        VISUAL_DIRECTOR_PROMPT,
+        SNAPSHOT_TRIGGER_PROMPT, // <--- 新增：门卫
+        IMAGE_GENERATOR_PROMPT,  // <--- 新增：导演
+        CAMERA_MAN_PROMPT, 
         PERSONALITY_TEMPLATE, 
         NSFW_STYLE 
     } from '@/utils/prompts.js';
@@ -163,7 +215,7 @@
     const inputText = ref('');
     const isLoading = ref(false);
     const scrollIntoView = ref('');
-    
+    const currentAction = ref('站立/闲逛'); // 新增状态
     const userName = ref('你');
     const userAvatar = ref('/static/user-avatar.png');
     const userHome = ref('未知地址');
@@ -195,7 +247,11 @@
     const tempTimeStr = ref('');
     
     const suggestionList = ref([]); 
+    const isToolbarOpen = ref(false); // 控制工具栏展开/收起
     
+    const toggleToolbar = () => {
+        isToolbarOpen.value = !isToolbarOpen.value;
+    };
     // 生图冷却锁
     const lastImageGenerationTime = ref(0); 
     const IMAGE_COOLDOWN_MS = 15000; 
@@ -318,7 +374,7 @@
         const list = uni.getStorageSync('contact_list') || [];
         const target = list.find(item => String(item.id) === String(id));
         if (target) {
-            console.log('👤 [Data] Loaded Role:', target.name);
+    
             currentRole.value = target;
             chatName.value = target.name;
             uni.setNavigationBarTitle({ title: target.name });
@@ -705,12 +761,32 @@
         }
     };
 
-    const triggerNextStep = () => {
-        if (isLoading.value) return;
-        sendMessage(true);
-    };
+    // =============================================================================
+        // 🔽 修改后的 triggerNextStep (继续按钮逻辑)
+        // =============================================================================
+        const triggerNextStep = () => {
+            if (isLoading.value) return;
+            
+            // 核心修改：不仅仅是 isContinue=true，还附带了一条强制指令
+            // 这条指令不会显示在聊天气泡里，但 AI 能看到。
+            const drivePrompt = `[System Command: NARRATIVE_CONTINUATION]
+            **User Status**: Silent/Waiting.
+            **Task**: The user is waiting for you to continue.
+            1. If previous output was cut off, finish the sentence.
+            2. If previous interaction finished, initiate a NEW action or topic based on current mood.
+            3. DO NOT output "..." or silence. MAKE SOMETHING HAPPEN.`;
+    
+            // 调用 sendMessage，传入 true (继续模式) 和 驱动指令
+            sendMessage(true, drivePrompt);
+        };
 
     const handleCameraSend = () => {
+		    // 拦截：非见面模式禁止
+		    if (interactionMode.value !== 'face') {
+		        uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+		        return;
+		    }
+			
         if (isLoading.value) return;
         const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
         sendMessage(false, extraInstruction);
@@ -763,101 +839,269 @@
         uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
     };
     
-    // =============================================================================
-    // 🏠 Scene Keeper (物理状态管理：模式/地点/衣服)
-    // =============================================================================
-    const runSceneCheck = async (lastUserMsg, aiResponseText) => {
-        if (!aiResponseText || aiResponseText.length < 3) return;
 
-        console.log('🏠 [Scene Keeper] Checking physical state...');
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-
-        const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-
-        const prompt = SCENE_KEEPER_PROMPT
-            .replace('{{location}}', currentLocation.value)
-            .replace('{{clothes}}', currentClothing.value)
-            .replace('{{mode}}', interactionMode.value)
-            + `\n\n【Interaction】\n${conversationContext}`;
-
-        try {
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.1 };
+        const runSceneCheck = async (lastUserMsg, aiResponseText) => {
+            if (!aiResponseText || aiResponseText.length < 3) return;
+    
+            console.log('🏠 [Scene Keeper] Checking physical state...');
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) return;
+    
+            const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
+    
+            // 注入 currentAction (旧状态) 供 AI 参考
+            const prompt = SCENE_KEEPER_PROMPT
+                .replace('{{location}}', currentLocation.value)
+                .replace('{{clothes}}', currentClothing.value)
+                .replace('{{mode}}', interactionMode.value)
+                .replace('{{current_action}}', currentAction.value || "站立/闲逛") 
+                + `\n\n【Interaction】\n${conversationContext}`;
+    
+            try {
+                let targetUrl = '';
+                let requestBody = {};
+                let header = { 'Content-Type': 'application/json' };
+                let baseUrl = config.baseUrl || '';
+                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    
+                if (config.provider === 'gemini') {
+                    const cleanBase = 'https://generativelanguage.googleapis.com';
+                    targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                    requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+                } else {
+                    targetUrl = `${baseUrl}/chat/completions`;
+                    header['Authorization'] = `Bearer ${config.apiKey}`;
+                    requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 200, temperature: 0.1 };
+                }
+    
+                const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+                
+                let resultText = "";
+                if (config.provider === 'gemini') {
+                    resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+                } else {
+                    let data = res.data;
+                    if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                    resultText = data?.choices?.[0]?.message?.content || "{}";
+                }
+    
+                // 🌟🌟🌟【修复核心：强力清洗 JSON】🌟🌟🌟
+                // 1. 去除 Markdown 标记
+                let cleanJson = resultText.replace(/```json|```/g, '').trim();
+                
+                // 2. 提取最外层的 {}，丢弃所有外部的 * 或文字
+                const firstOpen = cleanJson.indexOf('{');
+                const lastClose = cleanJson.lastIndexOf('}');
+                
+                if (firstOpen !== -1 && lastClose !== -1) {
+                    cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+                }
+                // 🌟🌟🌟 修复结束 🌟🌟🌟
+    
+                const state = JSON.parse(cleanJson);
+                console.log('🏠 [Scene Keeper] Verdict:', state);
+    
+                let hasChange = false;
+                
+                // 1. 更新模式
+                if (state.mode && ['phone', 'face'].includes(state.mode) && state.mode !== interactionMode.value) {
+                    console.log(`🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
+                    interactionMode.value = state.mode;
+                    hasChange = true;
+                    if(state.mode === 'face') uni.vibrateShort();
+                }
+                // 2. 更新地点
+                if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
+                    currentLocation.value = state.location;
+                    hasChange = true;
+                }
+                // 3. 更新服装
+                if (state.clothes && state.clothes.length < 50 && state.clothes !== currentClothing.value) {
+                    currentClothing.value = state.clothes;
+                    hasChange = true;
+                }
+                // 4. 更新动作 (Action)
+                if (state.action && state.action !== currentAction.value) {
+                    console.log(`💃 Action Update: ${currentAction.value} -> ${state.action}`);
+                    currentAction.value = state.action;
+                }
+    
+                if (hasChange) saveCharacterState();
+    
+            } catch (e) {
+                // 这里为了调试方便，把原始文本打印出来，方便看 AI 到底回了什么鬼东西
+                console.warn('Scene check failed. Raw text was:', e); 
             }
+        };
+    
 
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-
-            const state = JSON.parse(resultText.replace(/```json|```/g, '').trim());
-            console.log('🏠 [Scene Keeper] Verdict:', state);
-
-            let hasChange = false;
-            if (state.mode && ['phone', 'face'].includes(state.mode) && state.mode !== interactionMode.value) {
-                console.log(`🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
-                interactionMode.value = state.mode;
-                hasChange = true;
-                if(state.mode === 'face') uni.vibrateShort();
-            }
-            if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
-                currentLocation.value = state.location;
-                hasChange = true;
-            }
-            if (state.clothes && state.clothes.length < 30 && state.clothes !== currentClothing.value) {
-                currentClothing.value = state.clothes;
-                hasChange = true;
-            }
-
-            if (hasChange) saveCharacterState();
-
-        } catch (e) {
-            console.warn('Scene check failed:', e);
-        }
-    };
-
-    // =============================================================================
-    // ❤️ Relationship Tracker (心理状态管理：关系/活动)
-    // =============================================================================
+	
+	// =============================================================================
+	    // 📷 Camera Man Check (物理抓拍 - 环境感知完整版)
+	    // =============================================================================
+	    // =============================================================================
+	        // 📷 Camera Man Check (物理抓拍 - 瞬时定格完整版)
+	        // =============================================================================
+	        // =============================================================================
+	            // 📷 Camera Man Check (物理抓拍 - 集大成完整版)
+	            // =============================================================================
+	            const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
+	                // 1. 冷却检查
+	                const now = Date.now();
+	                if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+	                    console.log('📷 [Camera Man] Shutter jammed (Cooldown).');
+	                    return;
+	                }
+	        
+	                // =====================================================================
+	                // 🌟 核心修正：时光回溯 (Time Freeze Logic)
+	                // =====================================================================
+	                // 逻辑：此时 messageList 已经包含了 AI 最新的回复 (即被快门声吓到的反应)。
+	                // 为了拍到 "按下快门那一刻" 的画面，我们需要找 "倒数第2条" AI 消息。
+	                
+	                let targetAction = ""; // 对话细节
+	                const len = messageList.value.length;
+	                let aiMsgCount = 0;
+	                
+	                // 倒序遍历历史记录
+	                for (let i = len - 1; i >= 0; i--) {
+	                    const msg = messageList.value[i];
+	                    // 只看 AI (model) 的文本消息
+	                    if (msg.role === 'model' && (!msg.type || msg.type === 'text')) {
+	                        aiMsgCount++;
+	                        if (aiMsgCount === 2) { 
+	                            // 找到倒数第2条 AI 消息 (即快门前的那一刻状态)
+	                            targetAction = msg.content;
+	                            break;
+	                        }
+	                    }
+	                }
+	                
+	                // 兜底：如果是刚开局，或者找不到上一条，就只能用当前的
+	                if (!targetAction) targetAction = aiResponseText;
+	        
+	                console.log('📷 [Camera Man] Capturing MOMENT:', targetAction.substring(0, 50) + '...');
+	                console.log('📷 [Camera Man] Physical Action:', currentAction.value); // 打印当前 Scene Keeper 确定的动作
+	                // =====================================================================
+	        
+	                console.log('📷 [Camera Man] Shutter pressed! Capturing reality...');
+	                const config = getCurrentLlmConfig();
+	                if (!config || !config.apiKey) return;
+	        
+	                // 2. 构建 Prompt (注入所有核心参数)
+	                const prompt = CAMERA_MAN_PROMPT
+	                    .replace('{{current_action}}', currentAction.value || "维持当前动作") // 🌟 注入 Scene Keeper 的动作结论
+	                    .replace('{{ai_response}}', targetAction) // 🌟 注入时光回溯后的对话
+	                    .replace('{{clothes}}', currentClothing.value || "Casual clothes")
+	                    .replace('{{location}}', currentLocation.value || "Unknown Indoor")
+	                    .replace('{{time}}', formattedTime.value);
+	        
+	                try {
+	                    let targetUrl = '';
+	                    let requestBody = {};
+	                    let header = { 'Content-Type': 'application/json' };
+	                    let baseUrl = config.baseUrl || '';
+	                    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+	        
+	                    // 3. 适配不同 API
+	                    if (config.provider === 'gemini') {
+	                        const cleanBase = 'https://generativelanguage.googleapis.com';
+	                        targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+	                        requestBody = { 
+	                            contents: [{ role: 'user', parts: [{ text: prompt }] }], 
+	                            generationConfig: { responseMimeType: "application/json" } 
+	                        };
+	                    } else {
+	                        targetUrl = `${baseUrl}/chat/completions`;
+	                        header['Authorization'] = `Bearer ${config.apiKey}`;
+	                        requestBody = { 
+	                            model: config.model, 
+	                            messages: [{ role: "user", content: prompt }], 
+	                            max_tokens: 300, 
+	                            temperature: 0.3 
+	                        };
+	                    }
+	        
+	                    // 4. 发起请求
+	                    const res = await uni.request({ 
+	                        url: targetUrl, 
+	                        method: 'POST', 
+	                        header, 
+	                        data: requestBody, 
+	                        sslVerify: false 
+	                    });
+	                    
+	                    // 5. 解析响应
+	                    let resultText = "";
+	                    if (config.provider === 'gemini') {
+	                        resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+	                    } else {
+	                        let data = res.data;
+	                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+	                        resultText = data?.choices?.[0]?.message?.content || "{}";
+	                    }
+	        
+	                    const cleanJson = resultText.replace(/```json|```/g, '').trim();
+	                    
+	                    // 容错 JSON 解析
+	                    let result = {};
+	                    try {
+	                        result = JSON.parse(cleanJson);
+	                    } catch (jsonErr) {
+	                        console.warn('Camera Man JSON error:', jsonErr);
+	                        return;
+	                    }
+	        
+	                    console.log('📷 [Camera Man] Developed Film:', result);
+	        
+	                    // 6. 执行生图
+	                    // Camera Man 是物理触发，不需要 check shouldGenerate，只要有 description 就拍
+	                    if (result.description && result.description.length > 5) {
+	                        console.log('📷 [Action] Developing photo:', result.description);
+	                        
+	                        lastImageGenerationTime.value = Date.now();
+	                        const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+	                        
+	                        // 提示语：定格瞬间
+	                        messageList.value.push({ 
+	                            role: 'system', 
+	                            content: '📸 (定格刚才的瞬间...)', 
+	                            isSystem: true, 
+	                            id: placeholderId 
+	                        });
+	                        
+	                        scrollToBottom();
+	                        saveHistory();
+	                        
+	                        handleAsyncImageGeneration(result.description, placeholderId);
+	                    }
+	                } catch (e) {
+	                    console.warn('Camera Man failed:', e);
+	                }
+	            };
+		
+		
     const runRelationCheck = async (lastUserMsg, aiResponseText) => {
         if (!aiResponseText || aiResponseText.length < 5) return;
-
+    
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey) return;
-
+    
         const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-
+    
+        // 使用新的 Prompt 结构
         const prompt = RELATIONSHIP_PROMPT
-            .replace('{{relation}}', currentRelation.value || "初相识")
+            .replace('{{relation}}', currentRelation.value || "初相识，还没有具体印象")
             .replace('{{activity}}', currentActivity.value)
             + `\n\n【Interaction】\n${conversationContext}`;
-
+    
         try {
             let targetUrl = '';
             let requestBody = {};
             let header = { 'Content-Type': 'application/json' };
             let baseUrl = config.baseUrl || '';
             if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
+    
             if (config.provider === 'gemini') {
                 const cleanBase = 'https://generativelanguage.googleapis.com';
                 targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
@@ -865,9 +1109,9 @@
             } else {
                 targetUrl = `${baseUrl}/chat/completions`;
                 header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.3 };
+                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 300, temperature: 0.5 }; // 增加 tokens，提高 temperature 增加分析的灵活性
             }
-
+    
             const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
             
             let resultText = "";
@@ -878,105 +1122,243 @@
                 if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
                 resultText = data?.choices?.[0]?.message?.content || "{}";
             }
-
+    
             const state = JSON.parse(resultText.replace(/```json|```/g, '').trim());
-            console.log('❤️ [Relation Tracker] Verdict:', state);
-
+            console.log('❤️ [Psychology Tracker] Verdict:', state);
+    
             let hasChange = false;
-            if (state.relation && state.relation.length < 50 && state.relation !== currentRelation.value) {
-                console.log(`❤️ Relation Update: ${currentRelation.value} -> ${state.relation}`);
+            
+            // 修改点：只要内容有效且不同，就更新，不再限制字数长度，允许深度描写
+            if (state.relation && state.relation !== currentRelation.value) {
+                console.log(`❤️ Psychology Update: ${state.relation}`);
                 currentRelation.value = state.relation;
                 hasChange = true;
             }
-            if (state.activity && state.activity.length < 20 && state.activity !== currentActivity.value) {
+            
+            if (state.activity && state.activity !== currentActivity.value) {
                 currentActivity.value = state.activity;
                 hasChange = true;
             }
-
+    
             if (hasChange) saveCharacterState();
-
+    
         } catch (e) {
             console.warn('Relation check failed:', e);
         }
     };
 
-    // =============================================================================
-    // 📸 Visual Director Agent (生图管理 - 带冷却锁)
-    // =============================================================================
-    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
-        if (!aiResponseText || aiResponseText.length < 5) return;
-
-        const now = Date.now();
-        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-            console.log('📸 [Visual Director] Cooldown active (Skipping).');
-            return;
-        }
-
-        console.log('📸 [Visual Director] Scouting...');
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-
-        const contextSummary = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-
-        const prompt = VISUAL_DIRECTOR_PROMPT
-            .replace('{{clothes}}', currentClothing.value || "Casual clothes") 
-            + `\n\n【Context】\nMode: ${interactionMode.value}\nLocation: ${currentLocation.value}\nUser: ${userName.value}\nCharacter: ${chatName.value}`
-            + `\n\n【Dialogue】\n${contextSummary}`;
-
-        try {
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 150, temperature: 0.3 };
-            }
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+        // =============================================================================
+            // 📸 Visual Director Agent (生图管理 - 环境感知完整版)
+            // =============================================================================
+            // =============================================================================
+                // 📸 Visual Director Agent (生图管理 - 分离版：门卫+导演+UI预判)
+                // =============================================================================
+                const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
+                    // 1. 基础校验
+                    if (!aiResponseText || aiResponseText.length < 2) return;
+                    
+                    // 2. 冷却检查
+                    const now = Date.now();
+                    if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+                        console.log('📸 [Visual Director] Cooldown active (Skipping check).');
+                        return;
+                    }
             
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
+                    const config = getCurrentLlmConfig();
+                    if (!config || !config.apiKey) return;
+            
+                    // =================================================================
+                    // 🚀 第一阶段：门卫快速检查 (Gatekeeper)
+                    // =================================================================
+                    console.log('👀 [Gatekeeper] Checking visual intent...');
+                    
+                    // 准备门卫 Prompt
+                    const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
+                        .replace('{{user_msg}}', lastUserMsg)
+                        .replace('{{ai_msg}}', aiResponseText);
+            
+                    let shouldGenerate = false;
+            
+                    try {
+                        // --- 门卫 API 请求开始 ---
+                        let targetUrl = '';
+                        let requestBody = {};
+                        let header = { 'Content-Type': 'application/json' };
+                        let baseUrl = config.baseUrl || '';
+                        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+            
+                        if (config.provider === 'gemini') {
+                            const cleanBase = 'https://generativelanguage.googleapis.com';
+                            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                            requestBody = { 
+                                contents: [{ role: 'user', parts: [{ text: gatekeeperPrompt }] }], 
+                                generationConfig: { responseMimeType: "application/json" } 
+                            };
+                        } else {
+                            targetUrl = `${baseUrl}/chat/completions`;
+                            header['Authorization'] = `Bearer ${config.apiKey}`;
+                            requestBody = { 
+                                model: config.model, 
+                                messages: [{ role: "user", content: gatekeeperPrompt }], 
+                                max_tokens: 100, // 门卫只需要很少的 Token
+                                temperature: 0.1 // 需要精确判断
+                            };
+                        }
+            
+                        const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+                        
+                        let resultText = "";
+                        if (config.provider === 'gemini') {
+                            resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+                        } else {
+                            let data = res.data;
+                            if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                            resultText = data?.choices?.[0]?.message?.content || "{}";
+                        }
+            
+                        // 清洗 JSON
+                        let cleanJson = resultText.replace(/```json|```/g, '').trim();
+                        const firstOpen = cleanJson.indexOf('{');
+                        const lastClose = cleanJson.lastIndexOf('}');
+                        if (firstOpen !== -1 && lastClose !== -1) {
+                            cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+                        }
+            
+                        const gateResult = JSON.parse(cleanJson);
+                        shouldGenerate = gateResult.result === true;
+                        // --- 门卫 API 请求结束 ---
+            
+                    } catch (e) {
+                        console.warn('Gatekeeper check failed:', e);
+                        return; // 门卫出错则终止
+                    }
+            
+                    if (!shouldGenerate) {
+                        console.log('🛑 [Gatekeeper] No visual intent. Stop.');
+                        return; 
+                    }
+            
+                    // =================================================================
+                    // ⏳ UI 补位：立即告诉用户“我在做了”
+                    // =================================================================
+                    console.log('✅ [Gatekeeper] Intent detected! Starting UI placeholder...');
+                    
+                    // 生成占位 ID
+                    const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+                    
+                    // 立即上屏：告诉用户正在构图
+                    messageList.value.push({ 
+                        role: 'system', 
+                        content: '📷 正在调整镜头... (构图中)', 
+                        isSystem: true, 
+                        id: placeholderId 
+                    });
+                    scrollToBottom();
+                    saveHistory(); 
+            
+                    // =================================================================
+                    // 🎨 第二阶段：导演深度生成 (Director)
+                    // =================================================================
+                    console.log('🎨 [Director] Composing scene with FULL context...');
+                    
+                    // 准备导演 Prompt (包含所有细节)
+                    const directorPrompt = IMAGE_GENERATOR_PROMPT
+                        .replace('{{clothes}}', currentClothing.value || "Casual clothes") 
+                        .replace('{{location}}', currentLocation.value || "Unknown Indoor") 
+                        .replace('{{time}}', formattedTime.value)
+                        .replace('{{user_msg}}', lastUserMsg)
+                        .replace('{{ai_msg}}', aiResponseText);
+            
+                    try {
+                        // --- 导演 API 请求开始 ---
+                        let targetUrl = '';
+                        let requestBody = {};
+                        let header = { 'Content-Type': 'application/json' };
+                        let baseUrl = config.baseUrl || '';
+                        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+            
+                        if (config.provider === 'gemini') {
+                            const cleanBase = 'https://generativelanguage.googleapis.com';
+                            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                            requestBody = { 
+                                contents: [{ role: 'user', parts: [{ text: directorPrompt }] }], 
+                                generationConfig: { responseMimeType: "application/json" } 
+                            };
+                        } else {
+                            targetUrl = `${baseUrl}/chat/completions`;
+                            header['Authorization'] = `Bearer ${config.apiKey}`;
+                            requestBody = { 
+                                model: config.model, 
+                                messages: [{ role: "user", content: directorPrompt }], 
+                                max_tokens: 300, // 导演需要更多 Token 写 Tag
+                                temperature: 0.3 
+                            };
+                        }
+            
+                        const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+                        
+                        let resultText = "";
+                        if (config.provider === 'gemini') {
+                            resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+                        } else {
+                            let data = res.data;
+                            if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                            resultText = data?.choices?.[0]?.message?.content || "{}";
+                        }
+            
+                        // 清洗 JSON
+                        let cleanJson = resultText.replace(/```json|```/g, '').trim();
+                        const firstOpen = cleanJson.indexOf('{');
+                        const lastClose = cleanJson.lastIndexOf('}');
+                        if (firstOpen !== -1 && lastClose !== -1) {
+                            cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+                        }
+                        
+                        const directorResult = JSON.parse(cleanJson);
+                        console.log('🎨 [Director] Result:', directorResult);
+                        // --- 导演 API 请求结束 ---
+            
+                        // 检查是否有内容
+                        if (directorResult.description && directorResult.description.length > 5) {
+                            console.log('📸 [Action] Director generated prompt. Starting ComfyUI...');
+                            
+                            // 更新冷却时间
+                            lastImageGenerationTime.value = Date.now();
+            
+                            // 更新 UI：从“构图中”变为“显影中”
+                            const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
+                            if (msgIdx !== -1) {
+                                messageList.value[msgIdx].content = '📷 捕捉瞬间... (显影中)';
+                                // 强制更新视图
+                                messageList.value = [...messageList.value];
+                            }
+                            
+                            // 执行生图逻辑 (ComfyUI)
+                            handleAsyncImageGeneration(directorResult.description, placeholderId);
+                        } else {
+                            // 极少情况：门卫说要画，导演说没东西画。删除占位符。
+                            console.log('⚠️ [Director] Returned empty description. Removing placeholder.');
+                            messageList.value = messageList.value.filter(m => m.id !== placeholderId);
+                        }
+            
+                    } catch (e) {
+                        console.warn('Visual Director pipeline failed:', e);
+                        // 出错处理：把占位符改成错误提示
+                        const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
+                        if (msgIdx !== -1) {
+                            messageList.value[msgIdx].content = '❌ 构图失败 (系统繁忙)';
+                            messageList.value[msgIdx].isError = true;
+                            messageList.value[msgIdx].originalPrompt = ""; // 无法重试，因为没有 Prompt
+                            saveHistory();
+                        }
+                    }
+                };
 
-            const cleanJson = resultText.replace(/```json|```/g, '').trim();
-            const result = JSON.parse(cleanJson);
-
-            console.log('📸 [Visual Director] Verdict:', result);
-
-            if (result.shouldGenerate === true && result.description && result.description.length > 5) {
-                if (Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-                     console.log('📸 [Visual Director] Cooldown hit right before generation. Aborting.');
-                     return;
-                }
-                console.log('📸 [Action] Generating:', result.description);
-                lastImageGenerationTime.value = Date.now();
-                const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-                messageList.value.push({ role: 'system', content: '📷 (抓拍中...)', isSystem: true, id: placeholderId });
-                scrollToBottom();
-                saveHistory();
-                handleAsyncImageGeneration(result.description, placeholderId);
-            }
-        } catch (e) {
-            console.warn('Visual Director check failed:', e);
-        }
-    };
-
-    // =============================================================================
-    // 🚀 核心发送函数 (Multi-Agent 架构 - 完整无省略版)
+// =============================================================================
+    // 🚀 核心发送函数 (完整无省略版)
     // =============================================================================
     const sendMessage = async (isContinue = false, systemOverride = '') => {
+        // 1. 校验与防抖
         if (!isContinue && !inputText.value.trim() && !systemOverride) return;
         if (isLoading.value) return;
         
@@ -986,18 +1368,23 @@
             return;
         }
         
+        // 2. 处理用户输入上屏
         if (!isContinue) {
             if (inputText.value.trim()) {
                  messageList.value.push({ role: 'user', content: inputText.value });
                  inputText.value = '';
-            } else if (systemOverride && systemOverride.includes('SHUTTER')) {
+            } 
+            // 📸 确保拍照指令上屏，作为后续判断依据
+            else if (systemOverride && (systemOverride.includes('SHUTTER') || systemOverride.includes('SNAPSHOT'))) {
                  messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
             }
         }
+
         scrollToBottom();
         isLoading.value = true;
         saveHistory();
         
+        // 3. 准备 Prompt 数据
         const role = currentRole.value || {};
         const s = role.settings || {};
         const appUser = uni.getStorageSync('app_user_info') || {};
@@ -1008,8 +1395,10 @@
         const charBio = s.bio || "No bio provided.";
         const charLogic = s.personalityNormal || "React naturally based on your bio.";
         
-        const dynamicLogic = `${charLogic}\n\n【当前关系状态 (Relationship Status)】\n${currentRelation.value || '初相识'}`;
+        // 注入心理状态
+        const dynamicLogic = `${charLogic}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${currentRelation.value || '初相识，还没有具体印象'}`;
 
+        // 4. 组装 System Prompt
         let prompt = CORE_INSTRUCTION_LOGIC_MODE
             .replace(/{{char}}/g, charName)
             .replace(/{{bio}}/g, charBio)
@@ -1024,12 +1413,12 @@
             .replace(/{{current_clothes}}/g, currentClothing.value)
             .replace(/{{user_profile}}/g, myProfile);
 
+        // 5. 截取历史记录
         const historyLimit = charHistoryLimit.value; 
         let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
         if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
         
         console.log('=== 🎭 Roleplay AI Input ===');
-        console.log('Mode:', interactionMode.value, '| Relation:', currentRelation.value);
         
         let targetUrl = '';
         let requestBody = {};
@@ -1042,6 +1431,7 @@
             return { role: item.role === 'user' ? 'user' : (item.role === 'model' ? 'assistant' : 'system'), content: cleanText };
         }).filter(m => m.content.trim() !== '');
 
+        // 6. 构造 API 请求
         if (config.provider === 'gemini') {
             const cleanBase = 'https://generativelanguage.googleapis.com';
             targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
@@ -1054,12 +1444,6 @@
             requestBody = {
                 contents: geminiContents,
                 system_instruction: { parts: { text: prompt } },
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                ]
             };
         } else {
             targetUrl = `${baseUrl}/chat/completions`;
@@ -1100,80 +1484,110 @@
             scrollToBottom();
         }
     };
-
-    // =============================================================================
-    // 🧠 响应处理器 (流水线启动器)
-    // =============================================================================
-    // =============================================================================
-        // 🧠 响应处理器 (流水线启动器)
-        // =============================================================================
-        const processAIResponse = (rawText) => {
-            let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
-            const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
-            if (thinkMatch) console.log('🧠 [Thought]:', thinkMatch[1].trim());
-    
-            const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
-            displayText = displayText.replace(genericTagRegex, '');
-            const endTagRegex = /<\/[^>]+>/i;
-            if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
-            displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
-            displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, '');
-    
-            const cleanDisplayText = displayText.trim();
-            if (cleanDisplayText) {
-                let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
-                processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
-                let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
-                const rawParts = tempText.split('|||');
-                rawParts.forEach(part => {
-                    let cleanPart = part.trim();
-                    if (!cleanPart) return;
-                    const historyLen = messageList.value.length;
-                    const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
-                    if (cleanPart !== lastMsg) {
-                        messageList.value.push({ role: 'model', content: cleanPart });
-                    }
-                });
-            }
-            
-            saveHistory();
-            scrollToBottom();
-    
-            // =========================================================
-            // 🚀 多智能体协作流水线 (Agent Orchestration)
-            // =========================================================
-            if (cleanDisplayText) {
-                let lastUserMsg = "";
-                // 倒序查找最近的一条用户消息，确保获取的是用户刚刚发送的那句
-                for (let i = messageList.value.length - 2; i >= 0; i--) {
-                    if (messageList.value[i].role === 'user') {
-                        lastUserMsg = messageList.value[i].content;
-                        break;
-                    }
-                }
-                
-                // 🔍【关键调试日志】这里能看到 Agent 到底基于什么上下文在判断
-                console.log('📝 [Context Debug] =========================================');
-                console.log('👤 User Input (用户说了啥):', lastUserMsg);
-                console.log('🤖 AI Reply   (AI回了啥):', cleanDisplayText);
-                console.log('==========================================================');
-                
-                console.log('🤖 [Multi-Agent] Starting pipeline...');
-                
-                setTimeout(async () => {
-                    try {
-                        const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
-                        const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
-                        await scenePromise;
-                        await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
-                        await relationPromise;
-                    } catch (e) {
-                        console.error('Agent pipeline error:', e);
-                    }
-                }, 500); 
-            }
-        };
-    
+	
+	// =============================================================================
+	    // 🧠 响应处理器 (完整无省略版)
+	    // =============================================================================
+	    // =============================================================================
+	        // 🧠 响应处理器 (完整无省略版)
+	        // =============================================================================
+	        const processAIResponse = (rawText) => {
+	            // 1. 基础清洗
+	            let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
+	            const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
+	            if (thinkMatch) console.log('🧠 [Thought]:', thinkMatch[1].trim());
+	    
+	            const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
+	            displayText = displayText.replace(genericTagRegex, '');
+	            const endTagRegex = /<\/[^>]+>/i;
+	            if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
+	            displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
+	            displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, ''); 
+	    
+	            const cleanDisplayText = displayText.trim();
+	            
+	            // 2. 气泡切分 (括号分镜)
+	            if (cleanDisplayText) {
+	                 let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
+	                 processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
+	                 processedText = processedText.replace(/([（\(])/g, '|||$1');
+	                 processedText = processedText.replace(/([）\)])/g, '$1|||');
+	                 let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
+	                 tempText = tempText.replace(/(?:\|\|\|)+/g, '|||');
+	                 
+	                 const rawParts = tempText.split('|||');
+	                 rawParts.forEach(part => {
+	                     let cleanPart = part.trim();
+	                     if (!cleanPart) return;
+	                     const historyLen = messageList.value.length;
+	                     const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
+	                     if (cleanPart !== lastMsg) {
+	                         messageList.value.push({ role: 'model', content: cleanPart });
+	                     }
+	                 });
+	            }
+	            
+	            saveHistory();
+	            scrollToBottom();
+	    
+	            // =========================================================
+	            // 🚀 多智能体协作流水线 (Agent Orchestration)
+	            // =========================================================
+	            if (cleanDisplayText) {
+	                let lastUserMsg = "";
+	                let isCameraAction = false; 
+	    
+	                // 检查最近的消息，判断是否是拍照触发的
+	                for (let i = messageList.value.length - 2; i >= 0; i--) {
+	                    if (messageList.value[i].role === 'user') {
+	                        lastUserMsg = messageList.value[i].content;
+	                        break;
+	                    }
+	                    if (messageList.value[i].role === 'system' && messageList.value[i].content.includes('举起手机拍了一张')) {
+	                        lastUserMsg = messageList.value[i].content;
+	                        isCameraAction = true;
+	                        break;
+	                    }
+	                }
+	                
+	                if (!isCameraAction && (lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍'))) {
+	                    isCameraAction = true;
+	                }
+	                
+	                console.log('📝 [Context Debug] =========================================');
+	                console.log('👤 User Input:', lastUserMsg);
+	                console.log('📸 Is Camera Action:', isCameraAction);
+	                console.log('🤖 AI Reply:', cleanDisplayText);
+	                console.log('==========================================================');
+	                
+	                console.log('🤖 [Multi-Agent] Starting pipeline...');
+	                
+	                setTimeout(async () => {
+	                    try {
+	                        // 1. 场景和心理检查
+	                        const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
+	                        const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
+	                        await scenePromise;
+	                        
+	                        // 2. 视觉分流逻辑 (Dual Track)
+	                        if (isCameraAction) {
+	                            // 🔴 路由 A：拍照指令 -> 相机 AI (无视反应，强制出图)
+	                            console.log('🔀 Route: Handing over to Camera Man.');
+	                            await runCameraManCheck(lastUserMsg, cleanDisplayText);
+	                        } else {
+	                            // 🔵 路由 B：普通对话 -> 视觉导演 (仅在特定条件下出图)
+	                            console.log('🔀 Route: Handing over to Visual Director.');
+	                            await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
+	                        }
+	    
+	                        await relationPromise;
+	                    } catch (e) {
+	                        console.error('Agent pipeline error:', e);
+	                    }
+	                }, 500); 
+	            }
+	        };
+		
     const scrollToBottom = () => {
         nextTick(() => {
             scrollIntoView.value = '';
@@ -1183,127 +1597,65 @@
 </script>
 
 <style lang="scss" scoped>
-.chat-container { display: flex; flex-direction: column; height: 100vh; background-color: #f5f5f5; }
-.status-bar-wrapper { background-color: #fff; padding: 10rpx 30rpx; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 12rpx; }
-.affection-box { display: flex; align-items: center; }
-.heart-icon { font-size: 32rpx; margin-right: 15rpx; animation: heartbeat 1.5s infinite; }
-.progress-inner { flex: 1; }
-.status-text { display: flex; justify-content: space-between; font-size: 22rpx; color: #666; margin-bottom: 4rpx; }
-.status-label { font-weight: bold; color: #333; }
-.score-text { color: #ff6b81; font-weight: bold; }
-.info-row { display: flex; justify-content: space-between; align-items: center; }
-.location-box { display: flex; align-items: center; padding: 6rpx 16rpx; border-radius: 20rpx; font-size: 24rpx; font-weight: bold; transition: all 0.3s; }
-.phone-mode { background-color: #f0f3f5; color: #555; }
-.face-mode { background-color: #e3f2fd; color: #007aff; }
-.location-icon { margin-right: 6rpx; }
-.time-box { display: flex; align-items: center; font-size: 24rpx; color: #555; background-color: #f8f8f8; padding: 6rpx 16rpx; border-radius: 20rpx; }
-.time-icon { margin-right: 8rpx; }
-.activity-row { display: flex; justify-content: center; margin-top: 4rpx; }
-.activity-badge { background-color: #fff8e1; border: 1px solid #ffe0b2; color: #f57c00; font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 30rpx; font-weight: bold; box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.02); }
-@keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.2); } 30% { transform: scale(1); } 45% { transform: scale(1.1); } }
-.chat-scroll { flex: 1; overflow: hidden; }
-.chat-content { padding: 20rpx; padding-bottom: 40rpx; }
-.system-tip { text-align: center; color: #aaa; font-size: 24rpx; margin-bottom: 30rpx; font-style: italic;}
-.message-item { display: flex; margin-bottom: 30rpx; width: 100%; }
-.message-item.left { flex-direction: row; }
-.message-item.right { flex-direction: row-reverse; }
-.avatar { width: 80rpx; height: 80rpx; border-radius: 10rpx; background-color: #ddd; flex-shrink: 0; }
-.left .avatar { margin-right: 20rpx; }
-.right .avatar { margin-left: 20rpx; }
-.bubble-wrapper { max-width: 72%; display: flex; flex-direction: column; }
-.bubble { padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.05); }
-.left-bubble { background-color: #ffffff; color: #333; border-top-left-radius: 4rpx; }
-.right-bubble { background-color: #95ec69; color: #000; border-top-right-radius: 4rpx; }
-.image-bubble { padding: 0; background-color: transparent !important; box-shadow: none; overflow: hidden; }
-.chat-image { width: 400rpx; border-radius: 16rpx; box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1); display: block; }
-.msg-text { white-space: pre-wrap; word-break: break-all; }
-.system-event { width: 100%; display: flex; justify-content: center; margin: 20rpx 0; }
-.system-event text { background-color: rgba(0,0,0,0.1); color: #666; font-size: 22rpx; padding: 6rpx 20rpx; border-radius: 20rpx; }
-.loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
-.loading-dots { color: #999; letter-spacing: 4rpx; }
-.input-area { background: #f7f7f7; padding: 20rpx; display: flex; align-items: center; border-top: 1px solid #ddd; padding-bottom: calc(20rpx + constant(safe-area-inset-bottom)); padding-bottom: calc(20rpx + env(safe-area-inset-bottom));}
-.action-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-right: 20rpx; padding: 0 10rpx; cursor: pointer; }
-.action-icon { font-size: 32rpx; margin-bottom: 2rpx; }
-.action-text { font-size: 20rpx; color: #555; font-weight: bold; }
-.btn-hover { opacity: 0.6; transform: scale(0.95); }
-.text-input { flex: 1; height: 76rpx; background: #fff; border-radius: 10rpx; padding: 0 20rpx; margin-right: 20rpx; font-size: 30rpx; }
-.camera-btn { width: 76rpx; height: 76rpx; background: #ffffff; border-radius: 10rpx; display: flex; align-items: center; justify-content: center; font-size: 40rpx; margin-right: 20rpx; box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.05); }
-.camera-btn:active { background-color: #f0f0f0; transform: scale(0.95); }
-.send-btn { width: 120rpx; height: 76rpx; background: #95ec69; color: #000; line-height: 76rpx; font-size: 28rpx; padding: 0; margin: 0; font-weight: bold; }
-.send-btn.disabled { background: #e0e0e0; color: #999; }
-.time-panel-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.4); z-index: 100; display: flex; justify-content: center; align-items: center; }
-.time-panel { width: 600rpx; background-color: #fff; border-radius: 20rpx; padding: 30rpx; animation: popIn 0.2s ease-out; }
-@keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.panel-title { font-size: 32rpx; font-weight: bold; text-align: center; margin-bottom: 30rpx; color: #333; }
-.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; margin-bottom: 30rpx; }
-.grid-btn { background-color: #f0f8ff; color: #007aff; text-align: center; padding: 20rpx 0; border-radius: 10rpx; font-size: 28rpx; font-weight: 500; }
-.grid-btn:active { background-color: #dbeafe; }
-.custom-time { display: flex; align-items: center; justify-content: center; gap: 10rpx; font-size: 28rpx; color: #666; }
-.mini-input { width: 100rpx; border-bottom: 1px solid #ddd; text-align: center; font-size: 28rpx; color: #333; }
-.mini-btn { background-color: #eee; padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; }
-.error-system-msg { background-color: #ffebee !important; color: #ff4757 !important; font-size: 22rpx; padding: 6rpx 20rpx; border-radius: 20rpx; border: 1px solid #ffcdd2; }
-.error-system-msg:active { opacity: 0.7; transform: scale(0.95); }
-.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
-.setting-label { width: 100rpx; font-size: 30rpx; color: #666; text-align: right; }
-.picker-display { border: 1px solid #ddd; padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; background-color: #f8f8f8; color: #333; font-size: 30rpx; }
-.confirm-time-btn { background-color: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
-
-/* 建议栏样式 */
-.suggestion-bar {
+/* ==========================================================================
+   1. 全局容器与布局
+   ========================================================================== */
+.chat-container {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 15rpx;
-    padding: 15rpx 20rpx;
-    background-color: #f0f3f5;
-    border-top: 1px solid #e1e1e1;
-    white-space: nowrap;
-}
-.suggestion-chip {
-    background-color: #fff;
-    color: #333;
-    padding: 10rpx 24rpx;
-    border-radius: 30rpx;
-    font-size: 26rpx;
-    border: 1px solid #ddd;
-    box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.05);
-    flex-shrink: 0;
-}
-.suggestion-chip:active {
-    background-color: #e3f2fd;
-    color: #007aff;
-    border-color: #007aff;
-}
-.close-suggestion {
-    padding: 10rpx 20rpx;
-    color: #999;
-    font-size: 30rpx;
-    display: flex; align-items: center;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f5f5f5;
+    overflow: hidden; /* 防止页面整体滚动 */
 }
 
-.info-row { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: stretch; /* 让高度拉伸对齐 */
+/* ==========================================================================
+   2. 顶部状态栏
+   ========================================================================== */
+.status-bar-wrapper {
+    background-color: #fff;
+    padding: 10rpx 30rpx;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 12rpx;
+    flex-shrink: 0; /* 防止被挤压 */
+    z-index: 10;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
     margin-top: 10rpx;
 }
 
-.location-box { 
-    flex: 1; 
-    display: flex; 
-    align-items: center; 
-    padding: 8rpx 20rpx; 
-    border-radius: 16rpx; 
+/* 地点/模式状态盒 */
+.location-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 8rpx 20rpx;
+    border-radius: 16rpx;
     margin-right: 20rpx;
-    transition: all 0.3s; 
+    transition: all 0.3s;
+    border: 1px solid transparent;
+
+    &.phone-mode {
+        background-color: #f0f3f5;
+        color: #555;
+        border-color: #e1e4e8;
+    }
+
+    &.face-mode {
+        background-color: #e3f2fd;
+        color: #007aff;
+        border-color: #bbdefb;
+    }
 }
 
-.phone-mode { background-color: #f0f3f5; color: #555; border: 1px solid #e1e4e8; }
-.face-mode { background-color: #e3f2fd; color: #007aff; border: 1px solid #bbdefb; }
-
-.location-icon { 
-    font-size: 36rpx; 
-    margin-right: 16rpx; 
+.location-icon {
+    font-size: 36rpx;
+    margin-right: 16rpx;
 }
 
 .status-content {
@@ -1312,9 +1664,9 @@
     justify-content: center;
 }
 
-.location-text { 
-    font-size: 22rpx; 
-    font-weight: bold; 
+.location-text {
+    font-size: 22rpx;
+    font-weight: bold;
     opacity: 0.9;
 }
 
@@ -1324,14 +1676,427 @@
     margin-top: 2rpx;
 }
 
-.time-box { 
-    display: flex; 
-    align-items: center; 
-    font-size: 24rpx; 
-    color: #555; 
-    background-color: #f8f8f8; 
-    padding: 0 20rpx; /* 调整内边距 */
-    border-radius: 16rpx; 
+/* 时间显示盒 */
+.time-box {
+    display: flex;
+    align-items: center;
+    font-size: 24rpx;
+    color: #555;
+    background-color: #f8f8f8;
+    padding: 0 24rpx;
+    border-radius: 16rpx;
     border: 1px solid #eee;
+}
+
+.time-icon {
+    margin-right: 8rpx;
+}
+
+/* ==========================================================================
+   3. 聊天内容区域
+   ========================================================================== */
+.chat-scroll {
+    flex: 1;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+.chat-content {
+    padding: 20rpx;
+    padding-bottom: 40rpx;
+}
+
+.system-tip {
+    text-align: center;
+    color: #aaa;
+    font-size: 24rpx;
+    margin-bottom: 30rpx;
+    font-style: italic;
+}
+
+.message-item {
+    display: flex;
+    margin-bottom: 30rpx;
+    width: 100%;
+
+    &.left {
+        flex-direction: row;
+        .avatar { margin-right: 20rpx; }
+    }
+
+    &.right {
+        flex-direction: row-reverse;
+        .avatar { margin-left: 20rpx; }
+    }
+}
+
+.avatar {
+    width: 80rpx;
+    height: 80rpx;
+    border-radius: 10rpx;
+    background-color: #ddd;
+    flex-shrink: 0;
+}
+
+.bubble-wrapper {
+    max-width: 72%;
+    display: flex;
+    flex-direction: column;
+}
+
+.bubble {
+    padding: 18rpx 24rpx;
+    border-radius: 16rpx;
+    font-size: 30rpx;
+    line-height: 1.5;
+    box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.05);
+
+    &.left-bubble {
+        background-color: #ffffff;
+        color: #333;
+        border-top-left-radius: 4rpx;
+    }
+
+    &.right-bubble {
+        background-color: #95ec69;
+        color: #000;
+        border-top-right-radius: 4rpx;
+    }
+    
+    &.image-bubble {
+        padding: 0;
+        background-color: transparent !important;
+        box-shadow: none;
+        overflow: hidden;
+    }
+}
+
+.chat-image {
+    width: 400rpx;
+    border-radius: 16rpx;
+    box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.1);
+    display: block;
+}
+
+.msg-text {
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* 系统事件/错误消息 */
+.system-event {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin: 20rpx 0;
+
+    text {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: #666;
+        font-size: 22rpx;
+        padding: 6rpx 20rpx;
+        border-radius: 20rpx;
+    }
+}
+
+.error-system-msg {
+    background-color: #ffebee !important;
+    color: #ff4757 !important;
+    border: 1px solid #ffcdd2;
+    cursor: pointer;
+
+    &:active {
+        opacity: 0.7;
+        transform: scale(0.95);
+    }
+}
+
+.loading-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20rpx;
+}
+
+.loading-dots {
+    color: #999;
+    letter-spacing: 4rpx;
+    font-weight: bold;
+}
+
+/* ==========================================================================
+   4. 底部交互区域 (Footer Area) - 新版
+   ========================================================================== */
+.footer-area {
+    background-color: #f7f7f7;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 99;
+    flex-shrink: 0;
+}
+
+/* 建议气泡栏 */
+.suggestion-bar {
+    display: flex;
+    gap: 15rpx;
+    padding: 15rpx 20rpx;
+    background-color: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.suggestion-chip {
+    background-color: #f0f8ff;
+    color: #007aff;
+    padding: 8rpx 24rpx;
+    border-radius: 30rpx;
+    font-size: 24rpx;
+    border: 1px solid #dbeafe;
+    flex-shrink: 0;
+    
+    &:active {
+        background-color: #dbeafe;
+    }
+}
+
+.close-suggestion {
+    padding: 0 15rpx;
+    color: #999;
+    font-size: 32rpx;
+    display: flex;
+    align-items: center;
+}
+
+/* 工具栏 (可折叠) */
+.tool-bar {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 20rpx 10rpx;
+    background-color: #fcfcfc;
+    border-bottom: 1px solid #eee;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(10rpx); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.tool-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 120rpx;
+}
+
+.tool-icon {
+    font-size: 40rpx;
+    margin-bottom: 6rpx;
+    width: 80rpx;
+    height: 80rpx;
+    background: #fff;
+    border-radius: 20rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.05);
+}
+
+.tool-text {
+    font-size: 22rpx;
+    color: #666;
+}
+
+.disabled-tool {
+    opacity: 0.5;
+    filter: grayscale(100%);
+}
+
+/* 输入行 (Input Row) */
+.input-row {
+    display: flex;
+    align-items: center;
+    padding: 16rpx 20rpx;
+    background-color: #f7f7f7;
+}
+
+.toggle-btn {
+    width: 70rpx;
+    height: 70rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16rpx;
+}
+
+.toggle-icon {
+    font-size: 44rpx;
+    color: #666;
+    transition: transform 0.3s ease;
+    
+    &.rotated {
+        transform: rotate(45deg);
+        color: #333;
+    }
+}
+
+.text-input {
+    flex: 1;
+    height: 76rpx;
+    background: #fff;
+    border-radius: 10rpx;
+    padding: 0 20rpx;
+    font-size: 30rpx;
+    margin-right: 16rpx;
+}
+
+.send-btn {
+    width: 120rpx;
+    height: 76rpx;
+    background: #95ec69;
+    color: #000;
+    line-height: 76rpx;
+    font-size: 28rpx;
+    padding: 0;
+    margin: 0;
+    font-weight: bold;
+    border-radius: 10rpx;
+
+    &.disabled {
+        background: #e0e0e0;
+        color: #999;
+    }
+}
+
+.btn-hover {
+    opacity: 0.7;
+    transform: scale(0.96);
+}
+
+.safe-area-bottom {
+    height: constant(safe-area-inset-bottom);
+    height: env(safe-area-inset-bottom);
+    background-color: #f7f7f7;
+}
+
+/* ==========================================================================
+   5. 弹窗面板 (时间设置等)
+   ========================================================================== */
+.time-panel-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.time-panel {
+    width: 600rpx;
+    background-color: #fff;
+    border-radius: 20rpx;
+    padding: 30rpx;
+    animation: popIn 0.2s ease-out;
+}
+
+@keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.panel-title {
+    font-size: 32rpx;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 30rpx;
+    color: #333;
+}
+
+.grid-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20rpx;
+    margin-bottom: 30rpx;
+}
+
+.grid-btn {
+    background-color: #f0f8ff;
+    color: #007aff;
+    text-align: center;
+    padding: 20rpx 0;
+    border-radius: 10rpx;
+    font-size: 28rpx;
+    font-weight: 500;
+    
+    &:active {
+        background-color: #dbeafe;
+    }
+}
+
+.custom-time {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10rpx;
+    font-size: 28rpx;
+    color: #666;
+}
+
+.mini-input {
+    width: 100rpx;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
+    font-size: 28rpx;
+    color: #333;
+}
+
+.mini-btn {
+    background-color: #eee;
+    padding: 10rpx 20rpx;
+    border-radius: 8rpx;
+    font-size: 24rpx;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30rpx;
+    justify-content: center;
+}
+
+.setting-label {
+    width: 100rpx;
+    font-size: 30rpx;
+    color: #666;
+    text-align: right;
+}
+
+.picker-display {
+    border: 1px solid #ddd;
+    padding: 10rpx 30rpx;
+    border-radius: 10rpx;
+    min-width: 240rpx;
+    text-align: center;
+    background-color: #f8f8f8;
+    color: #333;
+    font-size: 30rpx;
+}
+
+.confirm-time-btn {
+    background-color: #007aff;
+    color: #fff;
+    width: 100%;
+    border-radius: 40rpx;
+    margin-top: 20rpx;
+    font-size: 30rpx;
+    line-height: 88rpx;
 }
 </style>
