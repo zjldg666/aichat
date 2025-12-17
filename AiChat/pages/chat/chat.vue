@@ -566,41 +566,71 @@
     };
 
     const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
-        let aiTags = actionAndSceneDescription || "";
-        const settings = currentRole.value?.settings || {};
-        const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
-        
-        const isPhone = interactionMode.value === 'phone';
-        let isDuo = false;
-        
-        if (isPhone) {
-            console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
-            isDuo = false;
-            aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
-            aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
-        } else {
-            const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
-            isDuo = duoKeywords.test(aiTags);
-            console.log(`📍 [生图模式] 见面互动中 -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
-        }
-        
-        let parts = [];
-        parts.push(isDuo ? "couple, 2people" : "solo");
-        parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
-        
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const styleSetting = imgConfig.style || 'anime';
-        parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
-        parts.push(appearanceSafe);
-        
-        if (aiTags) parts.push(`(${aiTags}:1.2)`);
-        if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
-        
-        let rawPrompt = parts.join(', ');
-        let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
-        return uniqueTags.join(', ');
-    };
+            let aiTags = actionAndSceneDescription || "";
+            
+            const settings = currentRole.value?.settings || {};
+            // 获取角色外貌，如果没有则兜底 1girl
+            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
+            
+            console.log("🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe);
     
+            const isPhone = interactionMode.value === 'phone';
+            let isDuo = false;
+            
+            // --- 1. 模式判定 (基础逻辑) ---
+            if (isPhone) {
+                isDuo = false;
+                console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
+                // 电话模式：为了防止 AI 幻觉，还是得过滤掉“男人”和“性行为”词汇，否则会变成第三人称视角
+                aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
+                aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
+            } else {
+                // 见面模式：包含亲密互动均视为双人
+                const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri|kiss|kissing|hug|hugging)\b/i;
+                isDuo = duoKeywords.test(aiTags);
+                // 如果判定为双人，删掉 solo 防止冲突
+                if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
+                console.log(`📍 [生图模式] -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
+            }
+    
+            // ❌ 【已移除】智能镜头清洗逻辑
+            // 这里不再检测 close-up 并删除 skirt/legs，完全信任 LLM 输出的 Tag。
+            
+            let parts = [];
+            
+            // 2. 拼接 Prompt 结构
+            
+            // A. 人数
+            parts.push(isDuo ? "couple, 2people" : "solo");
+            
+            // B. 画质 (使用之前的“去油腻二次元版”)
+            parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
+            
+            // C. 画风配置
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const styleSetting = imgConfig.style || 'anime';
+            parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
+            
+            // D. 角色固定外貌
+            parts.push(appearanceSafe);
+    
+            // E. 用户/男主外貌 (如果是双人，自动追加)
+            if (isDuo) {
+                parts.push(userAppearance.value || "1boy, male focus");
+            }
+            
+            // F. 动作与场景 (直接使用 LLM 的原话，不删减)
+            if (aiTags) parts.push(`(${aiTags}:1.2)`);
+            
+            // 去重并输出
+            let rawPrompt = parts.join(', ');
+            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
+            const finalPrompt = uniqueTags.join(', ');
+    
+            console.log("🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
+            return finalPrompt;
+        };
+		
     const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
@@ -1074,65 +1104,75 @@
     // =============================================================================
     // 🧠 响应处理器 (流水线启动器)
     // =============================================================================
-    const processAIResponse = (rawText) => {
-        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
-        const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
-        if (thinkMatch) console.log('🧠 [Thought]:', thinkMatch[1].trim());
-
-        const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
-        displayText = displayText.replace(genericTagRegex, '');
-        const endTagRegex = /<\/[^>]+>/i;
-        if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
-        displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
-        displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, '');
-
-        const cleanDisplayText = displayText.trim();
-        if (cleanDisplayText) {
-            let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
-            processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
-            let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
-            const rawParts = tempText.split('|||');
-            rawParts.forEach(part => {
-                let cleanPart = part.trim();
-                if (!cleanPart) return;
-                const historyLen = messageList.value.length;
-                const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
-                if (cleanPart !== lastMsg) {
-                    messageList.value.push({ role: 'model', content: cleanPart });
-                }
-            });
-        }
-        
-        saveHistory();
-        scrollToBottom();
-
-        // =========================================================
-        // 🚀 多智能体协作流水线 (Agent Orchestration)
-        // =========================================================
-        if (cleanDisplayText) {
-            let lastUserMsg = "";
-            for (let i = messageList.value.length - 2; i >= 0; i--) {
-                if (messageList.value[i].role === 'user') {
-                    lastUserMsg = messageList.value[i].content;
-                    break;
-                }
+    // =============================================================================
+        // 🧠 响应处理器 (流水线启动器)
+        // =============================================================================
+        const processAIResponse = (rawText) => {
+            let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
+            const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
+            if (thinkMatch) console.log('🧠 [Thought]:', thinkMatch[1].trim());
+    
+            const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
+            displayText = displayText.replace(genericTagRegex, '');
+            const endTagRegex = /<\/[^>]+>/i;
+            if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
+            displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
+            displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, '');
+    
+            const cleanDisplayText = displayText.trim();
+            if (cleanDisplayText) {
+                let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
+                processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
+                let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
+                const rawParts = tempText.split('|||');
+                rawParts.forEach(part => {
+                    let cleanPart = part.trim();
+                    if (!cleanPart) return;
+                    const historyLen = messageList.value.length;
+                    const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
+                    if (cleanPart !== lastMsg) {
+                        messageList.value.push({ role: 'model', content: cleanPart });
+                    }
+                });
             }
             
-            console.log('🤖 [Multi-Agent] Starting pipeline...');
-            
-            setTimeout(async () => {
-                try {
-                    const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
-                    const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
-                    await scenePromise;
-                    await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
-                    await relationPromise;
-                } catch (e) {
-                    console.error('Agent pipeline error:', e);
+            saveHistory();
+            scrollToBottom();
+    
+            // =========================================================
+            // 🚀 多智能体协作流水线 (Agent Orchestration)
+            // =========================================================
+            if (cleanDisplayText) {
+                let lastUserMsg = "";
+                // 倒序查找最近的一条用户消息，确保获取的是用户刚刚发送的那句
+                for (let i = messageList.value.length - 2; i >= 0; i--) {
+                    if (messageList.value[i].role === 'user') {
+                        lastUserMsg = messageList.value[i].content;
+                        break;
+                    }
                 }
-            }, 500); 
-        }
-    };
+                
+                // 🔍【关键调试日志】这里能看到 Agent 到底基于什么上下文在判断
+                console.log('📝 [Context Debug] =========================================');
+                console.log('👤 User Input (用户说了啥):', lastUserMsg);
+                console.log('🤖 AI Reply   (AI回了啥):', cleanDisplayText);
+                console.log('==========================================================');
+                
+                console.log('🤖 [Multi-Agent] Starting pipeline...');
+                
+                setTimeout(async () => {
+                    try {
+                        const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
+                        const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
+                        await scenePromise;
+                        await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
+                        await relationPromise;
+                    } catch (e) {
+                        console.error('Agent pipeline error:', e);
+                    }
+                }, 500); 
+            }
+        };
     
     const scrollToBottom = () => {
         nextTick(() => {

@@ -146,7 +146,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/Hbuilderx/AiChat/components/CustomTabBar.vue"]]);
+  const CustomTabBar = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-6def6a3b"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/components/CustomTabBar.vue"]]);
   const _sfc_main$6 = {
     __name: "index",
     setup(__props, { expose: __expose }) {
@@ -283,7 +283,7 @@ if (uni.restoreGlobal) {
       vue.createVNode($setup["CustomTabBar"], { current: 0 })
     ]);
   }
-  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/Hbuilderx/AiChat/pages/index/index.vue"]]);
+  const PagesIndexIndex = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/index/index.vue"]]);
   const GALLERY_KEY = "app_gallery_data";
   const saveToGallery = async (tempUrlOrBase64, roleId, roleName, prompt = "") => {
     try {
@@ -452,46 +452,29 @@ Task: Analyze the interaction to decide if a Visual Snapshot is needed.
 - **Clothing**: {{clothes}} (Use this in description unless naked/changed)
 
 【Logic Flow (CRITICAL)】
-You must analyze the **User's Request** AND the **Character's Response**.
-Image generation happens ONLY if:
-1. User **Forcefully Acts** (e.g., takes a photo).
-2. User **Asks**, and Character **Agrees/Complies**.
+Image generation happens **ONLY** if a **NEW** trigger is detected in the **CURRENT** interaction.
 
-【Trigger Rules】
-Return "shouldGenerate": true if ANY of the following is met:
-
+【Trigger Rules (Return "shouldGenerate": true)】
 1. **Successful Request (Consensual)**:
-   - User: "Send me a photo", "Let me see", "Show me".
-   - Character: **AGREES** or **COMPLIES** (e.g., "Okay", "Here you go", "Do you like it?", "Look at this").
-   - *Result: TRUE*
-
+   - User asks, Character agrees.
 2. **Camera Action (Forced/Candid)**:
-   - User: Performs an action like *(takes a photo)*, *(presses shutter)*, *(raises phone to record)*.
-   - Character: Reaction doesn't matter (image captures the moment).
-   - *Result: TRUE*
+   - User performs action (clicks shutter, etc.) OR **System Event: SNAPSHOT TRIGGERED**.
 
-【Negative Rules (ABORT)】
-Return "shouldGenerate": false if:
-
-1. **Refusal / Rejection**:
-   - User: "Show me your tits."
-   - Character: "No way!", "Stop it", "I'm shy", "Not here".
-   - *Result: FALSE (Even if user asked, character denied).*
-
-2. **Ignored Request**:
-   - User: "Send a photo."
-   - Character: Changes topic or doesn't address the photo request.
-   - *Result: FALSE.*
-
-3. **Pure Text**:
-   - Character describes an action ("I am changing clothes") but User did NOT ask to see it.
-   - *Result: FALSE.*
+【Prompting Rules (CRITICAL for quality)】
+If generating, follow these rules for the "description":
+1. **Focus Consistency**: Do NOT describe separate body parts that cannot be seen in one frame.
+2. **Visual Content ONLY (IMPORTANT)**:
+   - Describe the **SUBJECT** (the girl, the action), NOT the **ACT** of photography.
+   - **BANNED TAGS**: Do **NOT** use 'taking a photo', 'camera', 'shutter', 'shooting', 'recording', 'photographer'.
+   - *Reason*: These tags cause the character to hold a camera. We want a POV shot OF the character.
+3. **POV Enforcement**:
+   - The image is WHAT the user sees.
 
 【Output Format】
 Return ONLY a raw JSON object.
 {
   "shouldGenerate": boolean,
-  "description": "English tags for ComfyUI. Must include clothing tags. If Mode is Phone -> 'solo'. If Mode is Face & touching -> 'couple'."
+  "description": "English tags. Include clothing. Focus on the action. Example: '1girl, looking at viewer, smiling, close-up'."
 }
 `;
   const PERSONALITY_TEMPLATE = `
@@ -1068,32 +1051,38 @@ Return ONLY a raw JSON object.
         let aiTags = actionAndSceneDescription || "";
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
+        formatAppLog("log", "at pages/chat/chat.vue:575", "🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe);
         const isPhone = interactionMode.value === "phone";
         let isDuo = false;
         if (isPhone) {
-          formatAppLog("log", "at pages/chat/chat.vue:577", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           isDuo = false;
+          formatAppLog("log", "at pages/chat/chat.vue:583", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
           aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         } else {
-          const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri)\b/i;
+          const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri|kiss|kissing|hug|hugging)\b/i;
           isDuo = duoKeywords.test(aiTags);
-          formatAppLog("log", "at pages/chat/chat.vue:584", `📍 [生图模式] 见面互动中 -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
+          if (isDuo)
+            aiTags = aiTags.replace(/\bsolo\b/gi, "");
+          formatAppLog("log", "at pages/chat/chat.vue:593", `📍 [生图模式] -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
-        parts.push("masterpiece, best quality, new, very aesthetic, absurdres, highres, 8k, highly detailed, intricate details, hyper detailed, sharp focus, perfect anatomy, (detailed face:1.2), (beautiful detailed eyes:1.1), perfect face, expressive eyes, long eyelashes, cinematic lighting, dynamic angle, depth of field");
+        parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
         const imgConfig = uni.getStorageSync("app_image_config") || {};
         const styleSetting = imgConfig.style || "anime";
         parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP["anime"]);
         parts.push(appearanceSafe);
+        if (isDuo) {
+          parts.push(userAppearance.value || "1boy, male focus");
+        }
         if (aiTags)
           parts.push(`(${aiTags}:1.2)`);
-        if (isDuo)
-          parts.push(userAppearance.value || "1boy, male focus");
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
-        return uniqueTags.join(", ");
+        const finalPrompt = uniqueTags.join(", ");
+        formatAppLog("log", "at pages/chat/chat.vue:630", "🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
+        return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
@@ -1112,7 +1101,7 @@ Return ONLY a raw JSON object.
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:617", "⏳ [ComfyUI] Queued ID:", promptId);
+          formatAppLog("log", "at pages/chat/chat.vue:647", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1139,7 +1128,7 @@ Return ONLY a raw JSON object.
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:643", e);
+          formatAppLog("error", "at pages/chat/chat.vue:673", e);
         }
         return null;
       };
@@ -1234,7 +1223,7 @@ Return ONLY a raw JSON object.
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         if (!aiResponseText || aiResponseText.length < 3)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:742", "🏠 [Scene Keeper] Checking physical state...");
+        formatAppLog("log", "at pages/chat/chat.vue:772", "🏠 [Scene Keeper] Checking physical state...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -1275,10 +1264,10 @@ ${conversationContext}`;
             resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
           }
           const state = JSON.parse(resultText.replace(/```json|```/g, "").trim());
-          formatAppLog("log", "at pages/chat/chat.vue:783", "🏠 [Scene Keeper] Verdict:", state);
+          formatAppLog("log", "at pages/chat/chat.vue:813", "🏠 [Scene Keeper] Verdict:", state);
           let hasChange = false;
           if (state.mode && ["phone", "face"].includes(state.mode) && state.mode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:787", `🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
+            formatAppLog("log", "at pages/chat/chat.vue:817", `🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
             interactionMode.value = state.mode;
             hasChange = true;
             if (state.mode === "face")
@@ -1295,7 +1284,7 @@ ${conversationContext}`;
           if (hasChange)
             saveCharacterState();
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:804", "Scene check failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:834", "Scene check failed:", e);
         }
       };
       const runRelationCheck = async (lastUserMsg, aiResponseText) => {
@@ -1342,10 +1331,10 @@ ${conversationContext}`;
             resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
           }
           const state = JSON.parse(resultText.replace(/```json|```/g, "").trim());
-          formatAppLog("log", "at pages/chat/chat.vue:853", "❤️ [Relation Tracker] Verdict:", state);
+          formatAppLog("log", "at pages/chat/chat.vue:883", "❤️ [Relation Tracker] Verdict:", state);
           let hasChange = false;
           if (state.relation && state.relation.length < 50 && state.relation !== currentRelation.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:857", `❤️ Relation Update: ${currentRelation.value} -> ${state.relation}`);
+            formatAppLog("log", "at pages/chat/chat.vue:887", `❤️ Relation Update: ${currentRelation.value} -> ${state.relation}`);
             currentRelation.value = state.relation;
             hasChange = true;
           }
@@ -1356,7 +1345,7 @@ ${conversationContext}`;
           if (hasChange)
             saveCharacterState();
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:869", "Relation check failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:899", "Relation check failed:", e);
         }
       };
       const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
@@ -1365,10 +1354,10 @@ ${conversationContext}`;
           return;
         const now = Date.now();
         if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-          formatAppLog("log", "at pages/chat/chat.vue:881", "📸 [Visual Director] Cooldown active (Skipping).");
+          formatAppLog("log", "at pages/chat/chat.vue:911", "📸 [Visual Director] Cooldown active (Skipping).");
           return;
         }
-        formatAppLog("log", "at pages/chat/chat.vue:885", "📸 [Visual Director] Scouting...");
+        formatAppLog("log", "at pages/chat/chat.vue:915", "📸 [Visual Director] Scouting...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -1416,13 +1405,13 @@ ${contextSummary}`;
           }
           const cleanJson = resultText.replace(/```json|```/g, "").trim();
           const result = JSON.parse(cleanJson);
-          formatAppLog("log", "at pages/chat/chat.vue:926", "📸 [Visual Director] Verdict:", result);
+          formatAppLog("log", "at pages/chat/chat.vue:956", "📸 [Visual Director] Verdict:", result);
           if (result.shouldGenerate === true && result.description && result.description.length > 5) {
             if (Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-              formatAppLog("log", "at pages/chat/chat.vue:930", "📸 [Visual Director] Cooldown hit right before generation. Aborting.");
+              formatAppLog("log", "at pages/chat/chat.vue:960", "📸 [Visual Director] Cooldown hit right before generation. Aborting.");
               return;
             }
-            formatAppLog("log", "at pages/chat/chat.vue:933", "📸 [Action] Generating:", result.description);
+            formatAppLog("log", "at pages/chat/chat.vue:963", "📸 [Action] Generating:", result.description);
             lastImageGenerationTime.value = Date.now();
             const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
             messageList.value.push({ role: "system", content: "📷 (抓拍中...)", isSystem: true, id: placeholderId });
@@ -1431,7 +1420,7 @@ ${contextSummary}`;
             handleAsyncImageGeneration(result.description, placeholderId);
           }
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:942", "Visual Director check failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:972", "Visual Director check failed:", e);
         }
       };
       const sendMessage = async (isContinue = false, systemOverride = "") => {
@@ -1475,8 +1464,8 @@ ${currentRelation.value || "初相识"}`;
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1001", "=== 🎭 Roleplay AI Input ===");
-        formatAppLog("log", "at pages/chat/chat.vue:1002", "Mode:", interactionMode.value, "| Relation:", currentRelation.value);
+        formatAppLog("log", "at pages/chat/chat.vue:1031", "=== 🎭 Roleplay AI Input ===");
+        formatAppLog("log", "at pages/chat/chat.vue:1032", "Mode:", interactionMode.value, "| Relation:", currentRelation.value);
         let targetUrl = "";
         let requestBody = {};
         let baseUrl = config.baseUrl || "";
@@ -1536,17 +1525,17 @@ ${currentRelation.value || "初相识"}`;
                 }
               rawText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "";
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1058", "=== 📥 Roleplay AI Output ===", rawText.substring(0, 50) + "...");
+            formatAppLog("log", "at pages/chat/chat.vue:1088", "=== 📥 Roleplay AI Output ===", rawText.substring(0, 50) + "...");
             if (rawText)
               processAIResponse(rawText);
             else
               uni.showToast({ title: "无内容响应", icon: "none" });
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1062", "API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1092", "API Error", res);
             uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1066", "Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1096", "Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1557,7 +1546,7 @@ ${currentRelation.value || "初相识"}`;
         let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
         const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
         if (thinkMatch)
-          formatAppLog("log", "at pages/chat/chat.vue:1080", "🧠 [Thought]:", thinkMatch[1].trim());
+          formatAppLog("log", "at pages/chat/chat.vue:1113", "🧠 [Thought]:", thinkMatch[1].trim());
         const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
         displayText = displayText.replace(genericTagRegex, "");
         const endTagRegex = /<\/[^>]+>/i;
@@ -1592,7 +1581,11 @@ ${currentRelation.value || "初相识"}`;
               break;
             }
           }
-          formatAppLog("log", "at pages/chat/chat.vue:1121", "🤖 [Multi-Agent] Starting pipeline...");
+          formatAppLog("log", "at pages/chat/chat.vue:1156", "📝 [Context Debug] =========================================");
+          formatAppLog("log", "at pages/chat/chat.vue:1157", "👤 User Input (用户说了啥):", lastUserMsg);
+          formatAppLog("log", "at pages/chat/chat.vue:1158", "🤖 AI Reply   (AI回了啥):", cleanDisplayText);
+          formatAppLog("log", "at pages/chat/chat.vue:1159", "==========================================================");
+          formatAppLog("log", "at pages/chat/chat.vue:1161", "🤖 [Multi-Agent] Starting pipeline...");
           setTimeout(async () => {
             try {
               const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
@@ -1601,7 +1594,7 @@ ${currentRelation.value || "初相识"}`;
               await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
               await relationPromise;
             } catch (e) {
-              formatAppLog("error", "at pages/chat/chat.vue:1131", "Agent pipeline error:", e);
+              formatAppLog("error", "at pages/chat/chat.vue:1171", "Agent pipeline error:", e);
             }
           }, 500);
         }
@@ -1994,7 +1987,7 @@ ${currentRelation.value || "初相识"}`;
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/Hbuilderx/AiChat/pages/chat/chat.vue"]]);
+  const PagesChatChat = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-0a633310"], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/chat/chat.vue"]]);
   const _sfc_main$4 = {
     __name: "create",
     setup(__props, { expose: __expose }) {
@@ -4093,7 +4086,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/Hbuilderx/AiChat/pages/create/create.vue"]]);
+  const PagesCreateCreate = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/create/create.vue"]]);
   const _sfc_main$3 = {
     __name: "mine",
     setup(__props, { expose: __expose }) {
@@ -5052,7 +5045,7 @@ Task: ${prompt}` }]
       vue.createVNode($setup["CustomTabBar"], { current: 1 })
     ]);
   }
-  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/mine.vue"]]);
+  const PagesMineMine = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/mine.vue"]]);
   const _sfc_main$2 = {
     __name: "edit-profile",
     setup(__props, { expose: __expose }) {
@@ -5277,7 +5270,7 @@ Task: ${prompt}` }]
       ])
     ]);
   }
-  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/edit-profile.vue"]]);
+  const PagesMineEditProfile = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/edit-profile.vue"]]);
   const _sfc_main$1 = {
     __name: "gallery",
     setup(__props, { expose: __expose }) {
@@ -5578,7 +5571,7 @@ Task: ${prompt}` }]
       )
     ]);
   }
-  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/Hbuilderx/AiChat/pages/mine/gallery.vue"]]);
+  const PagesMineGallery = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__file", "D:/Project/HBuilderProjects/aichat/AiChat/pages/mine/gallery.vue"]]);
   __definePage("pages/index/index", PagesIndexIndex);
   __definePage("pages/chat/chat", PagesChatChat);
   __definePage("pages/create/create", PagesCreateCreate);
@@ -5642,7 +5635,7 @@ Task: ${prompt}` }]
       }
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/Hbuilderx/AiChat/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "D:/Project/HBuilderProjects/aichat/AiChat/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {

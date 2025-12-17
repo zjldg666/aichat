@@ -130,7 +130,7 @@ Return JSON (Simplified Chinese for values):
 
 
 // =============================================================================
-// 📸 Visual Director Prompt (视觉导演 Agent) - 【同意/执行校验版】
+// 📸 Visual Director Prompt (视觉导演 Agent) - 【禁止元标签版】
 // =============================================================================
 export const VISUAL_DIRECTOR_PROMPT = `
 [System Command: VISUAL_DIRECTOR]
@@ -140,49 +140,31 @@ Task: Analyze the interaction to decide if a Visual Snapshot is needed.
 - **Clothing**: {{clothes}} (Use this in description unless naked/changed)
 
 【Logic Flow (CRITICAL)】
-You must analyze the **User's Request** AND the **Character's Response**.
-Image generation happens ONLY if:
-1. User **Forcefully Acts** (e.g., takes a photo).
-2. User **Asks**, and Character **Agrees/Complies**.
+Image generation happens **ONLY** if a **NEW** trigger is detected in the **CURRENT** interaction.
 
-【Trigger Rules】
-Return "shouldGenerate": true if ANY of the following is met:
-
+【Trigger Rules (Return "shouldGenerate": true)】
 1. **Successful Request (Consensual)**:
-   - User: "Send me a photo", "Let me see", "Show me".
-   - Character: **AGREES** or **COMPLIES** (e.g., "Okay", "Here you go", "Do you like it?", "Look at this").
-   - *Result: TRUE*
-
+   - User asks, Character agrees.
 2. **Camera Action (Forced/Candid)**:
-   - User: Performs an action like *(takes a photo)*, *(presses shutter)*, *(raises phone to record)*.
-   - Character: Reaction doesn't matter (image captures the moment).
-   - *Result: TRUE*
+   - User performs action (clicks shutter, etc.) OR **System Event: SNAPSHOT TRIGGERED**.
 
-【Negative Rules (ABORT)】
-Return "shouldGenerate": false if:
-
-1. **Refusal / Rejection**:
-   - User: "Show me your tits."
-   - Character: "No way!", "Stop it", "I'm shy", "Not here".
-   - *Result: FALSE (Even if user asked, character denied).*
-
-2. **Ignored Request**:
-   - User: "Send a photo."
-   - Character: Changes topic or doesn't address the photo request.
-   - *Result: FALSE.*
-
-3. **Pure Text**:
-   - Character describes an action ("I am changing clothes") but User did NOT ask to see it.
-   - *Result: FALSE.*
+【Prompting Rules (CRITICAL for quality)】
+If generating, follow these rules for the "description":
+1. **Focus Consistency**: Do NOT describe separate body parts that cannot be seen in one frame.
+2. **Visual Content ONLY (IMPORTANT)**:
+   - Describe the **SUBJECT** (the girl, the action), NOT the **ACT** of photography.
+   - **BANNED TAGS**: Do **NOT** use 'taking a photo', 'camera', 'shutter', 'shooting', 'recording', 'photographer'.
+   - *Reason*: These tags cause the character to hold a camera. We want a POV shot OF the character.
+3. **POV Enforcement**:
+   - The image is WHAT the user sees.
 
 【Output Format】
 Return ONLY a raw JSON object.
 {
   "shouldGenerate": boolean,
-  "description": "English tags for ComfyUI. Must include clothing tags. If Mode is Phone -> 'solo'. If Mode is Face & touching -> 'couple'."
+  "description": "English tags. Include clothing. Focus on the action. Example: '1girl, looking at viewer, smiling, close-up'."
 }
 `;
-
 
 // =============================================================================
 export const PERSONALITY_TEMPLATE = `
