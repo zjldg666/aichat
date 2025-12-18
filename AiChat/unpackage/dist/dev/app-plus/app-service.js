@@ -418,21 +418,26 @@ ${NSFW_STYLE}
    - **持久性原则**: 如果角色没有停止之前的动作（如保持跪姿、持续拥抱、僵住不动），请**继承**之前的动作状态，而不是只描述当下的表情。
    - **示例**: "坐在沙发上看书", "跪地口交中", "洗澡中", "躺在床上玩手机", "站立对话", "保持跪姿僵住".
 
-2. **模式判定 (Mode: Phone vs Face) - 🌟精准防误判**:
+2. **模式判定 (Mode: Phone vs Face) - 🌟 物理距离优先 (Physical Proximity)**:
    
-   **判定原则 A: 必须切换为 'Face' (物理共存)**
-   - **触觉/体感**: 只要描述中包含触碰、体温、呼吸打在脸上、闻到气味。
-   - **空间融合**: 暗示两人无阻隔 (e.g. "递给我", "进来了", "坐在你旁边").
-   - **直接视觉**: 明确表示非屏幕观看 (e.g. "我就在你身后", "抬头看窗外").
+   **判定金标准**: **他们现在不需要设备，能否直接听到对方说话？**
+   
+   **【Face 模式 (现实接触)】**
+   - **定义**: 两人在同一个物理空间内 (同房间/同车/近距离)。
+   - **包含场景 (即使有手机)**: 
+     - **面对面拍照**: 我在吃饭，你拿出手机拍我 -> **Face** (因为我们在同一张桌上)。
+     - **展示屏幕**: 你把手机递给我看 -> **Face**。
+     - **各玩各的**: 两人躺在床上各自刷手机 -> **Face**。
+   - **特征**: 有肢体接触、递送物品、视线交流、同处一室。
 
-   **判定原则 B: 保持/切换为 'Phone' (介质阻隔)**
-   - **屏幕交互**: 所有的“拍照”、“视频通话”、“发语音”、“看镜头”动作，无论多亲密，只要隔着屏幕，都是 Phone。
-   - **距离暗示**: "想见你", "什么时候回来", "挂了", "去忙吧".
-   - **状态惯性**: 如果没有发生明确的移动/相遇事件，**默认维持旧模式**。
+   **【Phone 模式 (手机通信)】**
+   - **定义**: 两人**物理隔离**，必须依赖信号传输声音/图像。
+   - **包含场景**: 异地恋、一方在公司一方在家、出门办事。
+   - **特征**: "接通", "挂断", "信号", "什么时候回来", "想见你(暗示不在身边)".
 
-   **⚠️ 陷阱提示 (Trap Warning)**: 
-   - 如果她说 "(侧身展示腰线)" 是为了拍照或视频通话，这是 **Phone**。
-   - 只有她说 "(侧身蹭了蹭你的手臂)"，才是 **Face**。
+   **⚠️ 绝对禁止**:
+   - 严禁看到 "拍照"、"发图"、"看手机" 关键词就切换为 Phone。
+   - 只要地点 (Location) 暗示两人在一起 (如都在客厅)，这就永远是 **Face**。
 
 3. **服装推理 (Clothes)**:
    - **环境驱动**: 
@@ -505,30 +510,28 @@ AI: {{ai_msg}}
 - 记录的服装: {{clothes}} 
 - 当前地点: {{location}}
 - 当前时间: {{time}}
+- 当前物理动作: {{current_action}} (🌟基准动作)
 
 【上下文】
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
-【核心模块 1：视觉源分离 (Visual Source Separation)】
-构建画面时必须区分信息来源：
-1. **最高优先级 (Visual Truth)**: 括号 \`()\` 中的动作 + 前情提要中的环境。
-   - 这是物理事实，**必须画出来**。
-   - 案例：上一句 "(靠在沙发上)" + 这一句 "(咬嘴唇)" -> **必须保留 "sitting on sofa"**。
-2. **最低优先级 (Dialogue)**: 引号 \`""\` 中的台词。
-   - 这是听觉信息，**不要画出来**！
-   - 除非她正拿着那个东西，否则**绝对不要**描绘台词里的物体（如“门缝”、“月亮”）。
-   - 仅从台词提取表情 (如语气媚意 -> seductive expression)。
+【核心模块 0：姿势锚定 (Pose Anchoring)】
+**必须**在 Description 的开头显式指定一个基础姿势 Tag，强制固定画面：
+1. 如果动作隐含坐姿 (如吃饭、看电视、驾车、靠在沙发) -> 输出 'sitting'。
+2. 如果动作隐含躺姿 (如睡觉、生病、爱爱) -> 输出 'lying'。
+3. 如果动作隐含站姿 (如走路、做饭) -> 输出 'standing'。
+* 示例: {{current_action}}="靠在沙发上" -> 输出 "sitting, leaning on sofa"。
 
-【核心模块 2：最小必要脱衣 (Minimum Necessary Undressing)】
-基于用户指令，对服装进行符合物理逻辑的操作，**拒绝无脑全裸**：
-1. **目标是下身 (Look at pussy/legs)**: 
-   - 动作：对【下装】执行 'lifting skirt' (掀裙子), 'pulling down pants', 'crotchless'.
-   - **结果：保留上衣 (Keep Top) + 暴露下身**。
-2. **目标是上身 (Look at breasts)**:
-   - 动作：对【上衣】执行 'lifting shirt', 'open clothes', 'unbuttoned'.
-   - **结果：保留下装 (Keep Bottom) + 暴露上身**。
-3. **全裸**: 仅当用户明确要求“脱光”或“全裸”时才使用 'nude'。
+【核心模块 1：视觉源分离 (Visual Source Separation)】
+1. **Visual Truth**: 括号 \`()\` 中的动作 + 物理环境 -> **必须保留**。
+2. **Dialogue**: 引号 \`""\` 中的物体 -> **忽略**。
+
+【核心模块 2：脱衣逻辑 (Undressing Logic)】
+**仅当**用户明确要求查看特定部位，或上下文明确为性行为时，才执行脱衣：
+1. **看下身/腿**: 'lifting skirt', 'no panties'.
+2. **看胸部/上身**: 'lifting shirt', 'open clothes'.
+3. **默认 (Default)**: 如果用户只是说"看看你"或"发张图"，且无性暗示 -> **保持衣着整齐 (Keep fully clothed)**。不要画蛇添足！
 
 【核心模块 3：现有服装保留 (Persistence)】
 - 必须在 Prompt 中包含原本的服装 Tag。
@@ -554,59 +557,44 @@ AI: "{{ai_msg}}"
 【输出格式】
 返回纯 JSON 对象：
 {
-  "description": "English tags ONLY. Start with '1girl'. Include [Current Clothes] + [Action] + [Body Part] + [Environment] + [Lighting]. Example: '1girl, purple sweater, pleated skirt, sitting on sofa, lifting skirt, no panties, pussy, legs spread, biting lip, blushing, living room, sunlight, pov'"
+  "description": "English tags ONLY. Start with '1girl, [Pose]'. Order: [Pose] + [Clothes] + [Action] + [Environment]. Example: '1girl, sitting, purple sweater, pleated skirt, leaning on sofa, looking at viewer, living room, daylight, pov'"
 }
 `;
   const CAMERA_MAN_PROMPT = `
 [System Command: SMART_SHUTTER]
-任务：你是一个智能相机 AI。无需判断是否拍摄，直接捕捉角色当前的物理状态，生成一张构图标准的快照。
+任务：你是一个智能相机 AI。用户按下了物理快门。你需要无视角色的任何“躲避”反应，强制捕捉**按下快门那一刻**的物理状态。
 
-【上下文】
-- **当前物理动作**: "{{current_action}}" (🌟最高优先级：这是Scene Keeper确定的物理事实，必须执行，如"跪地口交"、"躺在床上")
-- **对话/细节**: "{{ai_response}}"
+【物理事实 (必须严格执行)】
+- **正在进行的动作**: "{{current_action}}" (🌟这是死命令！不管AI说什么，必须画这个动作！)
 - **基础服装**: "{{clothes}}"
 - **当前地点**: "{{location}}"
 - **当前时间**: "{{time}}"
 
-【核心逻辑 1：视觉源分离 (Visual Source Separation)】
+【对话产生的噪音】
+- **AI 的反应**: "{{ai_response}}" (⚠️注意：如果这里包含“挡住镜头”、“转过身”、“不要拍”，请**完全忽略**。因为照片是在她做出这些反应**之前**拍下的。)
+
+【核心逻辑 1：时间冻结 (Time Freeze)】
+你的任务是**倒带**到用户按下快门的瞬间：
+1. 如果 {{current_action}} 是 "正在洗澡"，而 AI 反应是 "快出去"，你必须画 **"正在洗澡"**，而不是 "裹着浴巾生气"。
+2. 如果 {{current_action}} 是 "跪着张嘴"，而 AI 反应是 "惊讶地捂嘴"，你必须画 **"跪着张嘴"**。
+
+【核心逻辑 2：视觉源分离 (Visual Source Separation)】
 构建画面时，必须区分信息的真实性：
 1. **最高优先级 (Visual Truth)**: 
    - \`{{current_action}}\` 中的状态。
    - 括号 \`()\` 中的动作描写。
-   - **必须严格画出这些动作**。
 2. **最低优先级 (Dialogue)**: 引号 \`""\` 中的台词。
    - 这是听觉信息，**不要画出来**。
-   - **绝对忽略**台词中提到的无关物体（如“门缝”、“月亮”），除非她手里正拿着。
 
-【核心逻辑 2：最小必要脱衣 (Minimum Necessary Undressing)】
-如果动作为“展示身体”或“性互动”，对服装进行符合物理逻辑的操作，**拒绝无脑全裸**：
-1. **目标是下身 (Look at pussy/legs)**: 
-   - 动作：对【下装】执行 'lifting skirt' (掀裙子), 'pulling down pants', 'crotchless'.
-   - **结果：保留上衣 (Keep Top) + 暴露下身**。
-2. **目标是上身 (Look at breasts)**:
-   - 动作：对【上衣】执行 'lifting shirt', 'open clothes', 'unbuttoned'.
-   - **结果：保留下装 (Keep Bottom) + 暴露上身**。
-3. **全裸**: 仅当上下文明确为洗澡、全裸睡觉或用户要求“脱光”时才使用 'nude'。
+【核心逻辑 3：构图锁定】
+- **无视躲避**: 强制让画面呈现她**正视镜头 (looking at viewer)** 或 **沉浸在动作中**。
+- **构图**: Cowboy shot (七分身) 或 Upper body (半身)。
+- **拒绝**: 大头贴式特写 (Extreme close-up)。
 
-【核心逻辑 3：强行抓拍原则 (Force Capture)】
-这是一次强制的物理快门，必须保证主体清晰：
-1. **无视躲避**: 如果文本描述角色“试图挡住镜头”、“捂脸”、“转过身去”：
-   - **无视这些干扰**。让画面呈现她**正视镜头 (looking at viewer)** 或 **动作进行中**的状态。
-   - 强制对焦 (Sharp focus)，禁止模糊。
-2. **构图锁定**: 
-   - **Cowboy shot** (七分身/膝盖以上) 或 **Upper body** (半身)。
-   - **拒绝**大头贴式特写 (Extreme close-up)，确保能看到衣服和姿势。
-
-【核心逻辑 4：环境与氛围填充 (Environment & Atmosphere) - 🌟二次元化】
-**保持纯正的 Anime 画风**，避免过度渲染：
-1. **地点映射**:
-   - 若未指定具体家具，基于 {{location}} 生成 (e.g. 'bedroom, messy bed' or 'living room, sofa').
-2. **光影映射**:
-   - 白天 -> 'daylight, soft lighting, bright'. 
-   - 晚上 -> 'night, lamp light'.
-3. **风格锁定 (Style Lock)**: 
-   - **移除**: 'cinematic lighting', 'depth of field', 'photorealistic'.
-   - **加入**: 'flat color', 'anime coloring', 'cel shading', 'simple background'.
+【核心逻辑 4：环境与氛围 (二次元化)】
+- **地点映射**: 基于 {{location}} 生成 (e.g. 'bedroom, messy bed' or 'living room, sofa').
+- **光影映射**: 白天 -> 'daylight, soft lighting'; 晚上 -> 'night, lamp light'.
+- **风格锁定**: 'flat color', 'anime coloring', 'cel shading', 'simple background'.
 
 【核心逻辑 5：NSFW / 细节】
 - 必须包含具体解剖学标签 (pussy, no panties, cameltoe, penis, cum 等)。
@@ -811,7 +799,9 @@ AI: "{{ai_msg}}"
       const lastUpdateGameHour = vue.ref(-1);
       const showTimePanel = vue.ref(false);
       const showTimeSettingPanel = vue.ref(false);
+      const showLocationPanel = vue.ref(false);
       const customMinutes = vue.ref("");
+      const customLocation = vue.ref("");
       const currentSummary = vue.ref("");
       const enableSummary = vue.ref(false);
       const summaryFrequency = vue.ref(20);
@@ -820,6 +810,7 @@ AI: "{{ai_msg}}"
       const tempTimeStr = vue.ref("");
       const suggestionList = vue.ref([]);
       const isToolbarOpen = vue.ref(false);
+      const worldLocations = vue.ref([]);
       const toggleToolbar = () => {
         isToolbarOpen.value = !isToolbarOpen.value;
       };
@@ -855,6 +846,58 @@ AI: "{{ai_msg}}"
         const minute = date.getMinutes().toString().padStart(2, "0");
         return `${day} ${hour}:${minute}`;
       });
+      const isCohabitation = () => {
+        const u = (userHome.value || "").trim();
+        const c = (charHome.value || "").trim();
+        if (!u || !c || u === "未知地址" || c === "未知地址" || u === "角色家" || u === "玩家家") {
+          return false;
+        }
+        return u === c || u.includes(c) || c.includes(u);
+      };
+      const locationList = vue.computed(() => {
+        const list = [];
+        const isTogether = isCohabitation();
+        if (isTogether) {
+          list.push({
+            name: "我们的家",
+            detail: charHome.value,
+            type: "shared_home",
+            icon: "🏡",
+            mode: "face",
+            style: "background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;"
+          });
+        } else {
+          list.push({
+            name: "她的家",
+            detail: charHome.value || "角色家",
+            type: "char_home",
+            icon: "🏠",
+            mode: "face",
+            style: "background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;"
+          });
+          list.push({
+            name: "我的家",
+            detail: userHome.value || "我家",
+            type: "user_home",
+            icon: "🏡",
+            mode: "phone",
+            style: "background-color:#e3f2fd; color:#1565c0; border:1px solid #bbdefb;"
+          });
+        }
+        worldLocations.value.forEach((item) => {
+          const name = typeof item === "string" ? item : item.name;
+          const icon = item.icon || "📍";
+          list.push({
+            name,
+            type: "common",
+            icon,
+            mode: "phone",
+            // 默认去外面是 Phone
+            style: "background-color:#f5f5f5; color:#333; border:1px solid #eee;"
+          });
+        });
+        return list;
+      });
       vue.watch(showTimeSettingPanel, (val) => {
         if (val) {
           const now = new Date(currentTime.value);
@@ -876,7 +919,6 @@ AI: "{{ai_msg}}"
         return uni.getStorageSync("app_api_config");
       };
       onLoad((options) => {
-        formatAppLog("log", "at pages/chat/chat.vue:311", "🚀 [LifeCycle] onLoad - ChatID:", options.id);
         const appUser = uni.getStorageSync("app_user_info");
         if (appUser) {
           if (appUser.name)
@@ -891,6 +933,25 @@ AI: "{{ai_msg}}"
         }
       });
       onShow(() => {
+        const appUser = uni.getStorageSync("app_user_info");
+        if (appUser) {
+          if (appUser.name)
+            userName.value = appUser.name;
+          if (appUser.avatar)
+            userAvatar.value = appUser.avatar;
+        }
+        const cachedLocs = uni.getStorageSync("app_world_locations");
+        if (cachedLocs && Array.isArray(cachedLocs) && cachedLocs.length > 0) {
+          worldLocations.value = cachedLocs;
+        } else {
+          worldLocations.value = [
+            { name: "学校", icon: "🏫" },
+            { name: "公司", icon: "🏢" },
+            { name: "酒店", icon: "🏩" },
+            { name: "公园", icon: "🌳" },
+            { name: "商场", icon: "🛍️" }
+          ];
+        }
         if (chatId.value) {
           loadRoleData(chatId.value);
           const history = uni.getStorageSync(`chat_history_${chatId.value}`);
@@ -938,6 +999,11 @@ AI: "{{ai_msg}}"
           timeInterval = null;
         }
       };
+      const getInitialGameTime = () => {
+        const now = /* @__PURE__ */ new Date();
+        now.setHours(8, 0, 0, 0);
+        return now.getTime();
+      };
       const loadRoleData = (id) => {
         var _a, _b, _c;
         const list = uni.getStorageSync("contact_list") || [];
@@ -948,7 +1014,7 @@ AI: "{{ai_msg}}"
           uni.setNavigationBarTitle({ title: target.name });
           currentAffection.value = target.affection !== void 0 ? target.affection : target.initialAffection || 10;
           currentLust.value = target.lust !== void 0 ? target.lust : target.initialLust || 0;
-          currentTime.value = target.lastTimeTimestamp || Date.now();
+          currentTime.value = target.lastTimeTimestamp || getInitialGameTime();
           currentClothing.value = target.clothing || "便服";
           charHome.value = target.location || ((_a = target.settings) == null ? void 0 : _a.location) || "角色家";
           userHome.value = ((_b = target.settings) == null ? void 0 : _b.userLocation) || "玩家家";
@@ -1072,6 +1138,123 @@ AI: "{{ai_msg}}"
         messageList.value.push({ role: "system", content: `【系统】${desc} 当前时间：${formattedTime.value}`, isSystem: true });
         scrollToBottom();
       };
+      const checkIsWorking = () => {
+        var _a;
+        const s = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
+        if (!s.workplace || s.workplace.trim() === "")
+          return false;
+        const workDays = s.workDays || [];
+        if (workDays.length === 0)
+          return false;
+        const date = new Date(currentTime.value);
+        const day = date.getDay();
+        const hour = date.getHours();
+        const start = s.workStartHour !== void 0 ? s.workStartHour : 9;
+        const end = s.workEndHour !== void 0 ? s.workEndHour : 18;
+        if (workDays.includes(day) && hour >= start && hour < end) {
+          return true;
+        }
+        return false;
+      };
+      const handleMoveTo = (locObj) => {
+        var _a;
+        if (isLoading.value) {
+          uni.showToast({ title: "对话进行中...", icon: "none" });
+          return;
+        }
+        if (locObj.type === "custom" && !locObj.name) {
+          return uni.showToast({ title: "请输入地点", icon: "none" });
+        }
+        let targetName = locObj.name;
+        if (locObj.detail)
+          targetName = locObj.detail;
+        let newMode = "phone";
+        let shouldNotifyAI = false;
+        let sysMsgUser = "";
+        let promptAction = "";
+        const isTogether = isCohabitation();
+        const isWorking = checkIsWorking();
+        const s = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
+        const workplaceName = s.workplace || "单位";
+        if (isTogether) {
+          if (locObj.type === "shared_home") {
+            if (isWorking) {
+              newMode = "phone";
+              shouldNotifyAI = true;
+              sysMsgUser = `你回到了家，但她正在【${workplaceName}】上班，家里空荡荡的。`;
+              promptAction = `Player returned to the shared home, but you are currently at work (${workplaceName}). Player is alone at home. Describe being at work and receiving a text/call.`;
+            } else {
+              newMode = "face";
+              shouldNotifyAI = true;
+              sysMsgUser = `你回到了家（${targetName}）。`;
+              promptAction = `Player returned to the shared home. You are off work and at home. Describe the greeting.`;
+            }
+          } else {
+            newMode = "phone";
+            shouldNotifyAI = true;
+            sysMsgUser = `你离开了家，前往${targetName}。`;
+            promptAction = `Player left home and went to <${targetName}>. Mode switched to PHONE. Describe the parting/texting.`;
+          }
+        } else {
+          if (locObj.type === "char_home") {
+            if (isWorking) {
+              newMode = "phone";
+              shouldNotifyAI = true;
+              sysMsgUser = `你来到她家门口，但没人在家。她应该在【${workplaceName}】上班。`;
+              promptAction = `Player visited your home, but you are at work (${workplaceName}). You are NOT there. Switch to PHONE mode. Describe getting a notification that player visited your empty house.`;
+            } else {
+              newMode = "face";
+              shouldNotifyAI = true;
+              sysMsgUser = `你来到了${targetName}（拜访）。`;
+              promptAction = `Player arrived at your door/house. You are at home. Mode switched to FACE. Describe hearing the knock or opening the door.`;
+            }
+          } else if (locObj.type === "user_home") {
+            newMode = "phone";
+            shouldNotifyAI = true;
+            sysMsgUser = `你告别了她，回到了自己家。`;
+            promptAction = `Player said goodbye and left your place to go home. Mode switched to PHONE. Describe the farewell.`;
+          } else {
+            const isVisitingWork = workplaceName && targetName.includes(workplaceName);
+            if (isVisitingWork && isWorking) {
+              newMode = "face";
+              shouldNotifyAI = true;
+              sysMsgUser = `你来到了【${targetName}】，正好看到她在工作。`;
+              promptAction = `Player visited your workplace (${targetName}) while you are working! Mode switched to FACE. Describe your reaction to seeing the player at your job.`;
+            } else if (isVisitingWork && !isWorking) {
+              newMode = "phone";
+              shouldNotifyAI = false;
+              sysMsgUser = `你来到了【${targetName}】，但她已经下班了。`;
+            } else {
+              newMode = "phone";
+              shouldNotifyAI = false;
+              sysMsgUser = `已抵达${targetName} (手机通讯)`;
+            }
+          }
+        }
+        currentLocation.value = targetName;
+        interactionMode.value = newMode;
+        showLocationPanel.value = false;
+        uni.vibrateShort();
+        saveCharacterState();
+        if (shouldNotifyAI) {
+          messageList.value.push({
+            role: "system",
+            content: `🚗 ${sysMsgUser}`,
+            isSystem: true
+          });
+          const movePrompt = `
+            [SYSTEM EVENT: SCENE CHANGE]
+            **Action**: ${promptAction}
+            **New Location**: ${targetName}
+            **New Mode**: ${newMode === "face" ? "FACE-TO-FACE" : "PHONE"}.
+            **Time**: ${formattedTime.value}.
+            **Instruction**: React naturally to this movement logic.
+            `;
+          sendMessage(false, movePrompt);
+        } else {
+          uni.showToast({ title: sysMsgUser, icon: "none", duration: 2500 });
+        }
+      };
       const applySuggestion = (text) => {
         inputText.value = text;
         suggestionList.value = [];
@@ -1185,7 +1368,7 @@ AI: "{{ai_msg}}"
             }
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:617", e);
+          formatAppLog("error", "at pages/chat/chat.vue:885", e);
           uni.showToast({ title: "网络波动", icon: "none" });
         } finally {
           uni.hideLoading();
@@ -1196,12 +1379,10 @@ AI: "{{ai_msg}}"
         let aiTags = actionAndSceneDescription || "";
         const settings = ((_a = currentRole.value) == null ? void 0 : _a.settings) || {};
         const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl";
-        formatAppLog("log", "at pages/chat/chat.vue:631", "🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe);
         const isPhone = interactionMode.value === "phone";
         let isDuo = false;
         if (isPhone) {
           isDuo = false;
-          formatAppLog("log", "at pages/chat/chat.vue:639", "📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
           aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
           aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
         } else {
@@ -1209,7 +1390,6 @@ AI: "{{ai_msg}}"
           isDuo = duoKeywords.test(aiTags);
           if (isDuo)
             aiTags = aiTags.replace(/\bsolo\b/gi, "");
-          formatAppLog("log", "at pages/chat/chat.vue:649", `📍 [生图模式] -> ${isDuo ? "双人 (Duo)" : "单人 (Solo)"}`);
         }
         let parts = [];
         parts.push(isDuo ? "couple, 2people" : "solo");
@@ -1226,7 +1406,6 @@ AI: "{{ai_msg}}"
         let rawPrompt = parts.join(", ");
         let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map((t) => t.replace(/[^\x00-\x7F]+/g, "").trim()).filter((t) => t))];
         const finalPrompt = uniqueTags.join(", ");
-        formatAppLog("log", "at pages/chat/chat.vue:686", "🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
         return finalPrompt;
       };
       const generateImageFromComfyUI = async (englishTags, baseUrl) => {
@@ -1246,7 +1425,6 @@ AI: "{{ai_msg}}"
           if (queueRes.statusCode !== 200)
             throw new Error(`队列失败: ${queueRes.statusCode}`);
           const promptId = queueRes.data.prompt_id;
-          formatAppLog("log", "at pages/chat/chat.vue:703", "⏳ [ComfyUI] Queued ID:", promptId);
           for (let i = 0; i < 120; i++) {
             await new Promise((r) => setTimeout(r, 1e3));
             const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: "GET", sslVerify: false });
@@ -1273,7 +1451,7 @@ AI: "{{ai_msg}}"
         try {
           return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:729", e);
+          formatAppLog("error", "at pages/chat/chat.vue:976", e);
         }
         return null;
       };
@@ -1311,11 +1489,12 @@ AI: "{{ai_msg}}"
         if (isLoading.value)
           return;
         const drivePrompt = `[System Command: NARRATIVE_CONTINUATION]
-            **User Status**: Silent/Waiting.
-            **Task**: The user is waiting for you to continue.
-            1. If previous output was cut off, finish the sentence.
-            2. If previous interaction finished, initiate a NEW action or topic based on current mood.
-            3. DO NOT output "..." or silence. MAKE SOMETHING HAPPEN.`;
+        **Status**: The user is waiting for you to continue the scene.
+        **Task**: 
+        1. If your last message was incomplete, finish it.
+        2. If the scene paused, INITIATE a new action or dialogue based on the current mood.
+        3. **FORBIDDEN**: Do NOT repeat your last message. Do NOT ask "What's wrong?". 
+        4. **ACTION**: Make the character move, touch, or speak to advance the plot immediately.`;
         sendMessage(true, drivePrompt);
       };
       const handleCameraSend = () => {
@@ -1378,7 +1557,6 @@ AI: "{{ai_msg}}"
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         if (!aiResponseText || aiResponseText.length < 3)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:846", "🏠 [Scene Keeper] Checking physical state...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -1425,10 +1603,8 @@ ${conversationContext}`;
             cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
           }
           const state = JSON.parse(cleanJson);
-          formatAppLog("log", "at pages/chat/chat.vue:902", "🏠 [Scene Keeper] Verdict:", state);
           let hasChange = false;
           if (state.mode && ["phone", "face"].includes(state.mode) && state.mode !== interactionMode.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:908", `🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
             interactionMode.value = state.mode;
             hasChange = true;
             if (state.mode === "face")
@@ -1443,20 +1619,18 @@ ${conversationContext}`;
             hasChange = true;
           }
           if (state.action && state.action !== currentAction.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:925", `💃 Action Update: ${currentAction.value} -> ${state.action}`);
             currentAction.value = state.action;
           }
           if (hasChange)
             saveCharacterState();
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:933", "Scene check failed. Raw text was:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:1160", "Scene check failed:", e);
         }
       };
       const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _i;
         const now = Date.now();
         if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-          formatAppLog("log", "at pages/chat/chat.vue:952", "📷 [Camera Man] Shutter jammed (Cooldown).");
           return;
         }
         let targetAction = "";
@@ -1474,9 +1648,6 @@ ${conversationContext}`;
         }
         if (!targetAction)
           targetAction = aiResponseText;
-        formatAppLog("log", "at pages/chat/chat.vue:983", "📷 [Camera Man] Capturing MOMENT:", targetAction.substring(0, 50) + "...");
-        formatAppLog("log", "at pages/chat/chat.vue:984", "📷 [Camera Man] Physical Action:", currentAction.value);
-        formatAppLog("log", "at pages/chat/chat.vue:987", "📷 [Camera Man] Shutter pressed! Capturing reality...");
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
@@ -1505,13 +1676,7 @@ ${conversationContext}`;
               temperature: 0.3
             };
           }
-          const res = await uni.request({
-            url: targetUrl,
-            method: "POST",
-            header,
-            data: requestBody,
-            sslVerify: false
-          });
+          const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
           let resultText = "";
           if (config.provider === "gemini") {
             resultText = ((_f = (_e = (_d = (_c = (_b = (_a = res.data) == null ? void 0 : _a.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "{}";
@@ -1530,12 +1695,10 @@ ${conversationContext}`;
           try {
             result = JSON.parse(cleanJson);
           } catch (jsonErr) {
-            formatAppLog("warn", "at pages/chat/chat.vue:1051", "Camera Man JSON error:", jsonErr);
+            formatAppLog("warn", "at pages/chat/chat.vue:1237", "Camera Man JSON error:", jsonErr);
             return;
           }
-          formatAppLog("log", "at pages/chat/chat.vue:1055", "📷 [Camera Man] Developed Film:", result);
           if (result.description && result.description.length > 5) {
-            formatAppLog("log", "at pages/chat/chat.vue:1060", "📷 [Action] Developing photo:", result.description);
             lastImageGenerationTime.value = Date.now();
             const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
             messageList.value.push({
@@ -1549,7 +1712,7 @@ ${conversationContext}`;
             handleAsyncImageGeneration(result.description, placeholderId);
           }
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:1079", "Camera Man failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:1260", "Camera Man failed:", e);
         }
       };
       const runRelationCheck = async (lastUserMsg, aiResponseText) => {
@@ -1596,10 +1759,9 @@ ${conversationContext}`;
             resultText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "{}";
           }
           const state = JSON.parse(resultText.replace(/```json|```/g, "").trim());
-          formatAppLog("log", "at pages/chat/chat.vue:1127", "❤️ [Psychology Tracker] Verdict:", state);
+          formatAppLog("log", "at pages/chat/chat.vue:1308", `❤️ [心态变化] 印象: ${state.relation} | 状态: ${state.activity}`);
           let hasChange = false;
           if (state.relation && state.relation !== currentRelation.value) {
-            formatAppLog("log", "at pages/chat/chat.vue:1133", `❤️ Psychology Update: ${state.relation}`);
             currentRelation.value = state.relation;
             hasChange = true;
           }
@@ -1610,7 +1772,7 @@ ${conversationContext}`;
           if (hasChange)
             saveCharacterState();
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:1146", "Relation check failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:1324", "Relation check failed:", e);
         }
       };
       const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
@@ -1619,13 +1781,11 @@ ${conversationContext}`;
           return;
         const now = Date.now();
         if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-          formatAppLog("log", "at pages/chat/chat.vue:1163", "📸 [Visual Director] Cooldown active (Skipping check).");
           return;
         }
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey)
           return;
-        formatAppLog("log", "at pages/chat/chat.vue:1173", "👀 [Gatekeeper] Checking visual intent...");
         const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT.replace("{{user_msg}}", lastUserMsg).replace("{{ai_msg}}", aiResponseText);
         let shouldGenerate = false;
         try {
@@ -1649,9 +1809,7 @@ ${conversationContext}`;
               model: config.model,
               messages: [{ role: "user", content: gatekeeperPrompt }],
               max_tokens: 100,
-              // 门卫只需要很少的 Token
               temperature: 0.1
-              // 需要精确判断
             };
           }
           const res = await uni.request({ url: targetUrl, method: "POST", header, data: requestBody, sslVerify: false });
@@ -1677,14 +1835,12 @@ ${conversationContext}`;
           const gateResult = JSON.parse(cleanJson);
           shouldGenerate = gateResult.result === true;
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:1232", "Gatekeeper check failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:1400", "Gatekeeper check failed:", e);
           return;
         }
         if (!shouldGenerate) {
-          formatAppLog("log", "at pages/chat/chat.vue:1237", "🛑 [Gatekeeper] No visual intent. Stop.");
           return;
         }
-        formatAppLog("log", "at pages/chat/chat.vue:1244", "✅ [Gatekeeper] Intent detected! Starting UI placeholder...");
         const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
         messageList.value.push({
           role: "system",
@@ -1694,7 +1850,6 @@ ${conversationContext}`;
         });
         scrollToBottom();
         saveHistory();
-        formatAppLog("log", "at pages/chat/chat.vue:1262", "🎨 [Director] Composing scene with FULL context...");
         const directorPrompt = IMAGE_GENERATOR_PROMPT.replace("{{clothes}}", currentClothing.value || "Casual clothes").replace("{{location}}", currentLocation.value || "Unknown Indoor").replace("{{time}}", formattedTime.value).replace("{{user_msg}}", lastUserMsg).replace("{{ai_msg}}", aiResponseText);
         try {
           let targetUrl = "";
@@ -1717,7 +1872,6 @@ ${conversationContext}`;
               model: config.model,
               messages: [{ role: "user", content: directorPrompt }],
               max_tokens: 300,
-              // 导演需要更多 Token 写 Tag
               temperature: 0.3
             };
           }
@@ -1742,9 +1896,7 @@ ${conversationContext}`;
             cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
           }
           const directorResult = JSON.parse(cleanJson);
-          formatAppLog("log", "at pages/chat/chat.vue:1318", "🎨 [Director] Result:", directorResult);
           if (directorResult.description && directorResult.description.length > 5) {
-            formatAppLog("log", "at pages/chat/chat.vue:1323", "📸 [Action] Director generated prompt. Starting ComfyUI...");
             lastImageGenerationTime.value = Date.now();
             const msgIdx = messageList.value.findIndex((m) => m.id === placeholderId);
             if (msgIdx !== -1) {
@@ -1753,11 +1905,10 @@ ${conversationContext}`;
             }
             handleAsyncImageGeneration(directorResult.description, placeholderId);
           } else {
-            formatAppLog("log", "at pages/chat/chat.vue:1340", "⚠️ [Director] Returned empty description. Removing placeholder.");
             messageList.value = messageList.value.filter((m) => m.id !== placeholderId);
           }
         } catch (e) {
-          formatAppLog("warn", "at pages/chat/chat.vue:1345", "Visual Director pipeline failed:", e);
+          formatAppLog("warn", "at pages/chat/chat.vue:1500", "Visual Director pipeline failed:", e);
           const msgIdx = messageList.value.findIndex((m) => m.id === placeholderId);
           if (msgIdx !== -1) {
             messageList.value[msgIdx].content = "❌ 构图失败 (系统繁忙)";
@@ -1789,17 +1940,34 @@ ${conversationContext}`;
         scrollToBottom();
         isLoading.value = true;
         saveHistory();
+        const appUser = uni.getStorageSync("app_user_info") || {};
+        if (appUser.name)
+          userName.value = appUser.name;
         const role = currentRole.value || {};
         const s = role.settings || {};
-        const appUser = uni.getStorageSync("app_user_info") || {};
-        const myName = userName.value || appUser.name || "User";
-        const myProfile = `[User Profile]
-Name: ${myName}
-Appearance: ${s.userAppearance || appUser.appearance || "Unknown"}`;
+        const myName = s.userNameOverride || userName.value || appUser.name || "User";
+        let myProfile = `[User Profile]
+Name: ${myName}`;
+        if (s.userOccupation)
+          myProfile += `
+Occupation: ${s.userOccupation}`;
+        if (s.userRelation)
+          myProfile += `
+Relation to Char: ${s.userRelation}`;
+        if (s.userPersona)
+          myProfile += `
+Personality: ${s.userPersona}`;
+        if (s.userAppearance || appUser.appearance)
+          myProfile += `
+Appearance: ${s.userAppearance || appUser.appearance}`;
         const charName = chatName.value;
         const charBio = s.bio || "No bio provided.";
         const charLogic = s.personalityNormal || "React naturally based on your bio.";
-        const dynamicLogic = `${charLogic}
+        const memoryBlock = currentSummary.value ? `
+
+【长期记忆摘要 (Long-term Memory)】
+${currentSummary.value}` : "";
+        const dynamicLogic = `${charLogic}${memoryBlock}
 
 【当前心理状态与对玩家印象 (Current Psychology)】
 ${currentRelation.value || "初相识，还没有具体印象"}`;
@@ -1808,7 +1976,6 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
         let contextMessages = messageList.value.filter((msg) => !msg.isSystem && msg.type !== "image");
         if (historyLimit > 0)
           contextMessages = contextMessages.slice(-historyLimit);
-        formatAppLog("log", "at pages/chat/chat.vue:1421", "=== 🎭 Roleplay AI Input ===");
         let targetUrl = "";
         let requestBody = {};
         let baseUrl = config.baseUrl || "";
@@ -1830,7 +1997,14 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             geminiContents.push({ role: "user", parts: [{ text: systemOverride }] });
           requestBody = {
             contents: geminiContents,
-            system_instruction: { parts: { text: prompt } }
+            system_instruction: { parts: { text: prompt } },
+            // 🌟 修正：增加防复读参数
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.9,
+              frequencyPenalty: 0.5,
+              presencePenalty: 0.3
+            }
           };
         } else {
           targetUrl = `${baseUrl}/chat/completions`;
@@ -1841,7 +2015,11 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             model: config.model,
             messages: openAIMessages,
             max_tokens: 1500,
-            stream: false
+            stream: false,
+            // 🌟 修正：增加防复读参数
+            temperature: 0.8,
+            frequency_penalty: 0.5,
+            presence_penalty: 0.3
           };
         }
         try {
@@ -1862,17 +2040,16 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
                 }
               rawText = ((_i = (_h = (_g = data == null ? void 0 : data.choices) == null ? void 0 : _g[0]) == null ? void 0 : _h.message) == null ? void 0 : _i.content) || "";
             }
-            formatAppLog("log", "at pages/chat/chat.vue:1472", "=== 📥 Roleplay AI Output ===", rawText.substring(0, 50) + "...");
             if (rawText)
               processAIResponse(rawText);
             else
               uni.showToast({ title: "无内容响应", icon: "none" });
           } else {
-            formatAppLog("error", "at pages/chat/chat.vue:1476", "API Error", res);
+            formatAppLog("error", "at pages/chat/chat.vue:1654", "API Error", res);
             uni.showToast({ title: `API错误 ${res.statusCode}`, icon: "none" });
           }
         } catch (e) {
-          formatAppLog("error", "at pages/chat/chat.vue:1480", "Request failed:", e);
+          formatAppLog("error", "at pages/chat/chat.vue:1658", "Request failed:", e);
           uni.showToast({ title: "网络错误", icon: "none" });
         } finally {
           isLoading.value = false;
@@ -1882,8 +2059,9 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
       const processAIResponse = (rawText) => {
         let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, "").replace(/^\[SYSTEM.*?\]\s*/i, "").trim();
         const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
-        if (thinkMatch)
-          formatAppLog("log", "at pages/chat/chat.vue:1498", "🧠 [Thought]:", thinkMatch[1].trim());
+        const thinkContent = thinkMatch ? thinkMatch[1].trim() : "";
+        if (thinkContent)
+          formatAppLog("log", "at pages/chat/chat.vue:1674", "🧠 [思考过程]:", thinkContent);
         const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
         displayText = displayText.replace(genericTagRegex, "");
         const endTagRegex = /<\/[^>]+>/i;
@@ -1930,27 +2108,25 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
           if (!isCameraAction && (lastUserMsg.includes("SNAPSHOT") || lastUserMsg.includes("拍"))) {
             isCameraAction = true;
           }
-          formatAppLog("log", "at pages/chat/chat.vue:1557", "📝 [Context Debug] =========================================");
-          formatAppLog("log", "at pages/chat/chat.vue:1558", "👤 User Input:", lastUserMsg);
-          formatAppLog("log", "at pages/chat/chat.vue:1559", "📸 Is Camera Action:", isCameraAction);
-          formatAppLog("log", "at pages/chat/chat.vue:1560", "🤖 AI Reply:", cleanDisplayText);
-          formatAppLog("log", "at pages/chat/chat.vue:1561", "==========================================================");
-          formatAppLog("log", "at pages/chat/chat.vue:1563", "🤖 [Multi-Agent] Starting pipeline...");
+          formatAppLog("log", "at pages/chat/chat.vue:1733", "📝 [对话监控] -------------------------------------------------");
+          formatAppLog("log", "at pages/chat/chat.vue:1734", "👤 用户:", lastUserMsg);
+          if (thinkContent)
+            formatAppLog("log", "at pages/chat/chat.vue:1735", "🧠 思考:", thinkContent);
+          formatAppLog("log", "at pages/chat/chat.vue:1736", "🤖 回复:", cleanDisplayText);
+          formatAppLog("log", "at pages/chat/chat.vue:1737", "-----------------------------------------------------------");
           setTimeout(async () => {
             try {
               const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
               const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
               await scenePromise;
               if (isCameraAction) {
-                formatAppLog("log", "at pages/chat/chat.vue:1575", "🔀 Route: Handing over to Camera Man.");
                 await runCameraManCheck(lastUserMsg, cleanDisplayText);
               } else {
-                formatAppLog("log", "at pages/chat/chat.vue:1579", "🔀 Route: Handing over to Visual Director.");
                 await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
               }
               await relationPromise;
             } catch (e) {
-              formatAppLog("error", "at pages/chat/chat.vue:1585", "Agent pipeline error:", e);
+              formatAppLog("error", "at pages/chat/chat.vue:1755", "Agent pipeline error:", e);
             }
           }, 500);
         }
@@ -1963,11 +2139,11 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
           }, 100);
         });
       };
-      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, currentAction, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, currentRelation, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, customMinutes, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, suggestionList, isToolbarOpen, toggleToolbar, lastImageGenerationTime, IMAGE_COOLDOWN_MS, TIME_SPEED_RATIO, get timeInterval() {
+      const __returned__ = { chatName, chatId, currentRole, messageList, inputText, isLoading, scrollIntoView, currentAction, userName, userAvatar, userHome, userAppearance, charHome, currentAffection, currentLust, currentTime, currentLocation, interactionMode, currentClothing, currentActivity, currentRelation, lastUpdateGameHour, showTimePanel, showTimeSettingPanel, showLocationPanel, customMinutes, customLocation, currentSummary, enableSummary, summaryFrequency, charHistoryLimit, tempDateStr, tempTimeStr, suggestionList, isToolbarOpen, worldLocations, toggleToolbar, lastImageGenerationTime, IMAGE_COOLDOWN_MS, TIME_SPEED_RATIO, get timeInterval() {
         return timeInterval;
       }, set timeInterval(v) {
         timeInterval = v;
-      }, relationshipStatus, formattedTime, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, applySuggestion, getReplySuggestions, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, runSceneCheck, runCameraManCheck, runRelationCheck, runVisualDirectorCheck, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
+      }, relationshipStatus, formattedTime, isCohabitation, locationList, getCurrentLlmConfig, startTimeFlow, stopTimeFlow, getInitialGameTime, loadRoleData, loadHistory, saveHistory, saveCharacterState, previewImage, onDateChange, onTimeChange, confirmManualTime, handleTimeSkip, checkIsWorking, handleMoveTo, applySuggestion, getReplySuggestions, optimizePromptForComfyUI, generateImageFromComfyUI, generateChatImage, handleAsyncImageGeneration, retryGenerateImage, triggerNextStep, handleCameraSend, checkProactiveGreeting, runSceneCheck, runCameraManCheck, runRelationCheck, runVisualDirectorCheck, sendMessage, processAIResponse, scrollToBottom, ref: vue.ref, computed: vue.computed, nextTick: vue.nextTick, watch: vue.watch, get onLoad() {
         return onLoad;
       }, get onShow() {
         return onShow;
@@ -2220,6 +2396,14 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             vue.createElementVNode("view", { class: "tool-icon" }, "💡"),
             vue.createElementVNode("text", { class: "tool-text" }, "提示")
           ]),
+          vue.createElementVNode("view", {
+            class: "tool-item",
+            "hover-class": "btn-hover",
+            onClick: _cache[3] || (_cache[3] = ($event) => $setup.showLocationPanel = true)
+          }, [
+            vue.createElementVNode("view", { class: "tool-icon" }, "🚪"),
+            vue.createElementVNode("text", { class: "tool-text" }, "串门")
+          ]),
           vue.createElementVNode(
             "view",
             {
@@ -2267,9 +2451,9 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
           ]),
           vue.withDirectives(vue.createElementVNode("input", {
             class: "text-input",
-            "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.inputText = $event),
+            "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.inputText = $event),
             "confirm-type": "send",
-            onConfirm: _cache[4] || (_cache[4] = ($event) => $setup.sendMessage()),
+            onConfirm: _cache[5] || (_cache[5] = ($event) => $setup.sendMessage()),
             placeholder: "与她对话...",
             disabled: $setup.isLoading,
             "adjust-position": true,
@@ -2281,7 +2465,7 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             "button",
             {
               class: vue.normalizeClass(["send-btn", { "disabled": $setup.isLoading }]),
-              onClick: _cache[5] || (_cache[5] = ($event) => $setup.sendMessage())
+              onClick: _cache[6] || (_cache[6] = ($event) => $setup.sendMessage())
             },
             "发送",
             2
@@ -2293,30 +2477,30 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
       $setup.showTimePanel ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 0,
         class: "time-panel-mask",
-        onClick: _cache[13] || (_cache[13] = ($event) => $setup.showTimePanel = false)
+        onClick: _cache[14] || (_cache[14] = ($event) => $setup.showTimePanel = false)
       }, [
         vue.createElementVNode("view", {
           class: "time-panel",
-          onClick: _cache[12] || (_cache[12] = vue.withModifiers(() => {
+          onClick: _cache[13] || (_cache[13] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "panel-title" }, "时间跳跃"),
           vue.createElementVNode("view", { class: "grid-actions" }, [
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[6] || (_cache[6] = ($event) => $setup.handleTimeSkip("morning"))
+              onClick: _cache[7] || (_cache[7] = ($event) => $setup.handleTimeSkip("morning"))
             }, "🌤️ 一上午过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[7] || (_cache[7] = ($event) => $setup.handleTimeSkip("afternoon"))
+              onClick: _cache[8] || (_cache[8] = ($event) => $setup.handleTimeSkip("afternoon"))
             }, "🌇 一下午过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[8] || (_cache[8] = ($event) => $setup.handleTimeSkip("night"))
+              onClick: _cache[9] || (_cache[9] = ($event) => $setup.handleTimeSkip("night"))
             }, "🌙 一晚上过去"),
             vue.createElementVNode("view", {
               class: "grid-btn",
-              onClick: _cache[9] || (_cache[9] = ($event) => $setup.handleTimeSkip("day"))
+              onClick: _cache[10] || (_cache[10] = ($event) => $setup.handleTimeSkip("day"))
             }, "📅 一整天过去")
           ]),
           vue.createElementVNode("view", { class: "custom-time" }, [
@@ -2326,7 +2510,7 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
               {
                 class: "mini-input",
                 type: "number",
-                "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $setup.customMinutes = $event),
+                "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.customMinutes = $event),
                 placeholder: "30"
               },
               null,
@@ -2337,7 +2521,7 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             ]),
             vue.createElementVNode("view", {
               class: "mini-btn",
-              onClick: _cache[11] || (_cache[11] = ($event) => $setup.handleTimeSkip("custom"))
+              onClick: _cache[12] || (_cache[12] = ($event) => $setup.handleTimeSkip("custom"))
             }, "确定")
           ])
         ])
@@ -2345,11 +2529,11 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
       $setup.showTimeSettingPanel ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 1,
         class: "time-panel-mask",
-        onClick: _cache[15] || (_cache[15] = ($event) => $setup.showTimeSettingPanel = false)
+        onClick: _cache[16] || (_cache[16] = ($event) => $setup.showTimeSettingPanel = false)
       }, [
         vue.createElementVNode("view", {
           class: "time-panel",
-          onClick: _cache[14] || (_cache[14] = vue.withModifiers(() => {
+          onClick: _cache[15] || (_cache[15] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "panel-title" }, "设定具体时间"),
@@ -2390,6 +2574,73 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
             onClick: $setup.confirmManualTime
           }, "确认修改")
         ])
+      ])) : vue.createCommentVNode("v-if", true),
+      $setup.showLocationPanel ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 2,
+        class: "time-panel-mask",
+        onClick: _cache[20] || (_cache[20] = ($event) => $setup.showLocationPanel = false)
+      }, [
+        vue.createElementVNode("view", {
+          class: "time-panel",
+          onClick: _cache[19] || (_cache[19] = vue.withModifiers(() => {
+          }, ["stop"]))
+        }, [
+          vue.createElementVNode("view", { class: "panel-title" }, "前往哪里？"),
+          vue.createElementVNode("view", { class: "grid-actions" }, [
+            (vue.openBlock(true), vue.createElementBlock(
+              vue.Fragment,
+              null,
+              vue.renderList($setup.locationList, (loc, index) => {
+                return vue.openBlock(), vue.createElementBlock("view", {
+                  class: "grid-btn",
+                  key: index,
+                  onClick: ($event) => $setup.handleMoveTo(loc),
+                  style: vue.normalizeStyle(loc.style || "")
+                }, [
+                  vue.createElementVNode(
+                    "text",
+                    null,
+                    vue.toDisplayString(loc.icon) + " " + vue.toDisplayString(loc.name),
+                    1
+                    /* TEXT */
+                  ),
+                  loc.detail ? (vue.openBlock(), vue.createElementBlock(
+                    "span",
+                    {
+                      key: 0,
+                      style: { "font-size": "20rpx", "opacity": "0.7" }
+                    },
+                    vue.toDisplayString(loc.detail),
+                    1
+                    /* TEXT */
+                  )) : vue.createCommentVNode("v-if", true)
+                ], 12, ["onClick"]);
+              }),
+              128
+              /* KEYED_FRAGMENT */
+            ))
+          ]),
+          vue.createElementVNode("view", { class: "custom-time" }, [
+            vue.createElementVNode("text", null, "自定义地点："),
+            vue.withDirectives(vue.createElementVNode(
+              "input",
+              {
+                class: "mini-input",
+                "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => $setup.customLocation = $event),
+                placeholder: "输入地点 (如: 图书馆)"
+              },
+              null,
+              512
+              /* NEED_PATCH */
+            ), [
+              [vue.vModelText, $setup.customLocation]
+            ]),
+            vue.createElementVNode("view", {
+              class: "mini-btn",
+              onClick: _cache[18] || (_cache[18] = ($event) => $setup.handleMoveTo({ name: $setup.customLocation, type: "custom" }))
+            }, "出发")
+          ])
+        ])
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
@@ -2419,16 +2670,22 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
         hairStyle: ["长直发", "大波浪", "双马尾", "短发", "姬发式", "丸子头", "单马尾", "凌乱发"],
         eyeColor: ["红色", "蓝色", "金色", "绿色", "紫色", "黑色", "异色"],
         wearStatus: ["正常穿戴", "暴露/H"],
-        clothingStyle: ["JK制服套装", "毛衣+百褶裙", "T恤+牛仔裤", "露肩连衣裙", "OL西装裙", "运动服", "旗袍(高叉)", "护士服", "死库水(泳衣)", "蕾丝内衣(成套)"],
+        // 上装 (Top)
+        topStyle: ["T恤", "衬衫", "毛衣", "吊带背心", "抹胸", "比基尼上衣", "运动内衣", "水手服上衣", "旗袍上身", "透视衫"],
+        // 下装 (Bottom)
+        bottomStyle: ["百褶裙", "牛仔短裤", "瑜伽裤", "包臀裙", "比基尼泳裤", "蕾丝内裤", "丁字裤(T-back)", "开档内裤", "运动短裤", "牛仔长裤"],
         clothingColor: ["白色", "黑色", "粉色", "蓝色", "红色", "紫色", "黑白相间"],
-        legWear: ["光腿", "白丝袜", "黑丝袜", "网眼袜", "过膝袜", "短袜"],
-        skinGloss: ["自然哑光", "柔嫩白皙", "水润微光", "油亮光泽", "汗湿淋漓"],
+        legWear: ["光腿", "白丝袜", "黑丝袜", "网眼袜", "过膝袜", "短袜", "腿环"],
+        skinGloss: ["自然哑光", "柔嫩白皙", "水润微光", "油亮光泽", "汗湿淋漓", "晒痕"],
         chestSize: ["贫乳(Flat)", "微乳(Small)", "丰满(Medium)", "巨乳(Large)", "爆乳(Huge)"],
+        // NSFW 隐晦版
         nippleColor: ["淡粉色", "粉红", "红润", "深褐色", "肿胀"],
-        waist: ["纤细腰身", "柔软腰肢", "丰满腰臀", "马甲线"],
-        hipsLegs: ["肉感大腿", "纤细长腿", "丰满臀部", "安产型宽胯", "筷子腿"],
-        pubicHair: ["白虎(无毛)", "一线天", "修剪整齐", "自然毛发", "爱心形状"],
-        vulvaType: ["馒头穴(饱满)", "粉嫩(Pink)", "紧致", "水多", "蝴蝶型(外翻)"],
+        waist: ["纤细腰身", "柔软腰肢", "丰满腰臀", "马甲线", "人鱼线"],
+        hips: ["丰满圆润", "挺翘", "安产型宽胯", "肉感"],
+        legs: ["纤细长腿", "肉感大腿", "筷子腿", "肌肉线条"],
+        // 隐晦词汇 (UI显示用，Prompt逻辑里还是会翻译成对应的Tag)
+        pubicHair: ["白虎(无毛)", "一线天", "修剪整齐", "自然茂盛", "爱心形状"],
+        vulvaType: ["馒头型(饱满)", "粉嫩(Pink)", "紧致", "湿润(Wet)", "蝴蝶型(外翻)"],
         maleHair: ["黑色短发", "棕色碎发", "寸头", "中分", "狼尾", "遮眼发"],
         maleBody: ["身材匀称", "肌肉结实", "清瘦", "略胖", "高大威猛", "腹肌明显"],
         malePrivate: ["干净无毛", "修剪整齐", "浓密自然", "尺寸惊人", "青筋暴起"]
@@ -2474,7 +2731,7 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
       const toggleSection = (key) => {
         activeSections.value[key] = !activeSections.value[key];
       };
-      const subSections = vue.ref({ charWorld: false, charLooks: false, userWorld: false, userLooks: false });
+      const subSections = vue.ref({ charWorld: false, charWork: false, charLooks: false, userWorld: false, userLooks: false });
       const toggleSubSection = (key) => {
         subSections.value[key] = !subSections.value[key];
       };
@@ -2491,44 +2748,54 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
         location: "",
         occupation: "",
         worldLore: "",
-        // 世界观
         // --- 核心外貌数据 ---
         appearance: "",
         appearanceSafe: "",
         appearanceNsfw: "",
         faceStyle: "cute",
+        // 🌟 数据结构更新：适配拆分后的特征
         charFeatures: {
           hairColor: "",
           hairStyle: "",
           eyeColor: "",
           wearStatus: "正常穿戴",
-          clothingStyle: "",
-          clothingColor: "",
+          // 上装
+          topColor: "",
+          topStyle: "",
+          // 下装
+          bottomColor: "",
+          bottomStyle: "",
           legWear: "",
           skinGloss: "",
           chestSize: "",
           nippleColor: "",
+          // 下身拆分
           waist: "",
-          hipsLegs: "",
+          hips: "",
+          legs: "",
           pubicHair: "",
           vulvaType: ""
         },
-        // --- 细节设定 ---
+        // 工作与作息
+        workplace: "",
+        workStartHour: 9,
+        workEndHour: 18,
+        workDays: [1, 2, 3, 4, 5],
+        // 细节
         speakingStyle: "",
-        // 说话风格/口癖
         likes: "",
-        // 喜好
         dislikes: "",
-        // 雷点
-        // --- 核心行为逻辑 (唯一保留的逻辑字段) ---
         personalityNormal: "",
-        // --- 玩家设定 ---
+        // 玩家设定
+        userNameOverride: "",
+        userRelation: "",
+        userPersona: "",
         userWorldId: "",
         userLocation: "",
         userOccupation: "",
         userAppearance: "",
         userFeatures: { hair: "", body: "", privates: "" },
-        // --- 系统设置 ---
+        // 系统设置
         maxReplies: 1,
         initialAffection: 10,
         initialLust: 0,
@@ -2548,6 +2815,23 @@ ${currentRelation.value || "初相识，还没有具体印象"}`;
           formData.value.charFeatures[key] = value;
         else
           formData.value.userFeatures[key] = value;
+      };
+      const weekDayOptions = [
+        { label: "一", value: 1 },
+        { label: "二", value: 2 },
+        { label: "三", value: 3 },
+        { label: "四", value: 4 },
+        { label: "五", value: 5 },
+        { label: "六", value: 6 },
+        { label: "日", value: 0 }
+      ];
+      const toggleWorkDay = (val) => {
+        const idx = formData.value.workDays.indexOf(val);
+        if (idx > -1) {
+          formData.value.workDays.splice(idx, 1);
+        } else {
+          formData.value.workDays.push(val);
+        }
       };
       const getCurrentLlmConfig = () => {
         const schemes = uni.getStorageSync("app_llm_schemes") || [];
@@ -2641,8 +2925,10 @@ Task: ${prompt}` }]
           safeParts.push(`胸部${f.chestSize}`);
         if (f.waist)
           safeParts.push(f.waist);
-        if (f.hipsLegs)
-          safeParts.push(f.hipsLegs);
+        if (f.hips)
+          safeParts.push(f.hips);
+        if (f.legs)
+          safeParts.push(f.legs);
         const safeChinese = safeParts.join("，");
         let nsfwParts = [];
         if (f.nippleColor)
@@ -2651,9 +2937,11 @@ Task: ${prompt}` }]
           nsfwParts.push(`私处${f.pubicHair || ""}，${f.vulvaType || ""}`);
         const nsfwChinese = nsfwParts.join("，");
         let clothesParts = [];
-        if (f.clothingStyle)
-          clothesParts.push(`穿着${f.clothingColor || ""}${f.clothingStyle}`);
-        else
+        if (f.topStyle)
+          clothesParts.push(`上身穿着${f.topColor || ""}${f.topStyle}`);
+        if (f.bottomStyle)
+          clothesParts.push(`下身穿着${f.bottomColor || ""}${f.bottomStyle}`);
+        if (clothesParts.length === 0)
           clothesParts.push("穿着日常便服");
         if (f.legWear)
           clothesParts.push(`穿着${f.legWear}`);
@@ -2689,7 +2977,7 @@ Task: ${prompt}` }]
           tempClothingTagsForAvatar.value = clothingTags;
           uni.showToast({ title: "Prompt已生成 (不含衣物)", icon: "success" });
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:753", e);
+          formatAppLog("error", "at pages/create/create.vue:925", e);
           formData.value.appearance = `${faceTags}, ${safeChinese}`;
           formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`;
           tempClothingTagsForAvatar.value = clothesChinese;
@@ -2775,7 +3063,7 @@ Task: ${prompt}` }]
             throw new Error("ComfyUI 返回为空");
           }
         } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:836", e);
+          formatAppLog("error", "at pages/create/create.vue:1007", e);
           uni.showModal({ title: "错误", content: e.message || "请求异常", showCancel: false });
         } finally {
           uni.hideLoading();
@@ -2830,6 +3118,13 @@ Task: ${prompt}` }]
           formData.value.location = target.location || "";
           formData.value.occupation = target.occupation || target.settings && target.settings.occupation || "";
           if (target.settings) {
+            formData.value.userNameOverride = target.settings.userNameOverride || "";
+            formData.value.userRelation = target.settings.userRelation || "";
+            formData.value.userPersona = target.settings.userPersona || "";
+            formData.value.workplace = target.settings.workplace || "";
+            formData.value.workStartHour = target.settings.workStartHour !== void 0 ? target.settings.workStartHour : 9;
+            formData.value.workEndHour = target.settings.workEndHour !== void 0 ? target.settings.workEndHour : 18;
+            formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
             formData.value.appearance = target.settings.appearance || "";
             formData.value.appearanceSafe = target.settings.appearanceSafe || "";
             formData.value.appearanceNsfw = target.settings.appearanceNsfw || "";
@@ -2871,39 +3166,10 @@ Task: ${prompt}` }]
           formData.value.summary = target.summary || "";
         }
       };
-      const autoGenerateBehavior = async () => {
-        if (!formData.value.bio) {
-          return uni.showToast({ title: "请先填写「背景故事」", icon: "none" });
-        }
-        uni.showLoading({ title: "AI正在注入灵魂...", mask: true });
-        const sysPrompt = `你是一个专业的角色扮演设定大师。你的任务是根据用户的背景故事，生成一段核心的【行为逻辑指令】。
-    不要使用“好感度”或“阶段”这种游戏术语。
-    直接分析这个角色的心理状态、欲望、对待玩家的初始态度以及互动模式。
-    如果角色设定是淫荡的，就明确写出她会主动勾引；如果角色是高冷的，就写出她会鄙视玩家。`;
-        const userPrompt = `
-    【角色名】${formData.value.name || "未命名"}
-    【背景故事】${formData.value.bio}
-    【说话风格】${formData.value.speakingStyle || "无"}
-    【XP/喜好】${formData.value.likes || "无"}
-
-    请生成一段约 200 字的 [Behavior Logic] (行为逻辑)。
-    要求：
-    1. 用第二人称 "你" 来描述这个角色 (例如："你是一个...，当看到玩家时，你会...")。
-    2. 明确她对待玩家的**初始态度** (是直接扑倒，还是保持距离？)。
-    3. 结合她的XP，描述她会如何回应玩家的互动。
-    4. **不要**返回 JSON，直接返回这段逻辑文本即可。
-    `;
-        try {
-          let result = await performLlmRequest(userPrompt, sysPrompt);
-          result = result.replace(/^["']|["']$/g, "").trim();
-          formData.value.personalityNormal = result;
-          uni.showToast({ title: "行为逻辑已生成", icon: "success" });
-        } catch (e) {
-          formatAppLog("error", "at pages/create/create.vue:978", e);
-          uni.showModal({ title: "生成失败", content: e.message, showCancel: false });
-        } finally {
-          uni.hideLoading();
-        }
+      const getInitialGameTime = () => {
+        const now = /* @__PURE__ */ new Date();
+        now.setHours(8, 0, 0, 0);
+        return now.getTime();
       };
       const saveCharacter = () => {
         if (!formData.value.name.trim()) {
@@ -2911,13 +3177,12 @@ Task: ${prompt}` }]
         }
         let list = uni.getStorageSync("contact_list") || [];
         let clothingStr = "便服";
-        if (formData.value.charFeatures.clothingStyle) {
-          clothingStr = `${formData.value.charFeatures.clothingColor || ""}${formData.value.charFeatures.clothingStyle}`;
+        if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
+          clothingStr = `${formData.value.charFeatures.topStyle || ""} + ${formData.value.charFeatures.bottomStyle || ""}`;
         }
         const charData = {
           name: formData.value.name,
           avatar: formData.value.avatar || "/static/ai-avatar.png",
-          // --- 系统设置 ---
           maxReplies: formData.value.maxReplies,
           initialAffection: formData.value.initialAffection,
           initialLust: formData.value.initialLust,
@@ -2928,25 +3193,29 @@ Task: ${prompt}` }]
           enableSummary: formData.value.enableSummary,
           summaryFrequency: formData.value.summaryFrequency,
           summary: formData.value.summary,
-          // --- 物理状态 ---
           location: formData.value.location,
           clothing: clothingStr,
           worldId: formData.value.worldId,
           occupation: formData.value.occupation,
-          // --- 详细设定 (Settings) ---
+          // Settings (完整字段)
           settings: {
-            // 外貌
             appearance: formData.value.appearance,
             appearanceSafe: formData.value.appearanceSafe,
             appearanceNsfw: formData.value.appearanceNsfw,
             faceStyle: formData.value.faceStyle,
             charFeatures: formData.value.charFeatures,
-            // 细节
+            userNameOverride: formData.value.userNameOverride,
+            userRelation: formData.value.userRelation,
+            userPersona: formData.value.userPersona,
+            // 🌟 核心字段
+            workplace: formData.value.workplace,
+            workStartHour: formData.value.workStartHour,
+            workEndHour: formData.value.workEndHour,
+            workDays: formData.value.workDays,
             bio: formData.value.bio,
             speakingStyle: formData.value.speakingStyle,
             likes: formData.value.likes,
             dislikes: formData.value.dislikes,
-            // 身份与世界
             occupation: formData.value.occupation,
             userWorldId: formData.value.userWorldId,
             userLocation: formData.value.userLocation,
@@ -2954,10 +3223,8 @@ Task: ${prompt}` }]
             userAppearance: formData.value.userAppearance,
             userFeatures: formData.value.userFeatures,
             worldLore: formData.value.worldLore,
-            // 核心行为逻辑 (唯一保留的逻辑字段)
             personalityNormal: formData.value.personalityNormal
           },
-          // 如果是编辑模式，不修改最后一条消息显示；如果是新建，显示提示
           lastMsg: isEditMode.value ? void 0 : "新角色已创建",
           lastTime: isEditMode.value ? void 0 : "刚刚",
           unread: isEditMode.value ? void 0 : 0
@@ -2972,13 +3239,11 @@ Task: ${prompt}` }]
           const newChar = {
             id: Date.now(),
             ...charData,
-            // 初始化动态状态
             affection: formData.value.initialAffection,
             lust: formData.value.initialLust,
-            lastTimeTimestamp: Date.now(),
+            // 🌟 新建时锁定初始时间
+            lastTimeTimestamp: getInitialGameTime(),
             unread: 0,
-            // 🌟【核心修正】：初始关系不写死“陌生人”，而是写入指令。
-            // 让 Chat 页面的心理分析 AI 根据 Bio 自动判定是老婆还是路人。
             relation: "初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。"
           };
           list.unshift(newChar);
@@ -3002,14 +3267,16 @@ Task: ${prompt}` }]
               let list = uni.getStorageSync("contact_list") || [];
               const index = list.findIndex((item) => String(item.id) === String(targetId.value));
               if (index !== -1) {
+                const currentRole = list[index];
+                const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
                 let clothingStr = "便服";
-                if (formData.value.charFeatures.clothingStyle) {
-                  clothingStr = `${formData.value.charFeatures.clothingColor || ""}${formData.value.charFeatures.clothingStyle}`;
+                if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
+                  clothingStr = `${formData.value.charFeatures.topStyle || ""} + ${formData.value.charFeatures.bottomStyle || ""}`;
                 }
                 const resetData = {
                   lastMsg: "（记忆已清除）",
                   lastTime: "刚刚",
-                  lastTimeTimestamp: Date.now(),
+                  lastTimeTimestamp: preservedTime,
                   unread: 0,
                   summary: "",
                   currentLocation: formData.value.location || "角色家",
@@ -3018,9 +3285,6 @@ Task: ${prompt}` }]
                   lastActivity: "自由活动",
                   affection: formData.value.initialAffection || 10,
                   lust: formData.value.initialLust || 0,
-                  // 🌟【核心修正】
-                  // 不要写死"陌生人"。而是写入一条指令，让 Chat 页面的 AI 根据 Bio 自动判断。
-                  // 当 Chat 页面第一次运行 Psychology Tracker 时，它会看到这句话，然后根据 Bio 输出正确的初始关系（如：青梅竹马）。
                   relation: "初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。"
                 };
                 list[index] = { ...list[index], ...resetData };
@@ -3036,7 +3300,7 @@ Task: ${prompt}` }]
           }
         });
       };
-      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, tempClothingTagsForAvatar, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, autoGenerateBehavior, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
+      const __returned__ = { FACE_STYLES_MAP, FACE_LABELS, OPTIONS, PERSONALITY_TEMPLATES, isEditMode, targetId, currentTemplateKey, activeSections, toggleSection, subSections, toggleSubSection, worldList, worldIndex, userWorldIndex, tempClothingTagsForAvatar, formData, selectedWorld, selectedUserWorld, getStyleLabel, setFeature, weekDayOptions, toggleWorkDay, getCurrentLlmConfig, performLlmRequest, generateEnglishPrompt, generateUserDescription, generateImageFromComfyUI, generateAvatar, applyTemplate, handleWorldChange, handleUserWorldChange, loadCharacterData, getInitialGameTime, saveCharacter, clearHistoryAndReset, ref: vue.ref, computed: vue.computed, get onLoad() {
         return onLoad;
       }, get saveToGallery() {
         return saveToGallery;
@@ -3099,7 +3363,122 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[2] || (_cache[2] = ($event) => $setup.toggleSubSection("charWorld"))
+                  onClick: _cache[2] || (_cache[2] = ($event) => $setup.toggleSubSection("charWork"))
+                }, [
+                  vue.createElementVNode("text", { class: "sub-title" }, "🏢 工作与作息"),
+                  vue.createElementVNode(
+                    "text",
+                    { class: "sub-arrow" },
+                    vue.toDisplayString($setup.subSections.charWork ? "▼" : "▶"),
+                    1
+                    /* TEXT */
+                  )
+                ]),
+                vue.withDirectives(vue.createElementVNode(
+                  "view",
+                  { class: "sub-content" },
+                  [
+                    vue.createElementVNode("view", { class: "setting-tip" }, "设定后，工作时间去她家可能会扑空，去单位能偶遇。"),
+                    vue.createElementVNode("view", { class: "input-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "工作场所"),
+                      vue.withDirectives(vue.createElementVNode(
+                        "input",
+                        {
+                          class: "input",
+                          "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.formData.workplace = $event),
+                          placeholder: "例：公司 / 学校 / 医院 (留空则默认为'公司')"
+                        },
+                        null,
+                        512
+                        /* NEED_PATCH */
+                      ), [
+                        [vue.vModelText, $setup.formData.workplace]
+                      ])
+                    ]),
+                    vue.createElementVNode("view", { class: "input-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "工作时间 (24小时制)"),
+                      vue.createElementVNode("view", { class: "time-range-box" }, [
+                        vue.createElementVNode("view", { class: "time-input-wrapper" }, [
+                          vue.withDirectives(vue.createElementVNode(
+                            "input",
+                            {
+                              class: "mini-input",
+                              type: "number",
+                              "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.formData.workStartHour = $event)
+                            },
+                            null,
+                            512
+                            /* NEED_PATCH */
+                          ), [
+                            [
+                              vue.vModelText,
+                              $setup.formData.workStartHour,
+                              void 0,
+                              { number: true }
+                            ]
+                          ]),
+                          vue.createElementVNode("text", { class: "suffix" }, ":00")
+                        ]),
+                        vue.createElementVNode("text", { class: "separator" }, "至"),
+                        vue.createElementVNode("view", { class: "time-input-wrapper" }, [
+                          vue.withDirectives(vue.createElementVNode(
+                            "input",
+                            {
+                              class: "mini-input",
+                              type: "number",
+                              "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $setup.formData.workEndHour = $event)
+                            },
+                            null,
+                            512
+                            /* NEED_PATCH */
+                          ), [
+                            [
+                              vue.vModelText,
+                              $setup.formData.workEndHour,
+                              void 0,
+                              { number: true }
+                            ]
+                          ]),
+                          vue.createElementVNode("text", { class: "suffix" }, ":00")
+                        ])
+                      ])
+                    ]),
+                    vue.createElementVNode("view", {
+                      class: "input-item",
+                      style: { "margin-bottom": "0" }
+                    }, [
+                      vue.createElementVNode("text", { class: "label" }, "每周上班日"),
+                      vue.createElementVNode("view", { class: "weekday-selector" }, [
+                        (vue.openBlock(), vue.createElementBlock(
+                          vue.Fragment,
+                          null,
+                          vue.renderList($setup.weekDayOptions, (day) => {
+                            return vue.createElementVNode("view", {
+                              class: vue.normalizeClass(["day-chip", { "active": $setup.formData.workDays.includes(day.value) }]),
+                              key: day.value,
+                              onClick: ($event) => $setup.toggleWorkDay(day.value)
+                            }, " 周" + vue.toDisplayString(day.label), 11, ["onClick"]);
+                          }),
+                          64
+                          /* STABLE_FRAGMENT */
+                        ))
+                      ]),
+                      $setup.formData.workDays.length === 0 ? (vue.openBlock(), vue.createElementBlock("text", {
+                        key: 0,
+                        class: "tip-text"
+                      }, " (未选中任何日期，视为全职在家/自由职业) ")) : vue.createCommentVNode("v-if", true)
+                    ])
+                  ],
+                  512
+                  /* NEED_PATCH */
+                ), [
+                  [vue.vShow, $setup.subSections.charWork]
+                ])
+              ]),
+              vue.createElementVNode("view", { class: "sub-group" }, [
+                vue.createElementVNode("view", {
+                  class: "sub-header",
+                  onClick: _cache[6] || (_cache[6] = ($event) => $setup.toggleSubSection("charWorld"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "🌍 所属世界与身份"),
                   vue.createElementVNode(
@@ -3137,14 +3516,14 @@ Task: ${prompt}` }]
                       vue.createElementVNode("view", {
                         class: "tips-text",
                         style: { "font-size": "22rpx", "color": "#999", "margin-bottom": "10rpx" }
-                      }, " 定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。 "),
+                      }, " 定义这个世界的物理规则、魔法体系、社会常识。 "),
                       vue.withDirectives(vue.createElementVNode(
                         "textarea",
                         {
                           class: "textarea",
                           style: { "height": "180rpx" },
-                          "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $setup.formData.worldLore = $event),
-                          placeholder: "例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。",
+                          "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.formData.worldLore = $event),
+                          placeholder: "例：这是一个赛博朋克世界，财阀统治一切...",
                           maxlength: "-1"
                         },
                         null,
@@ -3164,7 +3543,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $setup.formData.location = $event),
+                              "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.formData.location = $event),
                               placeholder: "输入地址"
                             },
                             null,
@@ -3198,7 +3577,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $setup.formData.occupation = $event),
+                              "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => $setup.formData.occupation = $event),
                               placeholder: "输入职业"
                             },
                             null,
@@ -3240,9 +3619,9 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[6] || (_cache[6] = ($event) => $setup.toggleSubSection("charLooks"))
+                  onClick: _cache[10] || (_cache[10] = ($event) => $setup.toggleSubSection("charLooks"))
                 }, [
-                  vue.createElementVNode("text", { class: "sub-title" }, "💃 详细特征 (捏人)"),
+                  vue.createElementVNode("text", { class: "sub-title" }, "💃 详细特征 (自定义捏人)"),
                   vue.createElementVNode(
                     "text",
                     { class: "sub-arrow" },
@@ -3256,9 +3635,28 @@ Task: ${prompt}` }]
                   { class: "sub-content" },
                   [
                     vue.createElementVNode("view", { class: "category-block" }, [
-                      vue.createElementVNode("text", { class: "block-title" }, "A. 头部与面部"),
+                      vue.createElementVNode("text", { class: "block-title" }, "A. 头部特征"),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "画风锁定"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "画风锁定 (Style)"),
+                        vue.createElementVNode("view", { class: "input-row" }, [
+                          vue.withDirectives(vue.createElementVNode(
+                            "input",
+                            {
+                              class: "mini-input-text",
+                              "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.formData.faceStyle = $event),
+                              placeholder: "选择或输入 (如: flat color)"
+                            },
+                            null,
+                            512
+                            /* NEED_PATCH */
+                          ), [
+                            [vue.vModelText, $setup.formData.faceStyle]
+                          ])
+                        ]),
+                        vue.createElementVNode("view", {
+                          class: "tip",
+                          style: { "margin-bottom": "10rpx" }
+                        }, "自定义提示：可填 1990s (复古), sketch (素描), oil painting (油画) 等。"),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3281,7 +3679,20 @@ Task: ${prompt}` }]
                         ])
                       ]),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "发色发型"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "发色"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.formData.charFeatures.hairColor = $event),
+                            placeholder: "输入发色 (如: 渐变粉色)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.hairColor]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3299,8 +3710,30 @@ Task: ${prompt}` }]
                               }),
                               128
                               /* KEYED_FRAGMENT */
-                            )),
-                            vue.createElementVNode("view", { class: "separator" }, "|"),
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "发型"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => $setup.formData.charFeatures.hairStyle = $event),
+                            placeholder: "输入发型 (如: 侧马尾)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.hairStyle]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
                             (vue.openBlock(true), vue.createElementBlock(
                               vue.Fragment,
                               null,
@@ -3318,7 +3751,20 @@ Task: ${prompt}` }]
                         ])
                       ]),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "眼睛特征"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "瞳色/眼型"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => $setup.formData.charFeatures.eyeColor = $event),
+                            placeholder: "输入眼瞳 (如: 星星眼)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.eyeColor]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3342,62 +3788,22 @@ Task: ${prompt}` }]
                       ])
                     ]),
                     vue.createElementVNode("view", { class: "category-block" }, [
-                      vue.createElementVNode("text", { class: "block-title" }, "B. 服装穿搭"),
+                      vue.createElementVNode("text", { class: "block-title" }, "B. 上身穿搭 (Top)"),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", {
-                          class: "feat-label",
-                          style: { "color": "#e67e22" }
-                        }, "穿衣状态"),
-                        vue.createElementVNode("view", {
-                          class: "tips-text",
-                          style: { "margin-bottom": "8rpx", "font-size": "20rpx", "color": "#999" }
-                        }, '(选"正常"时会自动隐藏私密部位Prompt)'),
-                        vue.createElementVNode("scroll-view", {
-                          "scroll-x": "",
-                          class: "chips-scroll"
-                        }, [
-                          vue.createElementVNode("view", { class: "chips-flex" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.OPTIONS.wearStatus, (item) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.wearStatus === item, "chip-warn": item === "暴露/H" }]),
-                                  onClick: ($event) => $setup.setFeature("char", "wearStatus", item)
-                                }, vue.toDisplayString(item), 11, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])
-                      ]),
-                      vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "套装/款式"),
-                        vue.createElementVNode("scroll-view", {
-                          "scroll-x": "",
-                          class: "chips-scroll"
-                        }, [
-                          vue.createElementVNode("view", { class: "chips-flex" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.OPTIONS.clothingStyle, (item) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.clothingStyle === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "clothingStyle", item)
-                                }, vue.toDisplayString(item), 11, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])
-                      ]),
-                      vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "主色调"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "上衣颜色"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => $setup.formData.charFeatures.topColor = $event),
+                            placeholder: "自定义颜色"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.topColor]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3409,8 +3815,8 @@ Task: ${prompt}` }]
                               vue.renderList($setup.OPTIONS.clothingColor, (item) => {
                                 return vue.openBlock(), vue.createElementBlock("view", {
                                   key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.clothingColor === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "clothingColor", item)
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.topColor === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "topColor", item)
                                 }, vue.toDisplayString(item), 11, ["onClick"]);
                               }),
                               128
@@ -3420,7 +3826,203 @@ Task: ${prompt}` }]
                         ])
                       ]),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "袜饰/腿部"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "上衣款式"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => $setup.formData.charFeatures.topStyle = $event),
+                            placeholder: "输入款式 (如: 露脐T恤)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.topStyle]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.topStyle, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.topStyle === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "topStyle", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "皮肤状态"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => $setup.formData.charFeatures.skinGloss = $event),
+                            placeholder: "输入状态 (如: 晒痕)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.skinGloss]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.skinGloss, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.skinGloss === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "skinGloss", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "胸围"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => $setup.formData.charFeatures.chestSize = $event),
+                            placeholder: "输入尺寸"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.chestSize]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.chestSize, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.chestSize === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "chestSize", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ])
+                    ]),
+                    vue.createElementVNode("view", { class: "category-block" }, [
+                      vue.createElementVNode("text", { class: "block-title" }, "C. 下身穿搭 (Bottom)"),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "下装颜色"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => $setup.formData.charFeatures.bottomColor = $event),
+                            placeholder: "自定义颜色"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.bottomColor]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.clothingColor, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.bottomColor === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "bottomColor", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "下装款式"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => $setup.formData.charFeatures.bottomStyle = $event),
+                            placeholder: "输入款式 (如: 瑜伽裤)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.bottomStyle]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.bottomStyle, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.bottomStyle === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "bottomStyle", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "腿部/袜子"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => $setup.formData.charFeatures.legWear = $event),
+                            placeholder: "输入款式 (如: 腿环)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.legWear]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3444,84 +4046,22 @@ Task: ${prompt}` }]
                       ])
                     ]),
                     vue.createElementVNode("view", { class: "category-block" }, [
-                      vue.createElementVNode("text", { class: "block-title" }, "C. 上身与皮肤"),
+                      vue.createElementVNode("text", { class: "block-title" }, "D. 身体线条"),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", {
-                          class: "feat-label",
-                          style: { "color": "#007aff" }
-                        }, "皮肤光泽"),
-                        vue.createElementVNode("scroll-view", {
-                          "scroll-x": "",
-                          class: "chips-scroll"
-                        }, [
-                          vue.createElementVNode("view", { class: "chips-flex" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.OPTIONS.skinGloss, (item) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.skinGloss === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "skinGloss", item)
-                                }, vue.toDisplayString(item), 11, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])
-                      ]),
-                      vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "胸部大小"),
-                        vue.createElementVNode("scroll-view", {
-                          "scroll-x": "",
-                          class: "chips-scroll"
-                        }, [
-                          vue.createElementVNode("view", { class: "chips-flex" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.OPTIONS.chestSize, (item) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.chestSize === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "chestSize", item)
-                                }, vue.toDisplayString(item), 11, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])
-                      ]),
-                      vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "乳头颜色"),
-                        vue.createElementVNode("scroll-view", {
-                          "scroll-x": "",
-                          class: "chips-scroll"
-                        }, [
-                          vue.createElementVNode("view", { class: "chips-flex" }, [
-                            (vue.openBlock(true), vue.createElementBlock(
-                              vue.Fragment,
-                              null,
-                              vue.renderList($setup.OPTIONS.nippleColor, (item) => {
-                                return vue.openBlock(), vue.createElementBlock("view", {
-                                  key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.nippleColor === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "nippleColor", item)
-                                }, vue.toDisplayString(item), 11, ["onClick"]);
-                              }),
-                              128
-                              /* KEYED_FRAGMENT */
-                            ))
-                          ])
-                        ])
-                      ])
-                    ]),
-                    vue.createElementVNode("view", { class: "category-block" }, [
-                      vue.createElementVNode("text", { class: "block-title" }, "D. 下身特征"),
-                      vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "腰部线条"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "腰部"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.charFeatures.waist = $event),
+                            placeholder: "输入描述 (如: 人鱼线)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.waist]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3544,7 +4084,20 @@ Task: ${prompt}` }]
                         ])
                       ]),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "臀腿肉感"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "臀部"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => $setup.formData.charFeatures.hips = $event),
+                            placeholder: "输入描述 (如: 蜜桃臀)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.hips]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3553,11 +4106,47 @@ Task: ${prompt}` }]
                             (vue.openBlock(true), vue.createElementBlock(
                               vue.Fragment,
                               null,
-                              vue.renderList($setup.OPTIONS.hipsLegs, (item) => {
+                              vue.renderList($setup.OPTIONS.hips, (item) => {
                                 return vue.openBlock(), vue.createElementBlock("view", {
                                   key: item,
-                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.hipsLegs === item }]),
-                                  onClick: ($event) => $setup.setFeature("char", "hipsLegs", item)
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.hips === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "hips", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "腿型"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => $setup.formData.charFeatures.legs = $event),
+                            placeholder: "输入描述 (如: 丰满大腿)"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.legs]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.legs, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.legs === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "legs", item)
                                 }, vue.toDisplayString(item), 11, ["onClick"]);
                               }),
                               128
@@ -3571,9 +4160,58 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", {
                         class: "block-title",
                         style: { "color": "#ff6b81" }
-                      }, "E. 私密花园 (NSFW)"),
+                      }, "E. 秘密花园 (NSFW)"),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "毛发状态"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "蓓蕾颜色"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => $setup.formData.charFeatures.nippleColor = $event),
+                            placeholder: "自定义"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.nippleColor]
+                        ]),
+                        vue.createElementVNode("scroll-view", {
+                          "scroll-x": "",
+                          class: "chips-scroll"
+                        }, [
+                          vue.createElementVNode("view", { class: "chips-flex" }, [
+                            (vue.openBlock(true), vue.createElementBlock(
+                              vue.Fragment,
+                              null,
+                              vue.renderList($setup.OPTIONS.nippleColor, (item) => {
+                                return vue.openBlock(), vue.createElementBlock("view", {
+                                  key: item,
+                                  class: vue.normalizeClass(["chip", { active: $setup.formData.charFeatures.nippleColor === item }]),
+                                  onClick: ($event) => $setup.setFeature("char", "nippleColor", item)
+                                }, vue.toDisplayString(item), 11, ["onClick"]);
+                              }),
+                              128
+                              /* KEYED_FRAGMENT */
+                            ))
+                          ])
+                        ])
+                      ]),
+                      vue.createElementVNode("view", { class: "feature-row" }, [
+                        vue.createElementVNode("text", { class: "feat-label" }, "丛林状态"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => $setup.formData.charFeatures.pubicHair = $event),
+                            placeholder: "自定义"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.pubicHair]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3596,7 +4234,20 @@ Task: ${prompt}` }]
                         ])
                       ]),
                       vue.createElementVNode("view", { class: "feature-row" }, [
-                        vue.createElementVNode("text", { class: "feat-label" }, "户型外观"),
+                        vue.createElementVNode("text", { class: "feat-label" }, "花朵形态"),
+                        vue.withDirectives(vue.createElementVNode(
+                          "input",
+                          {
+                            class: "mini-input-text",
+                            "onUpdate:modelValue": _cache[27] || (_cache[27] = ($event) => $setup.formData.charFeatures.vulvaType = $event),
+                            placeholder: "自定义"
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vue.vModelText, $setup.formData.charFeatures.vulvaType]
+                        ]),
                         vue.createElementVNode("scroll-view", {
                           "scroll-x": "",
                           class: "chips-scroll"
@@ -3636,7 +4287,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea large",
-                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $setup.formData.appearance = $event),
+                    "onUpdate:modelValue": _cache[28] || (_cache[28] = ($event) => $setup.formData.appearance = $event),
                     placeholder: "1girl, cute face...",
                     maxlength: "-1"
                   },
@@ -3664,7 +4315,7 @@ Task: ${prompt}` }]
                   "input",
                   {
                     class: "input",
-                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $setup.formData.avatar = $event),
+                    "onUpdate:modelValue": _cache[29] || (_cache[29] = ($event) => $setup.formData.avatar = $event),
                     placeholder: "输入链接 或 点击上方生成"
                   },
                   null,
@@ -3697,7 +4348,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[9] || (_cache[9] = ($event) => $setup.toggleSection("player"))
+            onClick: _cache[30] || (_cache[30] = ($event) => $setup.toggleSection("player"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -3721,7 +4372,7 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[10] || (_cache[10] = ($event) => $setup.toggleSubSection("userWorld"))
+                  onClick: _cache[31] || (_cache[31] = ($event) => $setup.toggleSubSection("userWorld"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "🌍 你的世界"),
                   vue.createElementVNode(
@@ -3736,6 +4387,56 @@ Task: ${prompt}` }]
                   "view",
                   { class: "sub-content" },
                   [
+                    vue.createElementVNode("view", { class: "input-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "你的昵称"),
+                      vue.withDirectives(vue.createElementVNode(
+                        "input",
+                        {
+                          class: "input",
+                          "onUpdate:modelValue": _cache[32] || (_cache[32] = ($event) => $setup.formData.userNameOverride = $event),
+                          placeholder: "例：阿林 (留空则使用APP全局昵称)"
+                        },
+                        null,
+                        512
+                        /* NEED_PATCH */
+                      ), [
+                        [vue.vModelText, $setup.formData.userNameOverride]
+                      ])
+                    ]),
+                    vue.createElementVNode("view", { class: "input-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "你们的关系"),
+                      vue.withDirectives(vue.createElementVNode(
+                        "input",
+                        {
+                          class: "input",
+                          "onUpdate:modelValue": _cache[33] || (_cache[33] = ($event) => $setup.formData.userRelation = $event),
+                          placeholder: "例：青梅竹马 / 刚认识的邻居 / 你的债主"
+                        },
+                        null,
+                        512
+                        /* NEED_PATCH */
+                      ), [
+                        [vue.vModelText, $setup.formData.userRelation]
+                      ])
+                    ]),
+                    vue.createElementVNode("view", { class: "textarea-item" }, [
+                      vue.createElementVNode("text", { class: "label" }, "你的性格/人设"),
+                      vue.withDirectives(vue.createElementVNode(
+                        "textarea",
+                        {
+                          class: "textarea",
+                          style: { "height": "120rpx" },
+                          "onUpdate:modelValue": _cache[34] || (_cache[34] = ($event) => $setup.formData.userPersona = $event),
+                          placeholder: "例：性格内向，容易害羞，不敢直视女生...",
+                          maxlength: "-1"
+                        },
+                        null,
+                        512
+                        /* NEED_PATCH */
+                      ), [
+                        [vue.vModelText, $setup.formData.userPersona]
+                      ])
+                    ]),
                     vue.createElementVNode("view", { class: "input-item" }, [
                       vue.createElementVNode("text", { class: "label" }, "所属世界"),
                       vue.createElementVNode("picker", {
@@ -3764,7 +4465,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $setup.formData.userLocation = $event)
+                              "onUpdate:modelValue": _cache[35] || (_cache[35] = ($event) => $setup.formData.userLocation = $event)
                             },
                             null,
                             512
@@ -3779,7 +4480,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => $setup.formData.userOccupation = $event)
+                              "onUpdate:modelValue": _cache[36] || (_cache[36] = ($event) => $setup.formData.userOccupation = $event)
                             },
                             null,
                             512
@@ -3801,7 +4502,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => $setup.formData.userLocation = $event)
+                              "onUpdate:modelValue": _cache[37] || (_cache[37] = ($event) => $setup.formData.userLocation = $event)
                             },
                             null,
                             512
@@ -3816,7 +4517,7 @@ Task: ${prompt}` }]
                             "input",
                             {
                               class: "input",
-                              "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => $setup.formData.userOccupation = $event)
+                              "onUpdate:modelValue": _cache[38] || (_cache[38] = ($event) => $setup.formData.userOccupation = $event)
                             },
                             null,
                             512
@@ -3839,7 +4540,7 @@ Task: ${prompt}` }]
               vue.createElementVNode("view", { class: "sub-group" }, [
                 vue.createElementVNode("view", {
                   class: "sub-header",
-                  onClick: _cache[15] || (_cache[15] = ($event) => $setup.toggleSubSection("userLooks"))
+                  onClick: _cache[39] || (_cache[39] = ($event) => $setup.toggleSubSection("userLooks"))
                 }, [
                   vue.createElementVNode("text", { class: "sub-title" }, "🧔‍♂️ 你的外貌 (男性特征)"),
                   vue.createElementVNode(
@@ -3946,7 +4647,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea",
-                    "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => $setup.formData.userAppearance = $event),
+                    "onUpdate:modelValue": _cache[40] || (_cache[40] = ($event) => $setup.formData.userAppearance = $event),
                     placeholder: "1boy, short hair...",
                     maxlength: "-1"
                   },
@@ -3967,7 +4668,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[17] || (_cache[17] = ($event) => $setup.toggleSection("core"))
+            onClick: _cache[41] || (_cache[41] = ($event) => $setup.toggleSection("core"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -3994,7 +4695,7 @@ Task: ${prompt}` }]
                   "textarea",
                   {
                     class: "textarea",
-                    "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => $setup.formData.bio = $event),
+                    "onUpdate:modelValue": _cache[42] || (_cache[42] = ($event) => $setup.formData.bio = $event),
                     placeholder: "例：她是刚搬来的人妻邻居，丈夫常年出差。她性格...",
                     maxlength: "-1"
                   },
@@ -4012,7 +4713,7 @@ Task: ${prompt}` }]
                   {
                     class: "textarea",
                     style: { "height": "120rpx" },
-                    "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => $setup.formData.speakingStyle = $event),
+                    "onUpdate:modelValue": _cache[43] || (_cache[43] = ($event) => $setup.formData.speakingStyle = $event),
                     placeholder: "例：语气慵懒，喜欢叫人“小弟弟”...",
                     maxlength: "-1"
                   },
@@ -4029,7 +4730,7 @@ Task: ${prompt}` }]
                   "input",
                   {
                     class: "input",
-                    "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => $setup.formData.likes = $event),
+                    "onUpdate:modelValue": _cache[44] || (_cache[44] = ($event) => $setup.formData.likes = $event),
                     placeholder: "XP系统/喜欢的事物"
                   },
                   null,
@@ -4045,7 +4746,7 @@ Task: ${prompt}` }]
                   "input",
                   {
                     class: "input",
-                    "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => $setup.formData.dislikes = $event),
+                    "onUpdate:modelValue": _cache[45] || (_cache[45] = ($event) => $setup.formData.dislikes = $event),
                     placeholder: "厌恶的行为"
                   },
                   null,
@@ -4063,7 +4764,7 @@ Task: ${prompt}` }]
                   vue.createElementVNode("view", { style: { "font-size": "28rpx", "font-weight": "bold", "color": "#1976d2", "margin-bottom": "10rpx" } }, "✨ AI 行为逻辑生成"),
                   vue.createElementVNode("view", { style: { "font-size": "22rpx", "color": "#666", "margin-bottom": "20rpx" } }, "不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。"),
                   vue.createElementVNode("button", {
-                    onClick: $setup.autoGenerateBehavior,
+                    onClick: _cache[46] || (_cache[46] = (...args) => _ctx.autoGenerateBehavior && _ctx.autoGenerateBehavior(...args)),
                     style: { "background": "#2196f3", "color": "white", "font-size": "26rpx", "border-radius": "40rpx", "width": "80%" }
                   }, "🚀 生成行为逻辑")
                 ])
@@ -4079,7 +4780,7 @@ Task: ${prompt}` }]
                   {
                     class: "textarea large",
                     style: { "height": "300rpx" },
-                    "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => $setup.formData.personalityNormal = $event),
+                    "onUpdate:modelValue": _cache[47] || (_cache[47] = ($event) => $setup.formData.personalityNormal = $event),
                     placeholder: "AI将严格遵循此逻辑行动...",
                     maxlength: "-1"
                   },
@@ -4100,7 +4801,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[23] || (_cache[23] = ($event) => $setup.toggleSection("init"))
+            onClick: _cache[48] || (_cache[48] = ($event) => $setup.toggleSection("init"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", { class: "section-title" }, "初始状态设置")
@@ -4125,7 +4826,7 @@ Task: ${prompt}` }]
                   vue.createElementVNode("text", { class: "label" }, "🤖 允许角色主动找我"),
                   vue.createElementVNode("switch", {
                     checked: $setup.formData.allowProactive,
-                    onChange: _cache[24] || (_cache[24] = (e) => $setup.formData.allowProactive = e.detail.value),
+                    onChange: _cache[49] || (_cache[49] = (e) => $setup.formData.allowProactive = e.detail.value),
                     color: "#007aff"
                   }, null, 40, ["checked"])
                 ]),
@@ -4152,7 +4853,7 @@ Task: ${prompt}` }]
                       step: "1",
                       "show-value": "",
                       activeColor: "#007aff",
-                      onChange: _cache[25] || (_cache[25] = (e) => $setup.formData.proactiveInterval = e.detail.value)
+                      onChange: _cache[50] || (_cache[50] = (e) => $setup.formData.proactiveInterval = e.detail.value)
                     }, null, 40, ["value"]),
                     vue.createElementVNode("view", { class: "tip" }, "当您离开 App 超过这个时间，角色可能会主动发消息。"),
                     vue.createElementVNode("view", {
@@ -4162,7 +4863,7 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", { class: "label" }, "🔔 开启系统弹窗通知"),
                       vue.createElementVNode("switch", {
                         checked: $setup.formData.proactiveNotify,
-                        onChange: _cache[26] || (_cache[26] = (e) => $setup.formData.proactiveNotify = e.detail.value),
+                        onChange: _cache[51] || (_cache[51] = (e) => $setup.formData.proactiveNotify = e.detail.value),
                         color: "#ff9f43"
                       }, null, 40, ["checked"])
                     ]),
@@ -4185,7 +4886,7 @@ Task: ${prompt}` }]
         vue.createElementVNode("view", { class: "form-section" }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[27] || (_cache[27] = ($event) => $setup.toggleSection("memory"))
+            onClick: _cache[52] || (_cache[52] = ($event) => $setup.toggleSection("memory"))
           }, [
             vue.createElementVNode("view", { class: "section-title-wrapper" }, [
               vue.createElementVNode("view", {
@@ -4222,7 +4923,7 @@ Task: ${prompt}` }]
                   step: "2",
                   "show-value": "",
                   activeColor: "#9b59b6",
-                  onChange: _cache[28] || (_cache[28] = (e) => $setup.formData.historyLimit = e.detail.value)
+                  onChange: _cache[53] || (_cache[53] = (e) => $setup.formData.historyLimit = e.detail.value)
                 }, null, 40, ["value"]),
                 vue.createElementVNode("view", { class: "tip" }, "控制AI能“看到”的最近聊天记录条数。")
               ]),
@@ -4236,7 +4937,7 @@ Task: ${prompt}` }]
                 }, "开启长期记忆自动总结"),
                 vue.createElementVNode("switch", {
                   checked: $setup.formData.enableSummary,
-                  onChange: _cache[29] || (_cache[29] = (e) => $setup.formData.enableSummary = e.detail.value),
+                  onChange: _cache[54] || (_cache[54] = (e) => $setup.formData.enableSummary = e.detail.value),
                   color: "#9b59b6"
                 }, null, 40, ["checked"])
               ]),
@@ -4261,7 +4962,7 @@ Task: ${prompt}` }]
                       step: "5",
                       "show-value": "",
                       activeColor: "#9b59b6",
-                      onChange: _cache[30] || (_cache[30] = (e) => $setup.formData.summaryFrequency = e.detail.value)
+                      onChange: _cache[55] || (_cache[55] = (e) => $setup.formData.summaryFrequency = e.detail.value)
                     }, null, 40, ["value"])
                   ]),
                   vue.createElementVNode("view", { class: "textarea-item" }, [
@@ -4270,14 +4971,14 @@ Task: ${prompt}` }]
                       vue.createElementVNode("text", {
                         class: "tip",
                         style: { "color": "#9b59b6" },
-                        onClick: _cache[31] || (_cache[31] = ($event) => $setup.formData.summary = "")
+                        onClick: _cache[56] || (_cache[56] = ($event) => $setup.formData.summary = "")
                       }, "清空")
                     ]),
                     vue.withDirectives(vue.createElementVNode(
                       "textarea",
                       {
                         class: "textarea large memory-box",
-                        "onUpdate:modelValue": _cache[32] || (_cache[32] = ($event) => $setup.formData.summary = $event),
+                        "onUpdate:modelValue": _cache[57] || (_cache[57] = ($event) => $setup.formData.summary = $event),
                         maxlength: "-1"
                       },
                       null,
@@ -4304,7 +5005,7 @@ Task: ${prompt}` }]
         }, [
           vue.createElementVNode("view", {
             class: "section-header",
-            onClick: _cache[33] || (_cache[33] = ($event) => $setup.toggleSection("danger"))
+            onClick: _cache[58] || (_cache[58] = ($event) => $setup.toggleSection("danger"))
           }, [
             vue.createElementVNode("view", {
               class: "section-title",

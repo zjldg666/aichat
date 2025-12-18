@@ -342,6 +342,11 @@ to {
   justify-content: space-between;
   align-items: center;
 }
+.help-text {
+  font-size: 0.6875rem;
+  color: #888;
+  margin-bottom: 0.375rem;
+}
 
 /* 迷你风格卡片 */
 .style-mini-grid {
@@ -366,122 +371,86 @@ to {
   font-weight: bold;
 }
 
-/* 【新增】模板选择器样式 */
-.template-selector {
-  background-color: #fff9e6;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ffe0b2;
-  margin-bottom: 0.9375rem;
-}
-.template-chip {
-  padding: 0.375rem 0.75rem;
-  background-color: #fff;
-  border: 0.0625rem solid #ffe0b2;
-  margin-right: 0.5rem;
-  border-radius: 1.25rem;
-  font-size: 0.75rem;
-  font-weight: bold;
-  color: #f57c00;
-}
-.template-chip.active {
-  background-color: #ff9800;
-  color: #fff;
-  border-color: #f57c00;
-  box-shadow: 0 0.125rem 0.25rem rgba(245, 124, 0, 0.3);
-}
-.template-desc {
-  font-size: 0.75rem;
-  color: #e65100;
-  margin-top: 0.625rem;
-  font-style: italic;
-  padding-left: 0.3125rem;
-}
-
-/* 分割线 */
-.divider {
-  height: 1px;
-  background-color: #eee;
-  margin: 0.9375rem 0;
-}
-
-/* 阶段卡片样式 */
-.stage-container {
+/* 时间范围输入框优化 */
+.time-range-box {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.625rem;
 }
-.stage-card {
-  border-radius: 0.5rem;
-  overflow: hidden;
+.time-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: #f8f8f8;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
   border: 1px solid #eee;
 }
-.stage-card.gray {
-  background-color: #fafafa;
-  border-color: #e0e0e0;
-}
-.stage-card.pink {
-  background-color: #fff0f5;
-  border-color: #f8bbd0;
-}
-.stage-card.red {
-  background-color: #ffebee;
-  border-color: #ffcdd2;
-}
-.stage-header {
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.mini-input {
+  width: 1.875rem;
+  text-align: center;
   font-weight: bold;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
+  color: #333;
 }
-.stage-card.gray .stage-header {
-  background-color: #eeeeee;
-  color: #616161;
+.suffix {
+  color: #999;
+  font-size: 0.75rem;
+  margin-left: 0.125rem;
 }
-.stage-card.pink .stage-header {
-  background-color: #fce4ec;
-  color: #c2185b;
+.separator {
+  color: #ccc;
+  font-size: 0.75rem;
 }
-.stage-card.red .stage-header {
-  background-color: #ffcdd2;
-  color: #c62828;
+
+/* 星期选择器优化 */
+.weekday-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.3125rem;
 }
-.stage-body {
-  padding: 0.625rem;
-}
-.input-row {
-  margin-bottom: 0.625rem;
-}
-.input-row:last-child {
-  margin-bottom: 0;
-}
-.sub-label {
-  font-size: 0.6875rem;
+.day-chip {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: #f0f2f5;
   color: #666;
-  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+.day-chip.active {
+  background: #e3f2fd;
+  color: #007aff;
+  border-color: #007aff;
+  font-weight: bold;
+  box-shadow: 0 0.0625rem 0.1875rem rgba(0, 122, 255, 0.2);
+}
+.tip-text {
+  font-size: 0.6875rem;
+  color: #999;
+  margin-top: 0.375rem;
   display: block;
 }
-.mini-textarea {
+
+/* 🌟 新增：支持自定义输入的样式 */
+.input-row {
+  margin-bottom: 0.375rem;
+}
+.mini-input-text {
   width: 100%;
-  height: 3.125rem;
-  background-color: #fff;
-  border: 1px solid #ddd;
+  height: 1.875rem;
+  background: #f8f8f8;
   border-radius: 0.25rem;
-  padding: 0.375rem;
-  font-size: 0.75rem;
+  padding: 0 0.625rem;
+  font-size: 0.8125rem;
+  border: 1px solid transparent;
   box-sizing: border-box;
 }
-.mini-textarea.bubble {
-  background-color: #fff;
-  border: 1px solid #ddd;
-  border-left: 0.1875rem solid #aaa;
-  /* 对话框左侧加粗，区分 */
-}
-.stage-card.pink .mini-textarea.bubble {
-  border-left-color: #ec407a;
-}
-.stage-card.red .mini-textarea.bubble {
-  border-left-color: #d32f2f;
+.mini-input-text:focus {
+  background: #fff;
+  border-color: #007aff;
 }

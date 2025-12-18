@@ -1,10 +1,8 @@
 <template>
   <view class="chat-container">
     
-    <!-- 1. 顶部状态栏 -->
     <view class="status-bar-wrapper">
       <view class="info-row">
-        <!-- 地点与模式状态 -->
         <view class="location-box" :class="interactionMode === 'phone' ? 'phone-mode' : 'face-mode'">
           <text class="location-icon">{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
           
@@ -18,7 +16,6 @@
           </view>
         </view>
        
-        <!-- 时间显示与设置 -->
         <view class="time-box" @click="showTimeSettingPanel = true">
           <text class="time-icon">📅</text>
           <text class="time-text">{{ formattedTime }}</text>
@@ -26,14 +23,12 @@
       </view>
     </view>
 
-    <!-- 2. 聊天内容滚动区 -->
     <scroll-view class="chat-scroll" scroll-y="true" :scroll-into-view="scrollIntoView" :scroll-with-animation="true">
       <view class="chat-content">
         <view class="system-tip"><text>沉浸式扮演已就绪...</text></view>
        
         <view v-for="(msg, index) in messageList" :key="index" :id="'msg-' + index" class="message-item" :class="msg.role === 'user' ? 'right' : 'left'">
           
-          <!-- 系统消息 / 错误重试 -->
           <view v-if="msg.isSystem" class="system-event">
             <text v-if="!msg.isError">{{ msg.content }}</text>
             <text v-else class="error-system-msg" @click="retryGenerateImage(msg)">
@@ -41,38 +36,29 @@
             </text>
           </view>
           
-          <!-- 对话消息 -->
           <template v-else>
-            <!-- 角色头像 -->
             <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
            
             <view class="bubble-wrapper">
-              <!-- 文本气泡 -->
               <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
                 <text class="msg-text" user-select>{{ msg.content }}</text>
               </view>
-              <!-- 图片气泡 -->
               <view v-else-if="msg.type === 'image'" class="bubble image-bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
                  <image :src="msg.content" mode="widthFix" class="chat-image" @click="previewImage(msg.content)"></image>
               </view>
             </view>
            
-            <!-- 用户头像 -->
             <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
           </template>
         </view>
        
-        <!-- Loading 动画 -->
         <view v-if="isLoading" class="loading-wrapper"><view class="loading-dots">...</view></view>
-        <!-- 滚动锚点 -->
         <view id="scroll-bottom" style="height: 20rpx;"></view>
       </view>
     </scroll-view>
 
-    <!-- 3. 底部交互区域 (重构版) -->
     <view class="footer-area">
         
-        <!-- 3.1 建议气泡条 -->
         <view class="suggestion-bar" v-if="suggestionList.length > 0">
             <view class="suggestion-chip" 
                   v-for="(text, index) in suggestionList" 
@@ -83,27 +69,26 @@
             <view class="close-suggestion" @click="suggestionList = []">×</view>
         </view>
 
-        <!-- 3.2 功能工具栏 (可折叠层) -->
         <view class="tool-bar" v-if="isToolbarOpen">
-            <!-- 快进 -->
             <view class="tool-item" hover-class="btn-hover" @click="showTimePanel = true">
                 <view class="tool-icon">⏱️</view>
                 <text class="tool-text">快进</text>
             </view>
 
-            <!-- 继续 -->
             <view class="tool-item" hover-class="btn-hover" @click="triggerNextStep">
                 <view class="tool-icon">▶️</view>
                 <text class="tool-text">继续</text>
             </view>
 
-            <!-- 提示 -->
             <view class="tool-item" hover-class="btn-hover" @click="getReplySuggestions">
                 <view class="tool-icon">💡</view>
                 <text class="tool-text">提示</text>
             </view>
-
-            <!-- 拍照 (根据 interactionMode 变化) -->
+			
+			<view class="tool-item" hover-class="btn-hover" @click="showLocationPanel = true">
+			                <view class="tool-icon">🚪</view>
+			                <text class="tool-text">串门</text>
+			</view>
             <view class="tool-item" 
                   :class="{ 'disabled-tool': interactionMode !== 'face' }"
                   hover-class="btn-hover" 
@@ -115,14 +100,11 @@
             </view>
         </view>
 
-        <!-- 3.3 输入行 (常驻层) -->
         <view class="input-row">
-            <!-- 切换工具栏按钮 (➕) -->
             <view class="toggle-btn" hover-class="btn-hover" @click="toggleToolbar">
                 <text class="toggle-icon" :class="{ 'rotated': isToolbarOpen }">➕</text>
             </view>
 
-            <!-- 文本输入框 -->
             <input class="text-input" 
                    v-model="inputText" 
                    confirm-type="send" 
@@ -132,15 +114,12 @@
                    :adjust-position="true"
                    cursor-spacing="20" />
 
-            <!-- 发送按钮 -->
             <button class="send-btn" :class="{ 'disabled': isLoading }" @click="sendMessage()">发送</button>
         </view>
         
-        <!-- 底部安全区适配 -->
         <view class="safe-area-bottom"></view>
     </view>
    
-    <!-- 4. 弹窗：时间跳跃面板 -->
     <view class="time-panel-mask" v-if="showTimePanel" @click="showTimePanel = false">
       <view class="time-panel" @click.stop>
         <view class="panel-title">时间跳跃</view>
@@ -158,7 +137,6 @@
       </view>
     </view>
 
-    <!-- 5. 弹窗：具体时间设置面板 -->
     <view class="time-panel-mask" v-if="showTimeSettingPanel" @click="showTimeSettingPanel = false">
       <view class="time-panel" @click.stop>
         <view class="panel-title">设定具体时间</view>
@@ -177,6 +155,30 @@
         <button class="confirm-time-btn" @click="confirmManualTime">确认修改</button>
       </view>
     </view>
+	<view class="time-panel-mask" v-if="showLocationPanel" @click="showLocationPanel = false">
+	      <view class="time-panel" @click.stop>
+	        <view class="panel-title">前往哪里？</view>
+	        
+	        <view class="grid-actions">
+	          <view 
+	            class="grid-btn" 
+	            v-for="(loc, index) in locationList" 
+	            :key="index"
+	            @click="handleMoveTo(loc)"
+	            :style="loc.style || ''"
+	          >
+	             <text>{{ loc.icon }} {{ loc.name }}</text>
+	             <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
+	          </view>
+	        </view>
+	
+	        <view class="custom-time">
+	          <text>自定义地点：</text>
+	          <input class="mini-input" v-model="customLocation" placeholder="输入地点 (如: 图书馆)"/>
+	          <view class="mini-btn" @click="handleMoveTo({name: customLocation, type: 'custom'})">出发</view>
+	        </view>
+	      </view>
+	    </view>
 
   </view>
 </template>
@@ -186,19 +188,17 @@
     import { onLoad, onShow, onHide, onUnload, onNavigationBarButtonTap } from '@dcloudio/uni-app';
     import { saveToGallery } from '@/utils/gallery-save.js';
     
-
     import { 
         CORE_INSTRUCTION_LOGIC_MODE, 
         SCENE_KEEPER_PROMPT, 
         RELATIONSHIP_PROMPT, 
-        SNAPSHOT_TRIGGER_PROMPT, // <--- 新增：门卫
-        IMAGE_GENERATOR_PROMPT,  // <--- 新增：导演
+        SNAPSHOT_TRIGGER_PROMPT, 
+        IMAGE_GENERATOR_PROMPT, 
         CAMERA_MAN_PROMPT, 
         PERSONALITY_TEMPLATE, 
         NSFW_STYLE 
     } from '@/utils/prompts.js';
     
-    // 引入常量
     import { 
         STYLE_PROMPT_MAP, 
         NEGATIVE_PROMPTS, 
@@ -215,7 +215,9 @@
     const inputText = ref('');
     const isLoading = ref(false);
     const scrollIntoView = ref('');
-    const currentAction = ref('站立/闲逛'); // 新增状态
+    
+    // 核心状态
+    const currentAction = ref('站立/闲逛'); 
     const userName = ref('你');
     const userAvatar = ref('/static/user-avatar.png');
     const userHome = ref('未知地址');
@@ -231,13 +233,18 @@
     const currentClothing = ref('默认服装');
     
     const currentActivity = ref('自由活动');
-    const currentRelation = ref('初相识'); // 关系状态
+    const currentRelation = ref('初相识'); 
     
     const lastUpdateGameHour = ref(-1);
     
+    // 面板控制
     const showTimePanel = ref(false); 
     const showTimeSettingPanel = ref(false); 
+    const showLocationPanel = ref(false); 
     const customMinutes = ref('');
+    const customLocation = ref('');
+    
+    // 记忆与设置
     const currentSummary = ref('');
     const enableSummary = ref(false);
     const summaryFrequency = ref(20);
@@ -247,18 +254,22 @@
     const tempTimeStr = ref('');
     
     const suggestionList = ref([]); 
-    const isToolbarOpen = ref(false); // 控制工具栏展开/收起
+    const isToolbarOpen = ref(false); 
+    const worldLocations = ref([]); 
     
     const toggleToolbar = () => {
         isToolbarOpen.value = !isToolbarOpen.value;
     };
-    // 生图冷却锁
+    
     const lastImageGenerationTime = ref(0); 
     const IMAGE_COOLDOWN_MS = 15000; 
 
     const TIME_SPEED_RATIO = 6; 
     let timeInterval = null;
 
+    // ==================================================================================
+    // 2. 计算属性
+    // ==================================================================================
     const relationshipStatus = computed(() => {
         const score = currentAffection.value;
         if (score < 10) return '陌生/警惕';
@@ -280,6 +291,64 @@
         const hour = date.getHours().toString().padStart(2, '0');
         const minute = date.getMinutes().toString().padStart(2, '0');
         return `${day} ${hour}:${minute}`;
+    });
+
+    const isCohabitation = () => {
+        const u = (userHome.value || '').trim();
+        const c = (charHome.value || '').trim();
+        if (!u || !c || u === '未知地址' || c === '未知地址' || u === '角色家' || u === '玩家家') {
+            return false;
+        }
+        return u === c || u.includes(c) || c.includes(u);
+    };
+
+    const locationList = computed(() => {
+        const list = [];
+        const isTogether = isCohabitation();
+        
+        // 1. 家的处理
+        if (isTogether) {
+            list.push({
+                name: '我们的家',
+                detail: charHome.value,
+                type: 'shared_home',
+                icon: '🏡',
+                mode: 'face', 
+                style: 'background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;'
+            });
+        } else {
+            list.push({
+                name: '她的家',
+                detail: charHome.value || '角色家',
+                type: 'char_home',
+                icon: '🏠',
+                mode: 'face', 
+                style: 'background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;'
+            });
+            list.push({
+                name: '我的家',
+                detail: userHome.value || '我家',
+                type: 'user_home',
+                icon: '🏡',
+                mode: 'phone',
+                style: 'background-color:#e3f2fd; color:#1565c0; border:1px solid #bbdefb;'
+            });
+        }
+
+        // 2. 通用地点
+        worldLocations.value.forEach(item => {
+            const name = typeof item === 'string' ? item : item.name;
+            const icon = item.icon || '📍';
+            list.push({
+                name: name,
+                type: 'common',
+                icon: icon,
+                mode: 'phone', // 默认去外面是 Phone
+                style: 'background-color:#f5f5f5; color:#333; border:1px solid #eee;' 
+            });
+        });
+
+        return list;
     });
 
     watch(showTimeSettingPanel, (val) => {
@@ -305,10 +374,9 @@
     };
 
     // ==================================================================================
-    // 2. 生命周期
+    // 3. 生命周期
     // ==================================================================================
     onLoad((options) => {
-        console.log('🚀 [LifeCycle] onLoad - ChatID:', options.id);
         const appUser = uni.getStorageSync('app_user_info');
         if (appUser) {
             if (appUser.name) userName.value = appUser.name;
@@ -322,6 +390,25 @@
     });
     
     onShow(() => {
+        const appUser = uni.getStorageSync('app_user_info');
+        if (appUser) {
+            if (appUser.name) userName.value = appUser.name;
+            if (appUser.avatar) userAvatar.value = appUser.avatar;
+        }
+
+        const cachedLocs = uni.getStorageSync('app_world_locations');
+        if (cachedLocs && Array.isArray(cachedLocs) && cachedLocs.length > 0) {
+            worldLocations.value = cachedLocs;
+        } else {
+            worldLocations.value = [
+                { name: '学校', icon: '🏫' },
+                { name: '公司', icon: '🏢' },
+                { name: '酒店', icon: '🏩' },
+                { name: '公园', icon: '🌳' },
+                { name: '商场', icon: '🛍️' }
+            ];
+        }
+
         if (chatId.value) {
             loadRoleData(chatId.value);
             const history = uni.getStorageSync(`chat_history_${chatId.value}`);
@@ -352,6 +439,9 @@
         }
     });
 
+    // ==================================================================================
+    // 4. 辅助函数
+    // ==================================================================================
     const startTimeFlow = () => {
         if (timeInterval) clearInterval(timeInterval);
         lastUpdateGameHour.value = new Date(currentTime.value).getHours();
@@ -370,18 +460,24 @@
         if (timeInterval) { clearInterval(timeInterval); timeInterval = null; }
     };
 
+	// 🕒 同样的辅助函数：兜底用
+	    const getInitialGameTime = () => {
+	        const now = new Date();
+	        now.setHours(8, 0, 0, 0); 
+	        return now.getTime();
+	    };
+		
     const loadRoleData = (id) => {
         const list = uni.getStorageSync('contact_list') || [];
         const target = list.find(item => String(item.id) === String(id));
         if (target) {
-    
             currentRole.value = target;
             chatName.value = target.name;
             uni.setNavigationBarTitle({ title: target.name });
             currentAffection.value = target.affection !== undefined ? target.affection : (target.initialAffection || 10);
             currentLust.value = target.lust !== undefined ? target.lust : (target.initialLust || 0);
             
-            currentTime.value = target.lastTimeTimestamp || Date.now();
+            currentTime.value = target.lastTimeTimestamp || getInitialGameTime();
             currentClothing.value = target.clothing || '便服';
             charHome.value = target.location || target.settings?.location || '角色家';
             userHome.value = target.settings?.userLocation || '玩家家';
@@ -490,13 +586,185 @@
         scrollToBottom();
     };
 
+    // ==================================================================================
+    // 5. 核心：地点与工作状态检测逻辑
+    // ==================================================================================
+    
+    // 🔍 检查角色是否正在工作
+    const checkIsWorking = () => {
+        const s = currentRole.value?.settings || {};
+        
+        // 1. 如果没有工作地点，视为“家庭主妇/自由职业”，全天在家
+        if (!s.workplace || s.workplace.trim() === '') return false;
+        
+        // 2. 如果没有勾选任何工作日，也视为全天在家
+        const workDays = s.workDays || []; // [1,2,3,4,5]
+        if (workDays.length === 0) return false;
+        
+        // 3. 时间判断
+        const date = new Date(currentTime.value);
+        const day = date.getDay(); // 0-6 (0是周日)
+        const hour = date.getHours(); // 0-23
+        
+        const start = s.workStartHour !== undefined ? s.workStartHour : 9;
+        const end = s.workEndHour !== undefined ? s.workEndHour : 18;
+        
+        // 必须是工作日，且在工作时间内
+        if (workDays.includes(day) && hour >= start && hour < end) {
+            return true; // 正在上班！
+        }
+        
+        return false; // 下班了/休息日
+    };
+
+    // 🚪 串门/移动处理函数
+    const handleMoveTo = (locObj) => {
+        if (isLoading.value) {
+            uni.showToast({ title: '对话进行中...', icon: 'none' });
+            return;
+        }
+        
+        if (locObj.type === 'custom' && !locObj.name) {
+            return uni.showToast({ title: '请输入地点', icon: 'none' });
+        }
+
+        let targetName = locObj.name;
+        if (locObj.detail) targetName = locObj.detail;
+        
+        // --- 核心变量初始化 ---
+        let newMode = 'phone'; 
+        let shouldNotifyAI = false; 
+        let sysMsgUser = "";   
+        let promptAction = ""; 
+        
+        const isTogether = isCohabitation(); 
+        const isWorking = checkIsWorking(); // 🔥 此时此刻她是否在上班？
+        const s = currentRole.value?.settings || {};
+        const workplaceName = s.workplace || "单位";
+
+        // =========================================================
+        // 🚦 逻辑分支
+        // =========================================================
+
+        // --- A. 如果我们同居 (Shared Home) ---
+        if (isTogether) {
+            if (locObj.type === 'shared_home') {
+                // 回家
+                if (isWorking) {
+                    // 我回家了，但她在上班 -> 扑空 -> Phone
+                    newMode = 'phone';
+                    shouldNotifyAI = true;
+                    sysMsgUser = `你回到了家，但她正在【${workplaceName}】上班，家里空荡荡的。`;
+                    promptAction = `Player returned to the shared home, but you are currently at work (${workplaceName}). Player is alone at home. Describe being at work and receiving a text/call.`;
+                } else {
+                    // 我回家了，她也在家 -> 见面
+                    newMode = 'face';
+                    shouldNotifyAI = true;
+                    sysMsgUser = `你回到了家（${targetName}）。`;
+                    promptAction = `Player returned to the shared home. You are off work and at home. Describe the greeting.`;
+                }
+            } else {
+                // 去其他地方 -> 出门离开她 -> Phone
+                newMode = 'phone';
+                shouldNotifyAI = true;
+                sysMsgUser = `你离开了家，前往${targetName}。`;
+                promptAction = `Player left home and went to <${targetName}>. Mode switched to PHONE. Describe the parting/texting.`;
+            }
+        } 
+        
+        // --- B. 如果分居 (Separate Homes) ---
+        else {
+            if (locObj.type === 'char_home') {
+                // 去她家
+                if (isWorking) {
+                    // 她在上班 -> 扑空 -> Phone
+                    newMode = 'phone';
+                    shouldNotifyAI = true;
+                    sysMsgUser = `你来到她家门口，但没人在家。她应该在【${workplaceName}】上班。`;
+                    promptAction = `Player visited your home, but you are at work (${workplaceName}). You are NOT there. Switch to PHONE mode. Describe getting a notification that player visited your empty house.`;
+                } else {
+                    // 她在家 -> 拜访 -> Face
+                    newMode = 'face';
+                    shouldNotifyAI = true;
+                    sysMsgUser = `你来到了${targetName}（拜访）。`;
+                    promptAction = `Player arrived at your door/house. You are at home. Mode switched to FACE. Describe hearing the knock or opening the door.`;
+                }
+            } 
+            else if (locObj.type === 'user_home') {
+                // 回我家 -> 辞别 -> Phone
+                newMode = 'phone';
+                shouldNotifyAI = true;
+                sysMsgUser = `你告别了她，回到了自己家。`;
+                promptAction = `Player said goodbye and left your place to go home. Mode switched to PHONE. Describe the farewell.`;
+            } 
+            else {
+                // 去公共场所 (学校/公司/自定义)
+                // 🔥 探班逻辑：如果我去的地方 恰好是 她的工作地点
+                const isVisitingWork = workplaceName && targetName.includes(workplaceName);
+                
+                if (isVisitingWork && isWorking) {
+                    // 探班成功 -> Face
+                    newMode = 'face';
+                    shouldNotifyAI = true;
+                    sysMsgUser = `你来到了【${targetName}】，正好看到她在工作。`;
+                    promptAction = `Player visited your workplace (${targetName}) while you are working! Mode switched to FACE. Describe your reaction to seeing the player at your job.`;
+                } 
+                else if (isVisitingWork && !isWorking) {
+                    // 探班扑空 -> Phone
+                    newMode = 'phone';
+                    shouldNotifyAI = false; // 没见到人，静默切换即可，或者通知也行
+                    sysMsgUser = `你来到了【${targetName}】，但她已经下班了。`;
+                }
+                else {
+                    // 纯路人地点 -> 静默切换
+                    newMode = 'phone';
+                    shouldNotifyAI = false; 
+                    sysMsgUser = `已抵达${targetName} (手机通讯)`;
+                }
+            }
+        }
+
+        // =========================================================
+        // 💾 执行状态更新
+        // =========================================================
+        currentLocation.value = targetName;
+        interactionMode.value = newMode;
+        showLocationPanel.value = false;
+        uni.vibrateShort();
+        saveCharacterState();
+
+        // =========================================================
+        // 🚀 发送指令 (或静默)
+        // =========================================================
+        if (shouldNotifyAI) {
+            messageList.value.push({ 
+                role: 'system', 
+                content: `🚗 ${sysMsgUser}`, 
+                isSystem: true 
+            });
+            
+            const movePrompt = `
+            [SYSTEM EVENT: SCENE CHANGE]
+            **Action**: ${promptAction}
+            **New Location**: ${targetName}
+            **New Mode**: ${newMode === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.
+            **Time**: ${formattedTime.value}.
+            **Instruction**: React naturally to this movement logic.
+            `;
+            
+            sendMessage(false, movePrompt);
+        } else {
+            uni.showToast({ title: sysMsgUser, icon: 'none', duration: 2500 });
+        }
+    };
+
     const applySuggestion = (text) => {
         inputText.value = text;
         suggestionList.value = []; 
     };
 
     // =========================================================================
-    // 🧠 军师建议 (完整版)
+    // 6. 智能体逻辑 (Agents & API)
     // =========================================================================
     const getReplySuggestions = async () => {
         if (isLoading.value) return;
@@ -623,70 +891,49 @@
 
     const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
             let aiTags = actionAndSceneDescription || "";
-            
             const settings = currentRole.value?.settings || {};
-            // 获取角色外貌，如果没有则兜底 1girl
             const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
             
-            console.log("🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe);
+            // console.log("🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe); 
     
             const isPhone = interactionMode.value === 'phone';
             let isDuo = false;
             
-            // --- 1. 模式判定 (基础逻辑) ---
             if (isPhone) {
                 isDuo = false;
-                console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)");
-                // 电话模式：为了防止 AI 幻觉，还是得过滤掉“男人”和“性行为”词汇，否则会变成第三人称视角
+                // console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)"); 
                 aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
                 aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
             } else {
-                // 见面模式：包含亲密互动均视为双人
                 const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri|kiss|kissing|hug|hugging)\b/i;
                 isDuo = duoKeywords.test(aiTags);
-                // 如果判定为双人，删掉 solo 防止冲突
                 if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
-                console.log(`📍 [生图模式] -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
+                // console.log(`📍 [生图模式] -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
             }
     
-            // ❌ 【已移除】智能镜头清洗逻辑
-            // 这里不再检测 close-up 并删除 skirt/legs，完全信任 LLM 输出的 Tag。
-            
             let parts = [];
-            
-            // 2. 拼接 Prompt 结构
-            
-            // A. 人数
             parts.push(isDuo ? "couple, 2people" : "solo");
-            
-            // B. 画质 (使用之前的“去油腻二次元版”)
             parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
             
-            // C. 画风配置
             const imgConfig = uni.getStorageSync('app_image_config') || {};
             const styleSetting = imgConfig.style || 'anime';
             parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
-            
-            // D. 角色固定外貌
             parts.push(appearanceSafe);
     
-            // E. 用户/男主外貌 (如果是双人，自动追加)
             if (isDuo) {
                 parts.push(userAppearance.value || "1boy, male focus");
             }
             
-            // F. 动作与场景 (直接使用 LLM 的原话，不删减)
             if (aiTags) parts.push(`(${aiTags}:1.2)`);
             
-            // 去重并输出
             let rawPrompt = parts.join(', ');
             let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
             const finalPrompt = uniqueTags.join(', ');
     
-            console.log("🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
+            // console.log("🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
             return finalPrompt;
         };
-		
+        
     const generateImageFromComfyUI = async (englishTags, baseUrl) => {
         const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
         workflow["3"].inputs.text = englishTags;
@@ -700,7 +947,7 @@
             });
             if (queueRes.statusCode !== 200) throw new Error(`队列失败: ${queueRes.statusCode}`);
             const promptId = queueRes.data.prompt_id;
-            console.log('⏳ [ComfyUI] Queued ID:', promptId);
+            // console.log('⏳ [ComfyUI] Queued ID:', promptId);
 
             for (let i = 0; i < 120; i++) {
                 await new Promise(r => setTimeout(r, 1000));
@@ -761,32 +1008,25 @@
         }
     };
 
-    // =============================================================================
-        // 🔽 修改后的 triggerNextStep (继续按钮逻辑)
-        // =============================================================================
-        const triggerNextStep = () => {
-            if (isLoading.value) return;
-            
-            // 核心修改：不仅仅是 isContinue=true，还附带了一条强制指令
-            // 这条指令不会显示在聊天气泡里，但 AI 能看到。
-            const drivePrompt = `[System Command: NARRATIVE_CONTINUATION]
-            **User Status**: Silent/Waiting.
-            **Task**: The user is waiting for you to continue.
-            1. If previous output was cut off, finish the sentence.
-            2. If previous interaction finished, initiate a NEW action or topic based on current mood.
-            3. DO NOT output "..." or silence. MAKE SOMETHING HAPPEN.`;
-    
-            // 调用 sendMessage，传入 true (继续模式) 和 驱动指令
-            sendMessage(true, drivePrompt);
-        };
+    const triggerNextStep = () => {
+        if (isLoading.value) return;
+        // 🌟 修正：更强力的驱动指令，防复读
+        const drivePrompt = `[System Command: NARRATIVE_CONTINUATION]
+        **Status**: The user is waiting for you to continue the scene.
+        **Task**: 
+        1. If your last message was incomplete, finish it.
+        2. If the scene paused, INITIATE a new action or dialogue based on the current mood.
+        3. **FORBIDDEN**: Do NOT repeat your last message. Do NOT ask "What's wrong?". 
+        4. **ACTION**: Make the character move, touch, or speak to advance the plot immediately.`;
+        
+        sendMessage(true, drivePrompt);
+    };
 
     const handleCameraSend = () => {
-		    // 拦截：非见面模式禁止
-		    if (interactionMode.value !== 'face') {
-		        uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
-		        return;
-		    }
-			
+        if (interactionMode.value !== 'face') {
+            uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+            return;
+        }
         if (isLoading.value) return;
         const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
         sendMessage(false, extraInstruction);
@@ -840,247 +1080,187 @@
     };
     
 
-        const runSceneCheck = async (lastUserMsg, aiResponseText) => {
-            if (!aiResponseText || aiResponseText.length < 3) return;
-    
-            console.log('🏠 [Scene Keeper] Checking physical state...');
-            const config = getCurrentLlmConfig();
-            if (!config || !config.apiKey) return;
-    
-            const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-    
-            // 注入 currentAction (旧状态) 供 AI 参考
-            const prompt = SCENE_KEEPER_PROMPT
-                .replace('{{location}}', currentLocation.value)
-                .replace('{{clothes}}', currentClothing.value)
-                .replace('{{mode}}', interactionMode.value)
-                .replace('{{current_action}}', currentAction.value || "站立/闲逛") 
-                + `\n\n【Interaction】\n${conversationContext}`;
-    
-            try {
-                let targetUrl = '';
-                let requestBody = {};
-                let header = { 'Content-Type': 'application/json' };
-                let baseUrl = config.baseUrl || '';
-                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    
-                if (config.provider === 'gemini') {
-                    const cleanBase = 'https://generativelanguage.googleapis.com';
-                    targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                    requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
-                } else {
-                    targetUrl = `${baseUrl}/chat/completions`;
-                    header['Authorization'] = `Bearer ${config.apiKey}`;
-                    requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 200, temperature: 0.1 };
-                }
-    
-                const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-                
-                let resultText = "";
-                if (config.provider === 'gemini') {
-                    resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-                } else {
-                    let data = res.data;
-                    if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                    resultText = data?.choices?.[0]?.message?.content || "{}";
-                }
-    
-                // 🌟🌟🌟【修复核心：强力清洗 JSON】🌟🌟🌟
-                // 1. 去除 Markdown 标记
-                let cleanJson = resultText.replace(/```json|```/g, '').trim();
-                
-                // 2. 提取最外层的 {}，丢弃所有外部的 * 或文字
-                const firstOpen = cleanJson.indexOf('{');
-                const lastClose = cleanJson.lastIndexOf('}');
-                
-                if (firstOpen !== -1 && lastClose !== -1) {
-                    cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-                }
-                // 🌟🌟🌟 修复结束 🌟🌟🌟
-    
-                const state = JSON.parse(cleanJson);
-                console.log('🏠 [Scene Keeper] Verdict:', state);
-    
-                let hasChange = false;
-                
-                // 1. 更新模式
-                if (state.mode && ['phone', 'face'].includes(state.mode) && state.mode !== interactionMode.value) {
-                    console.log(`🔄 Mode Switch: ${interactionMode.value} -> ${state.mode}`);
-                    interactionMode.value = state.mode;
-                    hasChange = true;
-                    if(state.mode === 'face') uni.vibrateShort();
-                }
-                // 2. 更新地点
-                if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
-                    currentLocation.value = state.location;
-                    hasChange = true;
-                }
-                // 3. 更新服装
-                if (state.clothes && state.clothes.length < 50 && state.clothes !== currentClothing.value) {
-                    currentClothing.value = state.clothes;
-                    hasChange = true;
-                }
-                // 4. 更新动作 (Action)
-                if (state.action && state.action !== currentAction.value) {
-                    console.log(`💃 Action Update: ${currentAction.value} -> ${state.action}`);
-                    currentAction.value = state.action;
-                }
-    
-                if (hasChange) saveCharacterState();
-    
-            } catch (e) {
-                // 这里为了调试方便，把原始文本打印出来，方便看 AI 到底回了什么鬼东西
-                console.warn('Scene check failed. Raw text was:', e); 
-            }
-        };
-    
+    const runSceneCheck = async (lastUserMsg, aiResponseText) => {
+        if (!aiResponseText || aiResponseText.length < 3) return;
 
-	
-	// =============================================================================
-	    // 📷 Camera Man Check (物理抓拍 - 环境感知完整版)
-	    // =============================================================================
-	    // =============================================================================
-	        // 📷 Camera Man Check (物理抓拍 - 瞬时定格完整版)
-	        // =============================================================================
-	        // =============================================================================
-	            // 📷 Camera Man Check (物理抓拍 - 集大成完整版)
-	            // =============================================================================
-	            const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
-	                // 1. 冷却检查
-	                const now = Date.now();
-	                if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-	                    console.log('📷 [Camera Man] Shutter jammed (Cooldown).');
-	                    return;
-	                }
-	        
-	                // =====================================================================
-	                // 🌟 核心修正：时光回溯 (Time Freeze Logic)
-	                // =====================================================================
-	                // 逻辑：此时 messageList 已经包含了 AI 最新的回复 (即被快门声吓到的反应)。
-	                // 为了拍到 "按下快门那一刻" 的画面，我们需要找 "倒数第2条" AI 消息。
-	                
-	                let targetAction = ""; // 对话细节
-	                const len = messageList.value.length;
-	                let aiMsgCount = 0;
-	                
-	                // 倒序遍历历史记录
-	                for (let i = len - 1; i >= 0; i--) {
-	                    const msg = messageList.value[i];
-	                    // 只看 AI (model) 的文本消息
-	                    if (msg.role === 'model' && (!msg.type || msg.type === 'text')) {
-	                        aiMsgCount++;
-	                        if (aiMsgCount === 2) { 
-	                            // 找到倒数第2条 AI 消息 (即快门前的那一刻状态)
-	                            targetAction = msg.content;
-	                            break;
-	                        }
-	                    }
-	                }
-	                
-	                // 兜底：如果是刚开局，或者找不到上一条，就只能用当前的
-	                if (!targetAction) targetAction = aiResponseText;
-	        
-	                console.log('📷 [Camera Man] Capturing MOMENT:', targetAction.substring(0, 50) + '...');
-	                console.log('📷 [Camera Man] Physical Action:', currentAction.value); // 打印当前 Scene Keeper 确定的动作
-	                // =====================================================================
-	        
-	                console.log('📷 [Camera Man] Shutter pressed! Capturing reality...');
-	                const config = getCurrentLlmConfig();
-	                if (!config || !config.apiKey) return;
-	        
-	                // 2. 构建 Prompt (注入所有核心参数)
-	                const prompt = CAMERA_MAN_PROMPT
-	                    .replace('{{current_action}}', currentAction.value || "维持当前动作") // 🌟 注入 Scene Keeper 的动作结论
-	                    .replace('{{ai_response}}', targetAction) // 🌟 注入时光回溯后的对话
-	                    .replace('{{clothes}}', currentClothing.value || "Casual clothes")
-	                    .replace('{{location}}', currentLocation.value || "Unknown Indoor")
-	                    .replace('{{time}}', formattedTime.value);
-	        
-	                try {
-	                    let targetUrl = '';
-	                    let requestBody = {};
-	                    let header = { 'Content-Type': 'application/json' };
-	                    let baseUrl = config.baseUrl || '';
-	                    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-	        
-	                    // 3. 适配不同 API
-	                    if (config.provider === 'gemini') {
-	                        const cleanBase = 'https://generativelanguage.googleapis.com';
-	                        targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-	                        requestBody = { 
-	                            contents: [{ role: 'user', parts: [{ text: prompt }] }], 
-	                            generationConfig: { responseMimeType: "application/json" } 
-	                        };
-	                    } else {
-	                        targetUrl = `${baseUrl}/chat/completions`;
-	                        header['Authorization'] = `Bearer ${config.apiKey}`;
-	                        requestBody = { 
-	                            model: config.model, 
-	                            messages: [{ role: "user", content: prompt }], 
-	                            max_tokens: 300, 
-	                            temperature: 0.3 
-	                        };
-	                    }
-	        
-	                    // 4. 发起请求
-	                    const res = await uni.request({ 
-	                        url: targetUrl, 
-	                        method: 'POST', 
-	                        header, 
-	                        data: requestBody, 
-	                        sslVerify: false 
-	                    });
-	                    
-	                    // 5. 解析响应
-	                    let resultText = "";
-	                    if (config.provider === 'gemini') {
-	                        resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-	                    } else {
-	                        let data = res.data;
-	                        if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-	                        resultText = data?.choices?.[0]?.message?.content || "{}";
-	                    }
-	        
-	                    const cleanJson = resultText.replace(/```json|```/g, '').trim();
-	                    
-	                    // 容错 JSON 解析
-	                    let result = {};
-	                    try {
-	                        result = JSON.parse(cleanJson);
-	                    } catch (jsonErr) {
-	                        console.warn('Camera Man JSON error:', jsonErr);
-	                        return;
-	                    }
-	        
-	                    console.log('📷 [Camera Man] Developed Film:', result);
-	        
-	                    // 6. 执行生图
-	                    // Camera Man 是物理触发，不需要 check shouldGenerate，只要有 description 就拍
-	                    if (result.description && result.description.length > 5) {
-	                        console.log('📷 [Action] Developing photo:', result.description);
-	                        
-	                        lastImageGenerationTime.value = Date.now();
-	                        const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-	                        
-	                        // 提示语：定格瞬间
-	                        messageList.value.push({ 
-	                            role: 'system', 
-	                            content: '📸 (定格刚才的瞬间...)', 
-	                            isSystem: true, 
-	                            id: placeholderId 
-	                        });
-	                        
-	                        scrollToBottom();
-	                        saveHistory();
-	                        
-	                        handleAsyncImageGeneration(result.description, placeholderId);
-	                    }
-	                } catch (e) {
-	                    console.warn('Camera Man failed:', e);
-	                }
-	            };
-		
-		
+        // console.log('🏠 [Scene Keeper] Checking physical state...');
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey) return;
+
+        const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
+
+        const prompt = SCENE_KEEPER_PROMPT
+            .replace('{{location}}', currentLocation.value)
+            .replace('{{clothes}}', currentClothing.value)
+            .replace('{{mode}}', interactionMode.value)
+            .replace('{{current_action}}', currentAction.value || "站立/闲逛") 
+            + `\n\n【Interaction】\n${conversationContext}`;
+
+        try {
+            let targetUrl = '';
+            let requestBody = {};
+            let header = { 'Content-Type': 'application/json' };
+            let baseUrl = config.baseUrl || '';
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+            if (config.provider === 'gemini') {
+                const cleanBase = 'https://generativelanguage.googleapis.com';
+                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+            } else {
+                targetUrl = `${baseUrl}/chat/completions`;
+                header['Authorization'] = `Bearer ${config.apiKey}`;
+                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 200, temperature: 0.1 };
+            }
+
+            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+            
+            let resultText = "";
+            if (config.provider === 'gemini') {
+                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            } else {
+                let data = res.data;
+                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                resultText = data?.choices?.[0]?.message?.content || "{}";
+            }
+
+            let cleanJson = resultText.replace(/```json|```/g, '').trim();
+            const firstOpen = cleanJson.indexOf('{');
+            const lastClose = cleanJson.lastIndexOf('}');
+            
+            if (firstOpen !== -1 && lastClose !== -1) {
+                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+            }
+
+            const state = JSON.parse(cleanJson);
+            // console.log('🏠 [Scene Keeper] Verdict:', state);
+
+            let hasChange = false;
+            
+            if (state.mode && ['phone', 'face'].includes(state.mode) && state.mode !== interactionMode.value) {
+                interactionMode.value = state.mode;
+                hasChange = true;
+                if(state.mode === 'face') uni.vibrateShort();
+            }
+            if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
+                currentLocation.value = state.location;
+                hasChange = true;
+            }
+            if (state.clothes && state.clothes.length < 50 && state.clothes !== currentClothing.value) {
+                currentClothing.value = state.clothes;
+                hasChange = true;
+            }
+            if (state.action && state.action !== currentAction.value) {
+                currentAction.value = state.action;
+            }
+
+            if (hasChange) saveCharacterState();
+
+        } catch (e) {
+            console.warn('Scene check failed:', e); 
+        }
+    };
+
+    const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
+        const now = Date.now();
+        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+            return;
+        }
+
+        let targetAction = ""; 
+        const len = messageList.value.length;
+        let aiMsgCount = 0;
+        
+        for (let i = len - 1; i >= 0; i--) {
+            const msg = messageList.value[i];
+            if (msg.role === 'model' && (!msg.type || msg.type === 'text')) {
+                aiMsgCount++;
+                if (aiMsgCount === 2) { 
+                    targetAction = msg.content;
+                    break;
+                }
+            }
+        }
+        if (!targetAction) targetAction = aiResponseText;
+
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey) return;
+
+        const prompt = CAMERA_MAN_PROMPT
+            .replace('{{current_action}}', currentAction.value || "维持当前动作") 
+            .replace('{{ai_response}}', targetAction)
+            .replace('{{clothes}}', currentClothing.value || "Casual clothes")
+            .replace('{{location}}', currentLocation.value || "Unknown Indoor")
+            .replace('{{time}}', formattedTime.value);
+
+        try {
+            let targetUrl = '';
+            let requestBody = {};
+            let header = { 'Content-Type': 'application/json' };
+            let baseUrl = config.baseUrl || '';
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+            if (config.provider === 'gemini') {
+                const cleanBase = 'https://generativelanguage.googleapis.com';
+                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                requestBody = { 
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }], 
+                    generationConfig: { responseMimeType: "application/json" } 
+                };
+            } else {
+                targetUrl = `${baseUrl}/chat/completions`;
+                header['Authorization'] = `Bearer ${config.apiKey}`;
+                requestBody = { 
+                    model: config.model, 
+                    messages: [{ role: "user", content: prompt }], 
+                    max_tokens: 300, 
+                    temperature: 0.3 
+                };
+            }
+
+            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+            
+            let resultText = "";
+            if (config.provider === 'gemini') {
+                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            } else {
+                let data = res.data;
+                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                resultText = data?.choices?.[0]?.message?.content || "{}";
+            }
+
+            const cleanJson = resultText.replace(/```json|```/g, '').trim();
+            let result = {};
+            try {
+                result = JSON.parse(cleanJson);
+            } catch (jsonErr) {
+                console.warn('Camera Man JSON error:', jsonErr);
+                return;
+            }
+
+            if (result.description && result.description.length > 5) {
+                // console.log('📷 [Action] Developing photo:', result.description);
+                
+                lastImageGenerationTime.value = Date.now();
+                const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+                
+                messageList.value.push({ 
+                    role: 'system', 
+                    content: '📸 (定格刚才的瞬间...)', 
+                    isSystem: true, 
+                    id: placeholderId 
+                });
+                
+                scrollToBottom();
+                saveHistory();
+                
+                handleAsyncImageGeneration(result.description, placeholderId);
+            }
+        } catch (e) {
+            console.warn('Camera Man failed:', e);
+        }
+    };
+        
     const runRelationCheck = async (lastUserMsg, aiResponseText) => {
         if (!aiResponseText || aiResponseText.length < 5) return;
     
@@ -1089,7 +1269,6 @@
     
         const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
     
-        // 使用新的 Prompt 结构
         const prompt = RELATIONSHIP_PROMPT
             .replace('{{relation}}', currentRelation.value || "初相识，还没有具体印象")
             .replace('{{activity}}', currentActivity.value)
@@ -1109,7 +1288,7 @@
             } else {
                 targetUrl = `${baseUrl}/chat/completions`;
                 header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 300, temperature: 0.5 }; // 增加 tokens，提高 temperature 增加分析的灵活性
+                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 300, temperature: 0.5 }; 
             }
     
             const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
@@ -1124,17 +1303,16 @@
             }
     
             const state = JSON.parse(resultText.replace(/```json|```/g, '').trim());
-            console.log('❤️ [Psychology Tracker] Verdict:', state);
+            
+            // 🟢【保留】心理状态日志 - 方便你查看 AI 心态
+            console.log(`❤️ [心态变化] 印象: ${state.relation} | 状态: ${state.activity}`);
     
             let hasChange = false;
             
-            // 修改点：只要内容有效且不同，就更新，不再限制字数长度，允许深度描写
             if (state.relation && state.relation !== currentRelation.value) {
-                console.log(`❤️ Psychology Update: ${state.relation}`);
                 currentRelation.value = state.relation;
                 hasChange = true;
             }
-            
             if (state.activity && state.activity !== currentActivity.value) {
                 currentActivity.value = state.activity;
                 hasChange = true;
@@ -1147,218 +1325,191 @@
         }
     };
 
-        // =============================================================================
-            // 📸 Visual Director Agent (生图管理 - 环境感知完整版)
-            // =============================================================================
-            // =============================================================================
-                // 📸 Visual Director Agent (生图管理 - 分离版：门卫+导演+UI预判)
-                // =============================================================================
-                const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
-                    // 1. 基础校验
-                    if (!aiResponseText || aiResponseText.length < 2) return;
-                    
-                    // 2. 冷却检查
-                    const now = Date.now();
-                    if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-                        console.log('📸 [Visual Director] Cooldown active (Skipping check).');
-                        return;
-                    }
-            
-                    const config = getCurrentLlmConfig();
-                    if (!config || !config.apiKey) return;
-            
-                    // =================================================================
-                    // 🚀 第一阶段：门卫快速检查 (Gatekeeper)
-                    // =================================================================
-                    console.log('👀 [Gatekeeper] Checking visual intent...');
-                    
-                    // 准备门卫 Prompt
-                    const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
-                        .replace('{{user_msg}}', lastUserMsg)
-                        .replace('{{ai_msg}}', aiResponseText);
-            
-                    let shouldGenerate = false;
-            
-                    try {
-                        // --- 门卫 API 请求开始 ---
-                        let targetUrl = '';
-                        let requestBody = {};
-                        let header = { 'Content-Type': 'application/json' };
-                        let baseUrl = config.baseUrl || '';
-                        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-            
-                        if (config.provider === 'gemini') {
-                            const cleanBase = 'https://generativelanguage.googleapis.com';
-                            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                            requestBody = { 
-                                contents: [{ role: 'user', parts: [{ text: gatekeeperPrompt }] }], 
-                                generationConfig: { responseMimeType: "application/json" } 
-                            };
-                        } else {
-                            targetUrl = `${baseUrl}/chat/completions`;
-                            header['Authorization'] = `Bearer ${config.apiKey}`;
-                            requestBody = { 
-                                model: config.model, 
-                                messages: [{ role: "user", content: gatekeeperPrompt }], 
-                                max_tokens: 100, // 门卫只需要很少的 Token
-                                temperature: 0.1 // 需要精确判断
-                            };
-                        }
-            
-                        const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-                        
-                        let resultText = "";
-                        if (config.provider === 'gemini') {
-                            resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-                        } else {
-                            let data = res.data;
-                            if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                            resultText = data?.choices?.[0]?.message?.content || "{}";
-                        }
-            
-                        // 清洗 JSON
-                        let cleanJson = resultText.replace(/```json|```/g, '').trim();
-                        const firstOpen = cleanJson.indexOf('{');
-                        const lastClose = cleanJson.lastIndexOf('}');
-                        if (firstOpen !== -1 && lastClose !== -1) {
-                            cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-                        }
-            
-                        const gateResult = JSON.parse(cleanJson);
-                        shouldGenerate = gateResult.result === true;
-                        // --- 门卫 API 请求结束 ---
-            
-                    } catch (e) {
-                        console.warn('Gatekeeper check failed:', e);
-                        return; // 门卫出错则终止
-                    }
-            
-                    if (!shouldGenerate) {
-                        console.log('🛑 [Gatekeeper] No visual intent. Stop.');
-                        return; 
-                    }
-            
-                    // =================================================================
-                    // ⏳ UI 补位：立即告诉用户“我在做了”
-                    // =================================================================
-                    console.log('✅ [Gatekeeper] Intent detected! Starting UI placeholder...');
-                    
-                    // 生成占位 ID
-                    const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-                    
-                    // 立即上屏：告诉用户正在构图
-                    messageList.value.push({ 
-                        role: 'system', 
-                        content: '📷 正在调整镜头... (构图中)', 
-                        isSystem: true, 
-                        id: placeholderId 
-                    });
-                    scrollToBottom();
-                    saveHistory(); 
-            
-                    // =================================================================
-                    // 🎨 第二阶段：导演深度生成 (Director)
-                    // =================================================================
-                    console.log('🎨 [Director] Composing scene with FULL context...');
-                    
-                    // 准备导演 Prompt (包含所有细节)
-                    const directorPrompt = IMAGE_GENERATOR_PROMPT
-                        .replace('{{clothes}}', currentClothing.value || "Casual clothes") 
-                        .replace('{{location}}', currentLocation.value || "Unknown Indoor") 
-                        .replace('{{time}}', formattedTime.value)
-                        .replace('{{user_msg}}', lastUserMsg)
-                        .replace('{{ai_msg}}', aiResponseText);
-            
-                    try {
-                        // --- 导演 API 请求开始 ---
-                        let targetUrl = '';
-                        let requestBody = {};
-                        let header = { 'Content-Type': 'application/json' };
-                        let baseUrl = config.baseUrl || '';
-                        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-            
-                        if (config.provider === 'gemini') {
-                            const cleanBase = 'https://generativelanguage.googleapis.com';
-                            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                            requestBody = { 
-                                contents: [{ role: 'user', parts: [{ text: directorPrompt }] }], 
-                                generationConfig: { responseMimeType: "application/json" } 
-                            };
-                        } else {
-                            targetUrl = `${baseUrl}/chat/completions`;
-                            header['Authorization'] = `Bearer ${config.apiKey}`;
-                            requestBody = { 
-                                model: config.model, 
-                                messages: [{ role: "user", content: directorPrompt }], 
-                                max_tokens: 300, // 导演需要更多 Token 写 Tag
-                                temperature: 0.3 
-                            };
-                        }
-            
-                        const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-                        
-                        let resultText = "";
-                        if (config.provider === 'gemini') {
-                            resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-                        } else {
-                            let data = res.data;
-                            if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                            resultText = data?.choices?.[0]?.message?.content || "{}";
-                        }
-            
-                        // 清洗 JSON
-                        let cleanJson = resultText.replace(/```json|```/g, '').trim();
-                        const firstOpen = cleanJson.indexOf('{');
-                        const lastClose = cleanJson.lastIndexOf('}');
-                        if (firstOpen !== -1 && lastClose !== -1) {
-                            cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-                        }
-                        
-                        const directorResult = JSON.parse(cleanJson);
-                        console.log('🎨 [Director] Result:', directorResult);
-                        // --- 导演 API 请求结束 ---
-            
-                        // 检查是否有内容
-                        if (directorResult.description && directorResult.description.length > 5) {
-                            console.log('📸 [Action] Director generated prompt. Starting ComfyUI...');
-                            
-                            // 更新冷却时间
-                            lastImageGenerationTime.value = Date.now();
-            
-                            // 更新 UI：从“构图中”变为“显影中”
-                            const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
-                            if (msgIdx !== -1) {
-                                messageList.value[msgIdx].content = '📷 捕捉瞬间... (显影中)';
-                                // 强制更新视图
-                                messageList.value = [...messageList.value];
-                            }
-                            
-                            // 执行生图逻辑 (ComfyUI)
-                            handleAsyncImageGeneration(directorResult.description, placeholderId);
-                        } else {
-                            // 极少情况：门卫说要画，导演说没东西画。删除占位符。
-                            console.log('⚠️ [Director] Returned empty description. Removing placeholder.');
-                            messageList.value = messageList.value.filter(m => m.id !== placeholderId);
-                        }
-            
-                    } catch (e) {
-                        console.warn('Visual Director pipeline failed:', e);
-                        // 出错处理：把占位符改成错误提示
-                        const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
-                        if (msgIdx !== -1) {
-                            messageList.value[msgIdx].content = '❌ 构图失败 (系统繁忙)';
-                            messageList.value[msgIdx].isError = true;
-                            messageList.value[msgIdx].originalPrompt = ""; // 无法重试，因为没有 Prompt
-                            saveHistory();
-                        }
-                    }
-                };
+    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
+        // 1. 基础校验
+        if (!aiResponseText || aiResponseText.length < 2) return;
+        
+        // 2. 冷却检查
+        const now = Date.now();
+        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
+            return;
+        }
 
-// =============================================================================
-    // 🚀 核心发送函数 (完整无省略版)
-    // =============================================================================
+        const config = getCurrentLlmConfig();
+        if (!config || !config.apiKey) return;
+
+        // =================================================================
+        // 🚀 第一阶段：门卫快速检查 (Gatekeeper)
+        // =================================================================
+        // console.log('👀 [Gatekeeper] Checking visual intent...');
+        
+        const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
+            .replace('{{user_msg}}', lastUserMsg)
+            .replace('{{ai_msg}}', aiResponseText);
+
+        let shouldGenerate = false;
+
+        try {
+            // --- 门卫 API 请求 ---
+            let targetUrl = '';
+            let requestBody = {};
+            let header = { 'Content-Type': 'application/json' };
+            let baseUrl = config.baseUrl || '';
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+            if (config.provider === 'gemini') {
+                const cleanBase = 'https://generativelanguage.googleapis.com';
+                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                requestBody = { 
+                    contents: [{ role: 'user', parts: [{ text: gatekeeperPrompt }] }], 
+                    generationConfig: { responseMimeType: "application/json" } 
+                };
+            } else {
+                targetUrl = `${baseUrl}/chat/completions`;
+                header['Authorization'] = `Bearer ${config.apiKey}`;
+                requestBody = { 
+                    model: config.model, 
+                    messages: [{ role: "user", content: gatekeeperPrompt }], 
+                    max_tokens: 100, 
+                    temperature: 0.1 
+                };
+            }
+
+            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+            
+            let resultText = "";
+            if (config.provider === 'gemini') {
+                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            } else {
+                let data = res.data;
+                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                resultText = data?.choices?.[0]?.message?.content || "{}";
+            }
+
+            let cleanJson = resultText.replace(/```json|```/g, '').trim();
+            const firstOpen = cleanJson.indexOf('{');
+            const lastClose = cleanJson.lastIndexOf('}');
+            if (firstOpen !== -1 && lastClose !== -1) {
+                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+            }
+
+            const gateResult = JSON.parse(cleanJson);
+            shouldGenerate = gateResult.result === true;
+
+        } catch (e) {
+            console.warn('Gatekeeper check failed:', e);
+            return; 
+        }
+
+        if (!shouldGenerate) {
+            return; 
+        }
+
+        // =================================================================
+        // ⏳ UI 补位
+        // =================================================================
+        // console.log('✅ [Gatekeeper] Intent detected! Starting UI placeholder...');
+        
+        const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+        
+        messageList.value.push({ 
+            role: 'system', 
+            content: '📷 正在调整镜头... (构图中)', 
+            isSystem: true, 
+            id: placeholderId 
+        });
+        scrollToBottom();
+        saveHistory(); 
+
+        // =================================================================
+        // 🎨 第二阶段：导演深度生成 (Director)
+        // =================================================================
+        // console.log('🎨 [Director] Composing scene with FULL context...');
+        
+        const directorPrompt = IMAGE_GENERATOR_PROMPT
+            .replace('{{clothes}}', currentClothing.value || "Casual clothes") 
+            .replace('{{location}}', currentLocation.value || "Unknown Indoor") 
+            .replace('{{time}}', formattedTime.value)
+            .replace('{{user_msg}}', lastUserMsg)
+            .replace('{{ai_msg}}', aiResponseText);
+
+        try {
+            // --- 导演 API 请求 ---
+            let targetUrl = '';
+            let requestBody = {};
+            let header = { 'Content-Type': 'application/json' };
+            let baseUrl = config.baseUrl || '';
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+            if (config.provider === 'gemini') {
+                const cleanBase = 'https://generativelanguage.googleapis.com';
+                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+                requestBody = { 
+                    contents: [{ role: 'user', parts: [{ text: directorPrompt }] }], 
+                    generationConfig: { responseMimeType: "application/json" } 
+                };
+            } else {
+                targetUrl = `${baseUrl}/chat/completions`;
+                header['Authorization'] = `Bearer ${config.apiKey}`;
+                requestBody = { 
+                    model: config.model, 
+                    messages: [{ role: "user", content: directorPrompt }], 
+                    max_tokens: 300, 
+                    temperature: 0.3 
+                };
+            }
+
+            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
+            
+            let resultText = "";
+            if (config.provider === 'gemini') {
+                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            } else {
+                let data = res.data;
+                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
+                resultText = data?.choices?.[0]?.message?.content || "{}";
+            }
+
+            let cleanJson = resultText.replace(/```json|```/g, '').trim();
+            const firstOpen = cleanJson.indexOf('{');
+            const lastClose = cleanJson.lastIndexOf('}');
+            if (firstOpen !== -1 && lastClose !== -1) {
+                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+            }
+            
+            const directorResult = JSON.parse(cleanJson);
+            // console.log('🎨 [Director] Result:', directorResult);
+
+            if (directorResult.description && directorResult.description.length > 5) {
+                // console.log('📸 [Action] Director generated prompt. Starting ComfyUI...');
+                
+                lastImageGenerationTime.value = Date.now();
+
+                const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
+                if (msgIdx !== -1) {
+                    messageList.value[msgIdx].content = '📷 捕捉瞬间... (显影中)';
+                    messageList.value = [...messageList.value];
+                }
+                
+                handleAsyncImageGeneration(directorResult.description, placeholderId);
+            } else {
+                messageList.value = messageList.value.filter(m => m.id !== placeholderId);
+            }
+
+        } catch (e) {
+            console.warn('Visual Director pipeline failed:', e);
+            const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
+            if (msgIdx !== -1) {
+                messageList.value[msgIdx].content = '❌ 构图失败 (系统繁忙)';
+                messageList.value[msgIdx].isError = true;
+                messageList.value[msgIdx].originalPrompt = ""; 
+                saveHistory();
+            }
+        }
+    };
+
     const sendMessage = async (isContinue = false, systemOverride = '') => {
-        // 1. 校验与防抖
+        // 1. 基础校验
         if (!isContinue && !inputText.value.trim() && !systemOverride) return;
         if (isLoading.value) return;
         
@@ -1374,7 +1525,6 @@
                  messageList.value.push({ role: 'user', content: inputText.value });
                  inputText.value = '';
             } 
-            // 📸 确保拍照指令上屏，作为后续判断依据
             else if (systemOverride && (systemOverride.includes('SHUTTER') || systemOverride.includes('SNAPSHOT'))) {
                  messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
             }
@@ -1385,24 +1535,38 @@
         saveHistory();
         
         // 3. 准备 Prompt 数据
+        // 🌟 修正：每次发送前强制刷新用户信息
+        const appUser = uni.getStorageSync('app_user_info') || {};
+        if (appUser.name) userName.value = appUser.name;
+
         const role = currentRole.value || {};
         const s = role.settings || {};
-        const appUser = uni.getStorageSync('app_user_info') || {};
-        const myName = userName.value || appUser.name || 'User';
-        const myProfile = `[User Profile]\nName: ${myName}\nAppearance: ${s.userAppearance || appUser.appearance || "Unknown"}`;
+        
+        // 优先使用角色专属昵称，否则用全局昵称
+        const myName = s.userNameOverride || userName.value || appUser.name || 'User';
+        
+        // 构建玩家画像
+        let myProfile = `[User Profile]\nName: ${myName}`;
+        if (s.userOccupation) myProfile += `\nOccupation: ${s.userOccupation}`;
+        if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
+        if (s.userPersona) myProfile += `\nPersonality: ${s.userPersona}`;       
+        if (s.userAppearance || appUser.appearance) myProfile += `\nAppearance: ${s.userAppearance || appUser.appearance}`;
 
         const charName = chatName.value;
         const charBio = s.bio || "No bio provided.";
         const charLogic = s.personalityNormal || "React naturally based on your bio.";
         
-        // 注入心理状态
-        const dynamicLogic = `${charLogic}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${currentRelation.value || '初相识，还没有具体印象'}`;
+        // 🌟 修正：注入长期记忆摘要 (Memory Injection)
+        const memoryBlock = currentSummary.value ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${currentSummary.value}` : "";
+        
+        // 将记忆拼接到逻辑块中
+        const dynamicLogic = `${charLogic}${memoryBlock}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${currentRelation.value || '初相识，还没有具体印象'}`;
 
-        // 4. 组装 System Prompt
+        // 4. 组装最终 System Prompt
         let prompt = CORE_INSTRUCTION_LOGIC_MODE
             .replace(/{{char}}/g, charName)
             .replace(/{{bio}}/g, charBio)
-            .replace(/{{logic}}/g, dynamicLogic)
+            .replace(/{{logic}}/g, dynamicLogic) // 包含记忆和心理状态
             .replace(/{{likes}}/g, s.likes || "Unknown")
             .replace(/{{dislikes}}/g, s.dislikes || "Unknown")
             .replace(/{{speaking_style}}/g, s.speakingStyle || "Normal")
@@ -1413,13 +1577,12 @@
             .replace(/{{current_clothes}}/g, currentClothing.value)
             .replace(/{{user_profile}}/g, myProfile);
 
-        // 5. 截取历史记录
+        // 5. 截取历史记录 (Short-term Context)
         const historyLimit = charHistoryLimit.value; 
         let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
         if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
         
-        console.log('=== 🎭 Roleplay AI Input ===');
-        
+        // 6. 构造 API 请求
         let targetUrl = '';
         let requestBody = {};
         let baseUrl = config.baseUrl || '';
@@ -1431,10 +1594,10 @@
             return { role: item.role === 'user' ? 'user' : (item.role === 'model' ? 'assistant' : 'system'), content: cleanText };
         }).filter(m => m.content.trim() !== '');
 
-        // 6. 构造 API 请求
         if (config.provider === 'gemini') {
             const cleanBase = 'https://generativelanguage.googleapis.com';
             targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+            
             const geminiContents = cleanHistoryForAI.map(m => ({
                 role: m.role === 'assistant' ? 'model' : 'user',
                 parts: [{ text: m.content }]
@@ -1444,6 +1607,13 @@
             requestBody = {
                 contents: geminiContents,
                 system_instruction: { parts: { text: prompt } },
+                // 🌟 修正：增加防复读参数
+                generationConfig: { 
+                    responseMimeType: "application/json", 
+                    temperature: 0.9,       
+                    frequencyPenalty: 0.5,  
+                    presencePenalty: 0.3    
+                }
             };
         } else {
             targetUrl = `${baseUrl}/chat/completions`;
@@ -1454,10 +1624,15 @@
                 model: config.model,
                 messages: openAIMessages,
                 max_tokens: 1500,
-                stream: false
+                stream: false,
+                // 🌟 修正：增加防复读参数
+                temperature: 0.8,
+                frequency_penalty: 0.5, 
+                presence_penalty: 0.3
             };
         }
         
+        // 7. 发送请求
         try {
             const header = { 'Content-Type': 'application/json' };
             if (config.provider !== 'gemini') header['Authorization'] = `Bearer ${config.apiKey}`;
@@ -1467,9 +1642,12 @@
             if (res.statusCode === 200) {
                 let rawText = "";
                 if (config.provider === 'gemini') rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                else { let data = res.data; if (typeof data === 'string') try { data = JSON.parse(data); } catch(e){} rawText = data?.choices?.[0]?.message?.content || ""; }
+                else { 
+                    let data = res.data; 
+                    if (typeof data === 'string') try { data = JSON.parse(data); } catch(e){} 
+                    rawText = data?.choices?.[0]?.message?.content || ""; 
+                }
 
-                console.log('=== 📥 Roleplay AI Output ===', rawText.substring(0, 50) + '...');
                 if (rawText) processAIResponse(rawText);
                 else uni.showToast({ title: '无内容响应', icon: 'none' });
             } else {
@@ -1484,110 +1662,102 @@
             scrollToBottom();
         }
     };
-	
-	// =============================================================================
-	    // 🧠 响应处理器 (完整无省略版)
-	    // =============================================================================
-	    // =============================================================================
-	        // 🧠 响应处理器 (完整无省略版)
-	        // =============================================================================
-	        const processAIResponse = (rawText) => {
-	            // 1. 基础清洗
-	            let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
-	            const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
-	            if (thinkMatch) console.log('🧠 [Thought]:', thinkMatch[1].trim());
-	    
-	            const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
-	            displayText = displayText.replace(genericTagRegex, '');
-	            const endTagRegex = /<\/[^>]+>/i;
-	            if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
-	            displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
-	            displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, ''); 
-	    
-	            const cleanDisplayText = displayText.trim();
-	            
-	            // 2. 气泡切分 (括号分镜)
-	            if (cleanDisplayText) {
-	                 let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
-	                 processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
-	                 processedText = processedText.replace(/([（\(])/g, '|||$1');
-	                 processedText = processedText.replace(/([）\)])/g, '$1|||');
-	                 let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
-	                 tempText = tempText.replace(/(?:\|\|\|)+/g, '|||');
-	                 
-	                 const rawParts = tempText.split('|||');
-	                 rawParts.forEach(part => {
-	                     let cleanPart = part.trim();
-	                     if (!cleanPart) return;
-	                     const historyLen = messageList.value.length;
-	                     const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
-	                     if (cleanPart !== lastMsg) {
-	                         messageList.value.push({ role: 'model', content: cleanPart });
-	                     }
-	                 });
-	            }
-	            
-	            saveHistory();
-	            scrollToBottom();
-	    
-	            // =========================================================
-	            // 🚀 多智能体协作流水线 (Agent Orchestration)
-	            // =========================================================
-	            if (cleanDisplayText) {
-	                let lastUserMsg = "";
-	                let isCameraAction = false; 
-	    
-	                // 检查最近的消息，判断是否是拍照触发的
-	                for (let i = messageList.value.length - 2; i >= 0; i--) {
-	                    if (messageList.value[i].role === 'user') {
-	                        lastUserMsg = messageList.value[i].content;
-	                        break;
-	                    }
-	                    if (messageList.value[i].role === 'system' && messageList.value[i].content.includes('举起手机拍了一张')) {
-	                        lastUserMsg = messageList.value[i].content;
-	                        isCameraAction = true;
-	                        break;
-	                    }
-	                }
-	                
-	                if (!isCameraAction && (lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍'))) {
-	                    isCameraAction = true;
-	                }
-	                
-	                console.log('📝 [Context Debug] =========================================');
-	                console.log('👤 User Input:', lastUserMsg);
-	                console.log('📸 Is Camera Action:', isCameraAction);
-	                console.log('🤖 AI Reply:', cleanDisplayText);
-	                console.log('==========================================================');
-	                
-	                console.log('🤖 [Multi-Agent] Starting pipeline...');
-	                
-	                setTimeout(async () => {
-	                    try {
-	                        // 1. 场景和心理检查
-	                        const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
-	                        const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
-	                        await scenePromise;
-	                        
-	                        // 2. 视觉分流逻辑 (Dual Track)
-	                        if (isCameraAction) {
-	                            // 🔴 路由 A：拍照指令 -> 相机 AI (无视反应，强制出图)
-	                            console.log('🔀 Route: Handing over to Camera Man.');
-	                            await runCameraManCheck(lastUserMsg, cleanDisplayText);
-	                        } else {
-	                            // 🔵 路由 B：普通对话 -> 视觉导演 (仅在特定条件下出图)
-	                            console.log('🔀 Route: Handing over to Visual Director.');
-	                            await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
-	                        }
-	    
-	                        await relationPromise;
-	                    } catch (e) {
-	                        console.error('Agent pipeline error:', e);
-	                    }
-	                }, 500); 
-	            }
-	        };
-		
+    
+    const processAIResponse = (rawText) => {
+        // 1. 基础清洗
+        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
+        
+        const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
+        const thinkContent = thinkMatch ? thinkMatch[1].trim() : "";
+        
+        // 🟢【保留】思维链日志 - 观察 AI 思考过程
+        if (thinkContent) console.log('🧠 [思考过程]:', thinkContent);
+
+        const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
+        displayText = displayText.replace(genericTagRegex, '');
+        const endTagRegex = /<\/[^>]+>/i;
+        if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
+        displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
+        displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, ''); 
+
+        const cleanDisplayText = displayText.trim();
+        
+        // 2. 气泡切分
+        if (cleanDisplayText) {
+             let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
+             processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
+             processedText = processedText.replace(/([（\(])/g, '|||$1');
+             processedText = processedText.replace(/([）\)])/g, '$1|||');
+             let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
+             tempText = tempText.replace(/(?:\|\|\|)+/g, '|||');
+             
+             const rawParts = tempText.split('|||');
+             rawParts.forEach(part => {
+                 let cleanPart = part.trim();
+                 if (!cleanPart) return;
+                 const historyLen = messageList.value.length;
+                 const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
+                 if (cleanPart !== lastMsg) {
+                     messageList.value.push({ role: 'model', content: cleanPart });
+                 }
+             });
+        }
+        
+        saveHistory();
+        scrollToBottom();
+
+        // =========================================================
+        // 🚀 多智能体协作流水线
+        // =========================================================
+        if (cleanDisplayText) {
+            let lastUserMsg = "";
+            let isCameraAction = false; 
+
+            for (let i = messageList.value.length - 2; i >= 0; i--) {
+                if (messageList.value[i].role === 'user') {
+                    lastUserMsg = messageList.value[i].content;
+                    break;
+                }
+                if (messageList.value[i].role === 'system' && messageList.value[i].content.includes('举起手机拍了一张')) {
+                    lastUserMsg = messageList.value[i].content;
+                    isCameraAction = true;
+                    break;
+                }
+            }
+            
+            if (!isCameraAction && (lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍'))) {
+                isCameraAction = true;
+            }
+            
+            // 🟢【保留】对话日志 - 方便判断质量
+            console.log('📝 [对话监控] -------------------------------------------------');
+            console.log('👤 用户:', lastUserMsg);
+            if (thinkContent) console.log('🧠 思考:', thinkContent);
+            console.log('🤖 回复:', cleanDisplayText);
+            console.log('-----------------------------------------------------------');
+            
+            setTimeout(async () => {
+                try {
+                    // 1. 场景和心理检查
+                    const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
+                    const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
+                    await scenePromise;
+                    
+                    // 2. 视觉分流
+                    if (isCameraAction) {
+                        await runCameraManCheck(lastUserMsg, cleanDisplayText);
+                    } else {
+                        await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
+                    }
+
+                    await relationPromise;
+                } catch (e) {
+                    console.error('Agent pipeline error:', e);
+                }
+            }, 500); 
+        }
+    };
+        
     const scrollToBottom = () => {
         nextTick(() => {
             scrollIntoView.value = '';
@@ -1595,6 +1765,7 @@
         });
     };
 </script>
+
 
 <style lang="scss" scoped>
 /* ==========================================================================

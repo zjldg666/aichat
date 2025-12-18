@@ -16,6 +16,57 @@
             <text class="label">角色名称</text>
             <input class="input" v-model="formData.name" placeholder="例如：林雅婷" />
           </view>
+
+          <view class="sub-group">
+             <view class="sub-header" @click="toggleSubSection('charWork')">
+                 <text class="sub-title">🏢 工作与作息</text>
+                 <text class="sub-arrow">{{ subSections.charWork ? '▼' : '▶' }}</text>
+             </view>
+             
+             <view v-show="subSections.charWork" class="sub-content">
+                 <view class="setting-tip">设定后，工作时间去她家可能会扑空，去单位能偶遇。</view>
+                 
+                 <view class="input-item">
+                     <text class="label">工作场所</text>
+                     <input class="input" 
+                            v-model="formData.workplace" 
+                            placeholder="例：公司 / 学校 / 医院 (留空则默认为'公司')" />
+                 </view>
+          
+                 <view class="input-item">
+                     <text class="label">工作时间 (24小时制)</text>
+                     <view class="time-range-box">
+                         <view class="time-input-wrapper">
+                             <input class="mini-input" type="number" v-model.number="formData.workStartHour" />
+                             <text class="suffix">:00</text>
+                         </view>
+                         <text class="separator">至</text>
+                         <view class="time-input-wrapper">
+                             <input class="mini-input" type="number" v-model.number="formData.workEndHour" />
+                             <text class="suffix">:00</text>
+                         </view>
+                     </view>
+                 </view>
+          
+                 <view class="input-item" style="margin-bottom: 0;">
+                     <text class="label">每周上班日</text>
+                     <view class="weekday-selector">
+                         <view 
+                             class="day-chip" 
+                             v-for="day in weekDayOptions" 
+                             :key="day.value"
+                             :class="{ 'active': formData.workDays.includes(day.value) }"
+                             @click="toggleWorkDay(day.value)"
+                         >
+                             周{{ day.label }}
+                         </view>
+                     </view>
+                     <text class="tip-text" v-if="formData.workDays.length === 0">
+                         (未选中任何日期，视为全职在家/自由职业)
+                     </text>
+                 </view>
+             </view>
+          </view>
           
           <view class="sub-group">
               <view class="sub-header" @click="toggleSubSection('charWorld')">
@@ -34,13 +85,13 @@
                   <view class="textarea-item">
                       <text class="label">🌍 世界观法则 (Lore)</text>
                       <view class="tips-text" style="font-size:22rpx; color:#999; margin-bottom:10rpx;">
-                          定义这个世界的物理规则、魔法体系、社会常识。防止AI出戏。
+                          定义这个世界的物理规则、魔法体系、社会常识。
                       </view>
                       <textarea 
                           class="textarea" 
                           style="height: 180rpx;" 
                           v-model="formData.worldLore" 
-                          placeholder="例：这是一个赛博朋克世界，财阀统治一切，义体改造是合法的。没有魔法，只有科技。货币是信用点。" 
+                          placeholder="例：这是一个赛博朋克世界，财阀统治一切..." 
                           maxlength="-1" 
                       />
                   </view>
@@ -65,15 +116,21 @@
 
           <view class="sub-group">
               <view class="sub-header" @click="toggleSubSection('charLooks')">
-                  <text class="sub-title">💃 详细特征 (捏人)</text>
+                  <text class="sub-title">💃 详细特征 (自定义捏人)</text>
                   <text class="sub-arrow">{{ subSections.charLooks ? '▼' : '▶' }}</text>
               </view>
               
               <view v-show="subSections.charLooks" class="sub-content">
+                  
                   <view class="category-block">
-                      <text class="block-title">A. 头部与面部</text>
+                      <text class="block-title">A. 头部特征</text>
+                      
                       <view class="feature-row">
-                          <text class="feat-label">画风锁定</text>
+                          <text class="feat-label">画风锁定 (Style)</text>
+                          <view class="input-row">
+                              <input class="mini-input-text" v-model="formData.faceStyle" placeholder="选择或输入 (如: flat color)" />
+                          </view>
+                          <view class="tip" style="margin-bottom: 10rpx;">自定义提示：可填 1990s (复古), sketch (素描), oil painting (油画) 等。</view>
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="(tags, key) in FACE_STYLES_MAP" :key="key" 
@@ -85,18 +142,30 @@
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">发色发型</text>
+                          <text class="feat-label">发色</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.hairColor" placeholder="输入发色 (如: 渐变粉色)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.hairColor" :key="item" class="chip" :class="{active: formData.charFeatures.hairColor === item}" @click="setFeature('char', 'hairColor', item)">{{item}}</view>
-                                  <view class="separator">|</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+
+                      <view class="feature-row">
+                          <text class="feat-label">发型</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.hairStyle" placeholder="输入发型 (如: 侧马尾)" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
                                   <view v-for="item in OPTIONS.hairStyle" :key="item" class="chip" :class="{active: formData.charFeatures.hairStyle === item}" @click="setFeature('char', 'hairStyle', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">眼睛特征</text>
+                          <text class="feat-label">瞳色/眼型</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.eyeColor" placeholder="输入眼瞳 (如: 星星眼)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.eyeColor" :key="item" class="chip" :class="{active: formData.charFeatures.eyeColor === item}" @click="setFeature('char', 'eyeColor', item)">{{item}}</view>
@@ -106,34 +175,75 @@
                   </view>
 
                   <view class="category-block">
-                      <text class="block-title">B. 服装穿搭</text>
+                      <text class="block-title">B. 上身穿搭 (Top)</text>
+                      
                       <view class="feature-row">
-                          <text class="feat-label" style="color:#e67e22;">穿衣状态</text>
-                          <view class="tips-text" style="margin-bottom:8rpx; font-size:20rpx; color:#999;">(选"正常"时会自动隐藏私密部位Prompt)</view>
+                          <text class="feat-label">上衣颜色</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.topColor" placeholder="自定义颜色" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.wearStatus" :key="item" class="chip" :class="{active: formData.charFeatures.wearStatus === item, 'chip-warn': item==='暴露/H'}" @click="setFeature('char', 'wearStatus', item)">{{item}}</view>
+                                  <view v-for="item in OPTIONS.clothingColor" :key="item" class="chip" :class="{active: formData.charFeatures.topColor === item}" @click="setFeature('char', 'topColor', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">套装/款式</text>
+                          <text class="feat-label">上衣款式</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.topStyle" placeholder="输入款式 (如: 露脐T恤)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.clothingStyle" :key="item" class="chip" :class="{active: formData.charFeatures.clothingStyle === item}" @click="setFeature('char', 'clothingStyle', item)">{{item}}</view>
+                                  <view v-for="item in OPTIONS.topStyle" :key="item" class="chip" :class="{active: formData.charFeatures.topStyle === item}" @click="setFeature('char', 'topStyle', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">主色调</text>
+                          <text class="feat-label">皮肤状态</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.skinGloss" placeholder="输入状态 (如: 晒痕)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.clothingColor" :key="item" class="chip" :class="{active: formData.charFeatures.clothingColor === item}" @click="setFeature('char', 'clothingColor', item)">{{item}}</view>
+                                  <view v-for="item in OPTIONS.skinGloss" :key="item" class="chip" :class="{active: formData.charFeatures.skinGloss === item}" @click="setFeature('char', 'skinGloss', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">袜饰/腿部</text>
+                          <text class="feat-label">胸围</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.chestSize" placeholder="输入尺寸" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
+                                  <view v-for="item in OPTIONS.chestSize" :key="item" class="chip" :class="{active: formData.charFeatures.chestSize === item}" @click="setFeature('char', 'chestSize', item)">{{item}}</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+                  </view>
+
+                  <view class="category-block">
+                      <text class="block-title">C. 下身穿搭 (Bottom)</text>
+                      
+                      <view class="feature-row">
+                          <text class="feat-label">下装颜色</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.bottomColor" placeholder="自定义颜色" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
+                                  <view v-for="item in OPTIONS.clothingColor" :key="item" class="chip" :class="{active: formData.charFeatures.bottomColor === item}" @click="setFeature('char', 'bottomColor', item)">{{item}}</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+
+                      <view class="feature-row">
+                          <text class="feat-label">下装款式</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.bottomStyle" placeholder="输入款式 (如: 瑜伽裤)" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
+                                  <view v-for="item in OPTIONS.bottomStyle" :key="item" class="chip" :class="{active: formData.charFeatures.bottomStyle === item}" @click="setFeature('char', 'bottomStyle', item)">{{item}}</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+
+                      <view class="feature-row">
+                          <text class="feat-label">腿部/袜子</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.legWear" placeholder="输入款式 (如: 腿环)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.legWear" :key="item" class="chip" :class="{active: formData.charFeatures.legWear === item}" @click="setFeature('char', 'legWear', item)">{{item}}</view>
@@ -143,65 +253,65 @@
                   </view>
 
                   <view class="category-block">
-                      <text class="block-title">C. 上身与皮肤</text>
+                      <text class="block-title">D. 身体线条</text>
+                      
                       <view class="feature-row">
-                          <text class="feat-label" style="color:#007aff;">皮肤光泽</text>
-                          <scroll-view scroll-x class="chips-scroll">
-                              <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.skinGloss" :key="item" class="chip" :class="{active: formData.charFeatures.skinGloss === item}" @click="setFeature('char', 'skinGloss', item)">{{item}}</view>
-                              </view>
-                          </scroll-view>
-                      </view>
-                      <view class="feature-row">
-                          <text class="feat-label">胸部大小</text>
-                          <scroll-view scroll-x class="chips-scroll">
-                              <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.chestSize" :key="item" class="chip" :class="{active: formData.charFeatures.chestSize === item}" @click="setFeature('char', 'chestSize', item)">{{item}}</view>
-                              </view>
-                          </scroll-view>
-                      </view>
-                      <view class="feature-row">
-                          <text class="feat-label">乳头颜色</text>
-                          <scroll-view scroll-x class="chips-scroll">
-                              <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.nippleColor" :key="item" class="chip" :class="{active: formData.charFeatures.nippleColor === item}" @click="setFeature('char', 'nippleColor', item)">{{item}}</view>
-                              </view>
-                          </scroll-view>
-                      </view>
-                  </view>
-
-                  <view class="category-block">
-                      <text class="block-title">D. 下身特征</text>
-                      <view class="feature-row">
-                          <text class="feat-label">腰部线条</text>
+                          <text class="feat-label">腰部</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.waist" placeholder="输入描述 (如: 人鱼线)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.waist" :key="item" class="chip" :class="{active: formData.charFeatures.waist === item}" @click="setFeature('char', 'waist', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">臀腿肉感</text>
+                          <text class="feat-label">臀部</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.hips" placeholder="输入描述 (如: 蜜桃臀)" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
-                                  <view v-for="item in OPTIONS.hipsLegs" :key="item" class="chip" :class="{active: formData.charFeatures.hipsLegs === item}" @click="setFeature('char', 'hipsLegs', item)">{{item}}</view>
+                                  <view v-for="item in OPTIONS.hips" :key="item" class="chip" :class="{active: formData.charFeatures.hips === item}" @click="setFeature('char', 'hips', item)">{{item}}</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+
+                      <view class="feature-row">
+                          <text class="feat-label">腿型</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.legs" placeholder="输入描述 (如: 丰满大腿)" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
+                                  <view v-for="item in OPTIONS.legs" :key="item" class="chip" :class="{active: formData.charFeatures.legs === item}" @click="setFeature('char', 'legs', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
                   </view>
 
                   <view class="category-block">
-                      <text class="block-title" style="color: #ff6b81;">E. 私密花园 (NSFW)</text>
+                      <text class="block-title" style="color: #ff6b81;">E. 秘密花园 (NSFW)</text>
+                      
                       <view class="feature-row">
-                          <text class="feat-label">毛发状态</text>
+                          <text class="feat-label">蓓蕾颜色</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.nippleColor" placeholder="自定义" />
+                          <scroll-view scroll-x class="chips-scroll">
+                              <view class="chips-flex">
+                                  <view v-for="item in OPTIONS.nippleColor" :key="item" class="chip" :class="{active: formData.charFeatures.nippleColor === item}" @click="setFeature('char', 'nippleColor', item)">{{item}}</view>
+                              </view>
+                          </scroll-view>
+                      </view>
+
+                      <view class="feature-row">
+                          <text class="feat-label">丛林状态</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.pubicHair" placeholder="自定义" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.pubicHair" :key="item" class="chip" :class="{active: formData.charFeatures.pubicHair === item}" @click="setFeature('char', 'pubicHair', item)">{{item}}</view>
                               </view>
                           </scroll-view>
                       </view>
+
                       <view class="feature-row">
-                          <text class="feat-label">户型外观</text>
+                          <text class="feat-label">花朵形态</text>
+                          <input class="mini-input-text" v-model="formData.charFeatures.vulvaType" placeholder="自定义" />
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="item in OPTIONS.vulvaType" :key="item" class="chip" :class="{active: formData.charFeatures.vulvaType === item}" @click="setFeature('char', 'vulvaType', item)">{{item}}</view>
@@ -250,6 +360,18 @@
                    <text class="sub-arrow">{{ subSections.userWorld ? '▼' : '▶' }}</text>
                </view>
                <view v-show="subSections.userWorld" class="sub-content">
+                <view class="input-item">
+                     <text class="label">你的昵称</text>
+                     <input class="input" v-model="formData.userNameOverride" placeholder="例：阿林 (留空则使用APP全局昵称)" />
+                 </view>
+                 <view class="input-item">
+                    <text class="label">你们的关系</text>
+                    <input class="input" v-model="formData.userRelation" placeholder="例：青梅竹马 / 刚认识的邻居 / 你的债主" />
+                 </view>
+                 <view class="textarea-item">
+                    <text class="label">你的性格/人设</text>
+                    <textarea class="textarea" style="height: 120rpx;" v-model="formData.userPersona" placeholder="例：性格内向，容易害羞，不敢直视女生..." maxlength="-1" />
+                 </view>
                    <view class="input-item">
                       <text class="label">所属世界</text>
                       <picker mode="selector" :range="worldList" range-key="name" :value="userWorldIndex" @change="handleUserWorldChange">
@@ -323,7 +445,7 @@
           <text class="arrow-icon">{{ activeSections.core ? '▼' : '▶' }}</text>
         </view>
         
-  <view v-show="activeSections.core" class="section-content">
+        <view v-show="activeSections.core" class="section-content">
            <view class="textarea-item">
              <text class="label">📜 背景故事 / 身份设定 (Bio)</text>
              <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。她性格..." maxlength="-1" />
@@ -365,8 +487,6 @@
           <text class="arrow-icon">{{ activeSections.init ? '▼' : '▶' }}</text>
         </view>
         <view v-show="activeSections.init" class="section-content">
-            
-
              <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
                   <view class="label-row">
                       <text class="label">🤖 允许角色主动找我</text>
@@ -387,7 +507,6 @@
                       <view class="tip" v-if="formData.proactiveNotify">需在手机设置中允许 App 通知权限。</view>
                   </template>
              </view>
-
         </view>
       </view>
       
@@ -467,27 +586,38 @@ const FACE_LABELS = {
     'yandere': '🔪 病娇/黑化'
 };
 
+// 🌟 常量更新：拆分发色/发型，拆分上下装，拆分下身部位，隐晦NSFW
 const OPTIONS = {
     hairColor: ['黑色', '银白', '金色', '粉色', '红色', '蓝色', '紫色', '棕色'],
     hairStyle: ['长直发', '大波浪', '双马尾', '短发', '姬发式', '丸子头', '单马尾', '凌乱发'],
     eyeColor: ['红色', '蓝色', '金色', '绿色', '紫色', '黑色', '异色'],
     wearStatus: ['正常穿戴', '暴露/H'], 
-    clothingStyle: ['JK制服套装', '毛衣+百褶裙', 'T恤+牛仔裤', '露肩连衣裙', 'OL西装裙', '运动服', '旗袍(高叉)', '护士服', '死库水(泳衣)', '蕾丝内衣(成套)'],
+    
+    // 上装 (Top)
+    topStyle: ['T恤', '衬衫', '毛衣', '吊带背心', '抹胸', '比基尼上衣', '运动内衣', '水手服上衣', '旗袍上身', '透视衫'],
+    // 下装 (Bottom)
+    bottomStyle: ['百褶裙', '牛仔短裤', '瑜伽裤', '包臀裙', '比基尼泳裤', '蕾丝内裤', '丁字裤(T-back)', '开档内裤', '运动短裤', '牛仔长裤'],
+    
     clothingColor: ['白色', '黑色', '粉色', '蓝色', '红色', '紫色', '黑白相间'],
-    legWear: ['光腿', '白丝袜', '黑丝袜', '网眼袜', '过膝袜', '短袜'],
-    skinGloss: ['自然哑光', '柔嫩白皙', '水润微光', '油亮光泽', '汗湿淋漓'],
+    legWear: ['光腿', '白丝袜', '黑丝袜', '网眼袜', '过膝袜', '短袜', '腿环'],
+    skinGloss: ['自然哑光', '柔嫩白皙', '水润微光', '油亮光泽', '汗湿淋漓', '晒痕'],
     chestSize: ['贫乳(Flat)', '微乳(Small)', '丰满(Medium)', '巨乳(Large)', '爆乳(Huge)'],
+    
+    // NSFW 隐晦版
     nippleColor: ['淡粉色', '粉红', '红润', '深褐色', '肿胀'],
-    waist: ['纤细腰身', '柔软腰肢', '丰满腰臀', '马甲线'],
-    hipsLegs: ['肉感大腿', '纤细长腿', '丰满臀部', '安产型宽胯', '筷子腿'],
-    pubicHair: ['白虎(无毛)', '一线天', '修剪整齐', '自然毛发', '爱心形状'],
-    vulvaType: ['馒头穴(饱满)', '粉嫩(Pink)', '紧致', '水多', '蝴蝶型(外翻)'],
+    waist: ['纤细腰身', '柔软腰肢', '丰满腰臀', '马甲线', '人鱼线'],
+    hips: ['丰满圆润', '挺翘', '安产型宽胯', '肉感'],
+    legs: ['纤细长腿', '肉感大腿', '筷子腿', '肌肉线条'],
+    
+    // 隐晦词汇 (UI显示用，Prompt逻辑里还是会翻译成对应的Tag)
+    pubicHair: ['白虎(无毛)', '一线天', '修剪整齐', '自然茂盛', '爱心形状'], 
+    vulvaType: ['馒头型(饱满)', '粉嫩(Pink)', '紧致', '湿润(Wet)', '蝴蝶型(外翻)'],
+    
     maleHair: ['黑色短发', '棕色碎发', '寸头', '中分', '狼尾', '遮眼发'],
     maleBody: ['身材匀称', '肌肉结实', '清瘦', '略胖', '高大威猛', '腹肌明显'],
     malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
 };
 
-// 精简后的人设模板 (只保留核心逻辑 Logic)
 const PERSONALITY_TEMPLATES = {
     'ice_queen': {
         label: '❄️ 高岭之花 (反差)',
@@ -535,52 +665,70 @@ const currentTemplateKey = ref('');
 const activeSections = ref({ basic: false, player: false, core: false, init: false, memory: false, danger: false });
 const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 
-const subSections = ref({ charWorld: false, charLooks: false, userWorld: false, userLooks: false });
+// 🌟 更新：subSections 增加了 charWork
+const subSections = ref({ charWorld: false, charWork: false, charLooks: false, userWorld: false, userLooks: false });
 const toggleSubSection = (key) => { subSections.value[key] = !subSections.value[key]; };
 
 const worldList = ref([]);
 const worldIndex = ref(-1);
 const userWorldIndex = ref(-1);
 
-// 临时存储衣物 Tag (用于生成头像，但不存入 appearance 避免 Chat 页面打架)
 const tempClothingTagsForAvatar = ref('');
 
 const formData = ref({
   // --- 基础信息 ---
   name: '', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
-  worldLore: '', // 世界观
+  worldLore: '', 
   
   // --- 核心外貌数据 ---
-  appearance: '',      
-  appearanceSafe: '',  
-  appearanceNsfw: '',  
+  appearance: '',       
+  appearanceSafe: '',   
+  appearanceNsfw: '',   
   
   faceStyle: 'cute', 
+  // 🌟 数据结构更新：适配拆分后的特征
   charFeatures: {
       hairColor: '', hairStyle: '', eyeColor: '',
       wearStatus: '正常穿戴',
-      clothingStyle: '', clothingColor: '', legWear: '',
+      
+      // 上装
+      topColor: '', topStyle: '',
+      // 下装
+      bottomColor: '', bottomStyle: '',
+      legWear: '',
+      
       skinGloss: '',
       chestSize: '', nippleColor: '',
-      waist: '', hipsLegs: '',
+      
+      // 下身拆分
+      waist: '', hips: '', legs: '',
+      
       pubicHair: '', vulvaType: ''
   },
   
-  // --- 细节设定 ---
-  speakingStyle: '', // 说话风格/口癖
-  likes: '',         // 喜好
-  dislikes: '',      // 雷点
+  // 工作与作息
+  workplace: '',          
+  workStartHour: 9,       
+  workEndHour: 18,        
+  workDays: [1, 2, 3, 4, 5], 
+
+  // 细节
+  speakingStyle: '', 
+  likes: '',          
+  dislikes: '',       
   
-  // --- 核心行为逻辑 (唯一保留的逻辑字段) ---
   personalityNormal: '', 
 
-  // --- 玩家设定 ---
+  // 玩家设定
+  userNameOverride: '', 
+  userRelation: '',     
+  userPersona: '',      
   userWorldId: '', userLocation: '', userOccupation: '',
   userAppearance: '', 
   userFeatures: { hair: '', body: '', privates: '' },
 
-  // --- 系统设置 ---
+  // 系统设置
   maxReplies: 1, 
   initialAffection: 10,
   initialLust: 0, 
@@ -600,6 +748,25 @@ const getStyleLabel = (key) => FACE_LABELS[key] || key;
 const setFeature = (type, key, value) => {
     if (type === 'char') formData.value.charFeatures[key] = value;
     else formData.value.userFeatures[key] = value;
+};
+
+const weekDayOptions = [
+    { label: '一', value: 1 },
+    { label: '二', value: 2 },
+    { label: '三', value: 3 },
+    { label: '四', value: 4 },
+    { label: '五', value: 5 },
+    { label: '六', value: 6 },
+    { label: '日', value: 0 }
+];
+
+const toggleWorkDay = (val) => {
+    const idx = formData.value.workDays.indexOf(val);
+    if (idx > -1) {
+        formData.value.workDays.splice(idx, 1);
+    } else {
+        formData.value.workDays.push(val);
+    }
 };
 
 const getCurrentLlmConfig = () => {
@@ -681,6 +848,7 @@ const performLlmRequest = async (prompt, customSystem = null) => {
     return resultText.trim();
 };
 
+// 🌟 逻辑更新：适配上下装拆分
 const generateEnglishPrompt = async () => {
     const f = formData.value.charFeatures;
     const faceTags = FACE_STYLES_MAP[formData.value.faceStyle] || '';
@@ -691,8 +859,12 @@ const generateEnglishPrompt = async () => {
     if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
     if (f.skinGloss) safeParts.push(`皮肤${f.skinGloss}`);
     if (f.chestSize) safeParts.push(`胸部${f.chestSize}`);
+    
+    // 新的下身特征拼接
     if (f.waist) safeParts.push(f.waist);
-    if (f.hipsLegs) safeParts.push(f.hipsLegs);
+    if (f.hips) safeParts.push(f.hips);
+    if (f.legs) safeParts.push(f.legs);
+    
     const safeChinese = safeParts.join('，');
 
     // 2. 私密特征 (NSFW)
@@ -701,10 +873,13 @@ const generateEnglishPrompt = async () => {
     if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
     const nsfwChinese = nsfwParts.join('，');
 
-    // 3. 衣服 (Clothes) - 仅用于翻译，不存入 appearance
+    // 3. 衣服 (Clothes) - 拼接上下装
     let clothesParts = [];
-    if (f.clothingStyle) clothesParts.push(`穿着${f.clothingColor || ''}${f.clothingStyle}`);
-    else clothesParts.push('穿着日常便服');
+    if (f.topStyle) clothesParts.push(`上身穿着${f.topColor || ''}${f.topStyle}`);
+    if (f.bottomStyle) clothesParts.push(`下身穿着${f.bottomColor || ''}${f.bottomStyle}`);
+    
+    if (clothesParts.length === 0) clothesParts.push('穿着日常便服');
+    
     if (f.legWear) clothesParts.push(`穿着${f.legWear}`);
     const clothesChinese = clothesParts.join('，');
     
@@ -734,18 +909,15 @@ const generateEnglishPrompt = async () => {
         const nsfwTags = parts[1] ? parts[1].trim() : '';
         const clothingTags = parts[2] ? parts[2].trim() : ''; 
         
-        // 核心修改：appearanceSafe 只包含脸和身体，绝不含衣服
         formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
         formData.value.appearanceNsfw = nsfwTags;
         
-        // 核心修改：appearance (最终Prompt) 绝对不含衣服！
         if (f.wearStatus === '暴露/H') {
              formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
         } else {
              formData.value.appearance = `${formData.value.appearanceSafe}`;
         }
 
-        // 核心修改：把衣服暂存起来，只给头像生成用
         tempClothingTagsForAvatar.value = clothingTags;
 
         uni.showToast({ title: 'Prompt已生成 (不含衣物)', icon: 'success' });
@@ -753,7 +925,7 @@ const generateEnglishPrompt = async () => {
         console.error(e);
         formData.value.appearance = `${faceTags}, ${safeChinese}`; 
         formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
-        tempClothingTagsForAvatar.value = clothesChinese; // 降级时暂存中文
+        tempClothingTagsForAvatar.value = clothesChinese;
         uni.showToast({ title: '翻译失败，使用原文', icon: 'none' });
     } finally {
         uni.hideLoading();
@@ -820,7 +992,6 @@ const generateAvatar = async () => {
   
   uni.showLoading({ title: 'ComfyUI 绘图中...', mask: true });
   
-  // 生成头像时，临时把衣服拼上去！
   const clothes = tempClothingTagsForAvatar.value || '';
   const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}, ${clothes}`;
   
@@ -851,7 +1022,7 @@ const applyTemplate = (key) => {
     formData.value.speakingStyle = t.style;
     formData.value.likes = t.likes;
     formData.value.dislikes = t.dislikes;
-    formData.value.personalityNormal = t.logic; // 只填核心逻辑
+    formData.value.personalityNormal = t.logic; 
     
     uni.showToast({ title: `已应用: ${t.label}`, icon: 'none' });
 };
@@ -896,6 +1067,18 @@ const loadCharacterData = (id) => {
     formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
     if (target.settings) {
+        // 基本设定
+        formData.value.userNameOverride = target.settings.userNameOverride || '';
+        formData.value.userRelation = target.settings.userRelation || '';
+        formData.value.userPersona = target.settings.userPersona || '';
+        
+        // 工作设定
+        formData.value.workplace = target.settings.workplace || '';
+        formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings.workStartHour : 9;
+        formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings.workEndHour : 18;
+        formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
+        
+        // 外貌
         formData.value.appearance = target.settings.appearance || '';
         formData.value.appearanceSafe = target.settings.appearanceSafe || '';
         formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
@@ -903,10 +1086,9 @@ const loadCharacterData = (id) => {
         
         formData.value.bio = target.settings.bio || '';
         formData.value.speakingStyle = target.settings.speakingStyle || ''; 
-        formData.value.likes = target.settings.likes || '';                 
-        formData.value.dislikes = target.settings.dislikes || '';           
+        formData.value.likes = target.settings.likes || '';                  
+        formData.value.dislikes = target.settings.dislikes || '';            
         
-        // 核心逻辑
         formData.value.personalityNormal = target.settings.personalityNormal || '';
         
         formData.value.userWorldId = target.settings.userWorldId || '';
@@ -943,65 +1125,30 @@ const loadCharacterData = (id) => {
   }
 };
 
-const autoGenerateBehavior = async () => {
-    if (!formData.value.bio) {
-        return uni.showToast({ title: '请先填写「背景故事」', icon: 'none' });
-    }
-
-    uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
-
-    const sysPrompt = `你是一个专业的角色扮演设定大师。你的任务是根据用户的背景故事，生成一段核心的【行为逻辑指令】。
-    不要使用“好感度”或“阶段”这种游戏术语。
-    直接分析这个角色的心理状态、欲望、对待玩家的初始态度以及互动模式。
-    如果角色设定是淫荡的，就明确写出她会主动勾引；如果角色是高冷的，就写出她会鄙视玩家。`;
-    
-    const userPrompt = `
-    【角色名】${formData.value.name || '未命名'}
-    【背景故事】${formData.value.bio}
-    【说话风格】${formData.value.speakingStyle || '无'}
-    【XP/喜好】${formData.value.likes || '无'}
-
-    请生成一段约 200 字的 [Behavior Logic] (行为逻辑)。
-    要求：
-    1. 用第二人称 "你" 来描述这个角色 (例如："你是一个...，当看到玩家时，你会...")。
-    2. 明确她对待玩家的**初始态度** (是直接扑倒，还是保持距离？)。
-    3. 结合她的XP，描述她会如何回应玩家的互动。
-    4. **不要**返回 JSON，直接返回这段逻辑文本即可。
-    `;
-
-    try {
-        let result = await performLlmRequest(userPrompt, sysPrompt);
-        result = result.replace(/^["']|["']$/g, '').trim();
-        formData.value.personalityNormal = result;
-        uni.showToast({ title: '行为逻辑已生成', icon: 'success' });
-    } catch (e) {
-        console.error(e);
-        uni.showModal({ title: '生成失败', content: e.message, showCancel: false });
-    } finally {
-        uni.hideLoading();
-    }
+// 🕒 辅助函数
+const getInitialGameTime = () => {
+    const now = new Date();
+    now.setHours(8, 0, 0, 0); 
+    return now.getTime();
 };
 
 const saveCharacter = () => {
-  // 1. 基础校验
   if (!formData.value.name.trim()) {
       return uni.showToast({ title: '名字不能为空', icon: 'none' });
   }
   
   let list = uni.getStorageSync('contact_list') || [];
   
-  // 2. 构建衣物描述字符串 (用于聊天界面顶部状态栏显示)
+  // 构建衣物描述字符串 (用于聊天界面显示)
   let clothingStr = '便服';
-  if (formData.value.charFeatures.clothingStyle) {
-      clothingStr = `${formData.value.charFeatures.clothingColor || ''}${formData.value.charFeatures.clothingStyle}`;
+  if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
+      clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
   }
   
-  // 3. 构建核心数据对象
   const charData = {
     name: formData.value.name,
     avatar: formData.value.avatar || '/static/ai-avatar.png',
     
-    // --- 系统设置 ---
     maxReplies: formData.value.maxReplies,
     initialAffection: formData.value.initialAffection,
     initialLust: formData.value.initialLust, 
@@ -1015,28 +1162,34 @@ const saveCharacter = () => {
     summaryFrequency: formData.value.summaryFrequency,
     summary: formData.value.summary,
     
-    // --- 物理状态 ---
     location: formData.value.location,
     clothing: clothingStr, 
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
 
-    // --- 详细设定 (Settings) ---
+    // Settings (完整字段)
     settings: {
-        // 外貌
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
         
-        // 细节
+        userNameOverride: formData.value.userNameOverride,
+        userRelation: formData.value.userRelation,
+        userPersona: formData.value.userPersona,
+        
+        // 🌟 核心字段
+        workplace: formData.value.workplace,
+        workStartHour: formData.value.workStartHour,
+        workEndHour: formData.value.workEndHour,
+        workDays: formData.value.workDays,
+        
         bio: formData.value.bio,
         speakingStyle: formData.value.speakingStyle, 
-        likes: formData.value.likes,                 
-        dislikes: formData.value.dislikes,           
+        likes: formData.value.likes,                  
+        dislikes: formData.value.dislikes,            
         
-        // 身份与世界
         occupation: formData.value.occupation, 
         userWorldId: formData.value.userWorldId,
         userLocation: formData.value.userLocation,
@@ -1044,47 +1197,39 @@ const saveCharacter = () => {
         userAppearance: formData.value.userAppearance, 
         userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
-
-        // 核心行为逻辑 (唯一保留的逻辑字段)
+        
         personalityNormal: formData.value.personalityNormal,
     },
     
-    // 如果是编辑模式，不修改最后一条消息显示；如果是新建，显示提示
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
     lastTime: isEditMode.value ? undefined : '刚刚',
     unread: isEditMode.value ? undefined : 0
   };
 
-  // 4. 保存或更新
   if (isEditMode.value) {
-    // --- 编辑模式 ---
     const index = list.findIndex(item => String(item.id) === String(targetId.value));
     if (index !== -1) {
-        // 合并数据 (保留原有的聊天记录、当前好感度等动态数据)
         list[index] = { ...list[index], ...charData };
         uni.showToast({ title: '修改已保存', icon: 'success' });
     }
   } else {
-    // --- 新建模式 ---
     const newChar = { 
         id: Date.now(), 
         ...charData, 
         
-        // 初始化动态状态
         affection: formData.value.initialAffection, 
         lust: formData.value.initialLust, 
-        lastTimeTimestamp: Date.now(), 
+        
+        // 🌟 新建时锁定初始时间
+        lastTimeTimestamp: getInitialGameTime(), 
         unread: 0,
         
-        // 🌟【核心修正】：初始关系不写死“陌生人”，而是写入指令。
-        // 让 Chat 页面的心理分析 AI 根据 Bio 自动判定是老婆还是路人。
         relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
     };
     list.unshift(newChar);
     uni.showToast({ title: '创建成功', icon: 'success' });
   }
   
-  // 5. 写入缓存并返回
   uni.setStorageSync('contact_list', list);
   setTimeout(() => { uni.navigateBack(); }, 800);
 };
@@ -1096,7 +1241,6 @@ const clearHistoryAndReset = () => {
     confirmColor: '#ff4757',
     success: (res) => {
       if (res.confirm && targetId.value) {
-        // 1. 清除缓存
         uni.removeStorageSync(`chat_history_${targetId.value}`);
         uni.removeStorageSync(`last_real_active_time_${targetId.value}`);
         uni.removeStorageSync(`last_proactive_lock_${targetId.value}`);
@@ -1105,15 +1249,19 @@ const clearHistoryAndReset = () => {
         const index = list.findIndex(item => String(item.id) === String(targetId.value));
         
         if (index !== -1) {
+          const currentRole = list[index];
+          // 🌟 重置时保留时间
+          const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
+
           let clothingStr = '便服';
-          if (formData.value.charFeatures.clothingStyle) {
-              clothingStr = `${formData.value.charFeatures.clothingColor || ''}${formData.value.charFeatures.clothingStyle}`;
+          if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
+              clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
           }
 
           const resetData = {
               lastMsg: '（记忆已清除）',
               lastTime: '刚刚',
-              lastTimeTimestamp: Date.now(),
+              lastTimeTimestamp: preservedTime, 
               unread: 0,
               summary: '', 
               
@@ -1125,9 +1273,6 @@ const clearHistoryAndReset = () => {
               affection: formData.value.initialAffection || 10,
               lust: formData.value.initialLust || 0,
               
-              // 🌟【核心修正】
-              // 不要写死"陌生人"。而是写入一条指令，让 Chat 页面的 AI 根据 Bio 自动判断。
-              // 当 Chat 页面第一次运行 Psychology Tracker 时，它会看到这句话，然后根据 Bio 输出正确的初始关系（如：青梅竹马）。
               relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
           };
           
@@ -1222,97 +1367,94 @@ const clearHistoryAndReset = () => {
 .save-btn { background-color: #007aff; color: #fff; border-radius: 40rpx; font-size: 32rpx; }
 .clear-btn { background-color: #fff0f1; color: #ff4757; font-size: 30rpx; border: 1px solid #ffcccc; width: 100%; }
 .slider-header { display: flex; justify-content: space-between; align-items: center; }
+.help-text { font-size: 22rpx; color: #888; margin-bottom: 12rpx; }
 
 /* 迷你风格卡片 */
 .style-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; margin-bottom: 20rpx; }
 .style-mini-card { background: #fff; border: 1px solid #eee; border-radius: 8rpx; padding: 12rpx 0; text-align: center; font-size: 22rpx; color: #666; }
 .style-mini-card.active { border-color: #e67e22; background-color: #fff3e0; color: #d35400; font-weight: bold; }
 
-/* 【新增】模板选择器样式 */
-.template-selector {
-    background-color: #fff9e6;
-    padding: 24rpx;
-    border-radius: 16rpx;
-    border: 1px solid #ffe0b2;
-    margin-bottom: 30rpx;
+/* 时间范围输入框优化 */
+.time-range-box {
+    display: flex;
+    align-items: center;
+    gap: 20rpx;
 }
-.template-chip {
+.time-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: #f8f8f8;
     padding: 12rpx 24rpx;
-    background-color: #fff;
-    border: 2rpx solid #ffe0b2;
-    margin-right: 16rpx;
-    border-radius: 40rpx;
-    font-size: 24rpx;
-    font-weight: bold;
-    color: #f57c00;
-}
-.template-chip.active {
-    background-color: #ff9800;
-    color: #fff;
-    border-color: #f57c00;
-    box-shadow: 0 4rpx 8rpx rgba(245, 124, 0, 0.3);
-}
-.template-desc {
-    font-size: 24rpx;
-    color: #e65100;
-    margin-top: 20rpx;
-    font-style: italic;
-    padding-left: 10rpx;
-}
-
-/* 分割线 */
-.divider { height: 1px; background-color: #eee; margin: 30rpx 0; }
-
-/* 阶段卡片样式 */
-.stage-container { display: flex; flex-direction: column; gap: 24rpx; }
-.stage-card {
-    border-radius: 16rpx;
-    overflow: hidden;
+    border-radius: 12rpx;
     border: 1px solid #eee;
 }
-.stage-card.gray { background-color: #fafafa; border-color: #e0e0e0; }
-.stage-card.pink { background-color: #fff0f5; border-color: #f8bbd0; }
-.stage-card.red { background-color: #ffebee; border-color: #ffcdd2; }
-
-.stage-header {
-    padding: 16rpx 24rpx;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.mini-input {
+    width: 60rpx;
+    text-align: center;
     font-weight: bold;
-    font-size: 26rpx;
+    font-size: 30rpx;
+    color: #333;
 }
-.stage-card.gray .stage-header { background-color: #eeeeee; color: #616161; }
-.stage-card.pink .stage-header { background-color: #fce4ec; color: #c2185b; }
-.stage-card.red .stage-header { background-color: #ffcdd2; color: #c62828; }
+.suffix {
+    color: #999;
+    font-size: 24rpx;
+    margin-left: 4rpx;
+}
+.separator {
+    color: #ccc;
+    font-size: 24rpx;
+}
 
-.stage-body { padding: 20rpx; }
-
-.input-row { margin-bottom: 20rpx; }
-.input-row:last-child { margin-bottom: 0; }
-
-.sub-label {
-    font-size: 22rpx;
+/* 星期选择器优化 */
+.weekday-selector {
+    display: flex;
+    gap: 16rpx;
+    flex-wrap: wrap;
+    margin-top: 10rpx;
+}
+.day-chip {
+    width: 72rpx;
+    height: 72rpx;
+    border-radius: 50%;
+    background: #f0f2f5;
     color: #666;
-    margin-bottom: 8rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24rpx;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+.day-chip.active {
+    background: #e3f2fd;
+    color: #007aff;
+    border-color: #007aff;
+    font-weight: bold;
+    box-shadow: 0 2rpx 6rpx rgba(0,122,255,0.2);
+}
+.tip-text {
+    font-size: 22rpx;
+    color: #999;
+    margin-top: 12rpx;
     display: block;
 }
 
-.mini-textarea {
+/* 🌟 新增：支持自定义输入的样式 */
+.input-row {
+    margin-bottom: 12rpx;
+}
+.mini-input-text {
     width: 100%;
-    height: 100rpx;
-    background-color: #fff;
-    border: 1px solid #ddd;
+    height: 60rpx;
+    background: #f8f8f8;
     border-radius: 8rpx;
-    padding: 12rpx;
-    font-size: 24rpx;
+    padding: 0 20rpx;
+    font-size: 26rpx;
+    border: 1px solid transparent;
     box-sizing: border-box;
 }
-.mini-textarea.bubble {
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-left: 6rpx solid #aaa; /* 对话框左侧加粗，区分 */
+.mini-input-text:focus {
+    background: #fff;
+    border-color: #007aff;
 }
-.stage-card.pink .mini-textarea.bubble { border-left-color: #ec407a; }
-.stage-card.red .mini-textarea.bubble { border-left-color: #d32f2f; }
 </style>
