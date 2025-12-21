@@ -1,6 +1,5 @@
 <template>
   <view class="mine-container">
-    <!-- 头部用户信息 -->
     <view class="user-section">
       <view class="avatar-wrapper" @click="goToEdit">
         <image class="avatar" :src="userInfo.avatar" mode="aspectFill"></image>
@@ -16,7 +15,6 @@
       </view>
     </view>
 
-    <!-- 1. 对话模型配置 (LLM) - 列表式方案管理 -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('chat')">
         <view class="group-title-wrapper">
@@ -29,7 +27,6 @@
       </view>
 
       <view v-show="activeSections.chat" class="group-content">
-        <!-- 方案列表区域 -->
         <view class="scheme-list">
           <view 
             v-for="(scheme, index) in llmSchemes" 
@@ -37,7 +34,6 @@
             class="scheme-card"
             :class="{ 'is-active': currentSchemeIndex === index }"
           >
-            <!-- 卡片头部：点击切换展开/收起，左侧点击切换选中状态 -->
             <view class="scheme-card-header" @click="toggleSchemeExpand(index)">
                <view class="radio-area" @click.stop="selectScheme(index)">
                   <view class="radio-circle">
@@ -51,7 +47,6 @@
                <text class="expand-icon">{{ scheme.isExpanded ? '▲' : '▼' }}</text>
             </view>
 
-            <!-- 卡片内容：展开后显示配置项 -->
             <view v-if="scheme.isExpanded" class="scheme-card-body">
                 <view class="setting-item">
                   <view class="item-label">方案名称</view>
@@ -60,7 +55,6 @@
                 
                 <view class="setting-item">
                   <view class="item-label">厂商预设</view>
-                  <!-- 传入 index 以便修改对应方案 -->
                   <picker mode="selector" :range="LLM_PROVIDERS" range-key="label" @change="(e) => handleProviderChange(e, index)">
                       <view class="picker-val">{{ getProviderLabel(scheme.provider) }} ▾</view>
                   </picker>
@@ -72,14 +66,26 @@
                 </view>
                 
                 <view class="setting-item">
-                  <view class="item-label">API Key</view>
-                  <input class="item-input" type="text" password v-model="scheme.apiKey" placeholder="在此粘贴 Key" />
-                </view>
+                                  <view class="item-label">API Key</view>
+                                  <input 
+                                    class="item-input" 
+                                    type="text" 
+                                    password 
+                                    v-model="scheme.apiKey" 
+                                    placeholder="在此粘贴 Key" 
+                                  />
+                                  <view 
+                                    v-if="scheme.provider === 'siliconflow'" 
+                                    class="input-suffix-link" 
+                                    @click.stop="openSiliconFlowLink"
+                                  >
+                                    去官网申请 🔗
+                                  </view>
+                                </view>
                 
                 <view class="setting-item">
                   <view class="item-label">模型名称</view>
                   <view class="model-input-group">
-                      <!-- 这里的 fetchedModels 如果要做得更细致，应该每个方案独立，这里简化为共用或者点击刷新时单独获取 -->
                       <input 
                         class="item-input model-manual-input" 
                         type="text" 
@@ -90,7 +96,6 @@
                   </view>
                 </view>
                 
-                <!-- 如果获取到了模型，显示快捷选择气泡 -->
                 <view v-if="tempModelList.length > 0 && activeFetchIndex === index" class="model-select-area">
                     <view class="model-tag-title">点击选择模型:</view>
                     <view class="model-tags">
@@ -113,7 +118,6 @@
                   <slider :value="scheme.historyLimit" min="0" max="60" step="2" activeColor="#007aff" @change="(e) => scheme.historyLimit = e.detail.value" />
                 </view>
                 
-                <!-- 删除按钮 -->
                 <view class="card-footer">
                     <view class="delete-text" @click="deleteScheme(index)" v-if="llmSchemes.length > 1">删除此方案</view>
                 </view>
@@ -121,12 +125,10 @@
           </view>
         </view>
 
-        <!-- 新建按钮 -->
         <button class="add-scheme-btn" @click="createNewScheme">➕ 添加新方案 API</button>
       </view>
     </view>
 
-    <!-- 2. 画图模型配置 (保持不变) -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('image')">
         <view class="group-title-wrapper">
@@ -144,7 +146,6 @@
           </picker>
         </view>
 
-        <!-- A. Gemini -->
         <template v-if="imageConfig.provider === 'gemini'">
             <view class="setting-tip">Key 留空则自动使用上方对话 Key。</view>
             <view class="setting-item">
@@ -161,7 +162,6 @@
             </view>
         </template>
 
-        <!-- B. OpenAI -->
         <template v-else-if="imageConfig.provider === 'openai'">
             <view class="setting-item">
               <view class="item-label">接口地址</view>
@@ -177,7 +177,6 @@
             </view>
         </template>
 
-        <!-- C. ComfyUI -->
         <template v-else-if="imageConfig.provider === 'comfyui'">
             <view class="setting-tip">填写 Cloudflare Tunnel 公网地址。</view>
             <view class="setting-item">
@@ -192,8 +191,8 @@
                 class="style-card" 
                 v-for="(style, index) in DRAWING_STYLES" 
                 :key="index"
-                :class="{ 'active': imageConfig.style === style.value }"
-                @click="imageConfig.style = style.value"
+                :class="{ 'active': imageConfig.style === style.value || (style.value === 'custom' && !isPresetStyle(imageConfig.style)) }"
+                @click="handleStyleSelect(style)"
             >
                 <text class="style-emoji">{{ style.emoji }}</text>
                 <text class="style-name">{{ style.label }}</text>
@@ -202,7 +201,6 @@
       </view>
     </view>
     
-    <!-- 3. 世界观设定 (保持不变) -->
     <view class="setting-group">
       <view class="group-header" @click="toggleSection('world')">
         <view class="group-title-wrapper">
@@ -292,10 +290,11 @@ const DRAWING_STYLES = [
     { label: '厚涂风格', value: 'impasto', emoji: '🖌️' },
     { label: '90年代复古', value: 'retro', emoji: '📼' },
     { label: '新海诚风', value: 'shinkai', emoji: '☁️' },
-    { label: '暗黑哥特', value: 'gothic', emoji: '🦇' },
-    { label: '赛博朋克', value: 'cyber', emoji: '🤖' },
+    { label: '吉卜力', value: 'ghibli', emoji: '🧙‍♀️' }, // 👈 修改
+    { label: '古风仙侠', value: 'gufeng', emoji: '🎐' }, // 👈 修改
     { label: '水彩柔和', value: 'pastel', emoji: '🌸' },
-    { label: '黑白线稿', value: 'sketch', emoji: '✏️' }
+    { label: '黑白线稿', value: 'sketch', emoji: '✏️' },
+    { label: '✨ 自定义', value: 'custom', emoji: '✏️' } // 👈 新增自定义入口
 ];
 
 // =========================================================================
@@ -305,7 +304,7 @@ const DRAWING_STYLES = [
 const userInfo = ref({ name: '我', avatar: '/static/user-avatar.png' });
 const activeSections = ref({ chat: false, image: false, world: false });
 
-const llmSchemes = ref([]);           
+const llmSchemes = ref([]);            
 const currentSchemeIndex = ref(0);    
 const tempModelList = ref([]);
 const activeFetchIndex = ref(-1);
@@ -341,9 +340,17 @@ const currentProviderLabel = computed(() => {
     return 'Gemini';
 });
 
+// 辅助函数：判断当前 style 是否在预设列表中
+const isPresetStyle = (val) => {
+    return DRAWING_STYLES.some(s => s.value === val && s.value !== 'custom');
+};
+
 const currentStyleLabel = computed(() => {
     const target = DRAWING_STYLES.find(s => s.value === imageConfig.value.style);
-    return target ? target.label : '标准日漫';
+    // 如果找到了预设值，且不是 custom，显示预设 label
+    if (target && target.value !== 'custom') return target.label;
+    // 否则直接显示 style 的值（即用户的自定义输入），如果没值显示“自定义”
+    return imageConfig.value.style || '自定义';
 });
 
 // =========================================================================
@@ -380,6 +387,35 @@ onShow(() => {
 const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 const goToEdit = () => { uni.navigateTo({ url: '/pages/mine/edit-profile' }); };
 const goToGallery = () => { uni.navigateTo({ url: '/pages/mine/gallery' }); };
+
+// --- 处理画风选择 ---
+const handleStyleSelect = (styleItem) => {
+    if (styleItem.value === 'custom') {
+        // 如果点击的是自定义，弹出输入框
+        // 如果当前已经是自定义的值，则把它作为默认值显示
+        let currentVal = isPresetStyle(imageConfig.value.style) ? '' : imageConfig.value.style;
+        
+        uni.showModal({
+            title: '自定义画风 Prompt',
+            content: currentVal, // 小程序真机上 editable:true 时 content 会作为初始值
+            editable: true,
+            placeholderText: '例: cyberpunk, watercolor, pixel art...',
+            success: (res) => {
+                if (res.confirm) {
+                    const inputVal = res.content.trim();
+                    if (inputVal) {
+                        imageConfig.value.style = inputVal;
+                        // 顺手保存一下，防止没点保存就退出了
+                        uni.setStorageSync('app_image_config', imageConfig.value);
+                    }
+                }
+            }
+        });
+    } else {
+        // 预设画风，直接应用
+        imageConfig.value.style = styleItem.value;
+    }
+};
 
 // --- LLM 方案管理 ---
 
@@ -548,6 +584,31 @@ const removeLocation = (wi, li) => { worldSettings.value[wi].locations.splice(li
 const addOccupation = (idx) => { const w = worldSettings.value[idx]; if (w.tempJob) { w.occupations.push(w.tempJob); w.tempJob = ''; } };
 const removeOccupation = (wi, ji) => { worldSettings.value[wi].occupations.splice(ji, 1); };
 
+
+// --- 打开外部链接逻辑 ---
+const openSiliconFlowLink = () => {
+    // 硅基流动的注册/Key获取地址 (带有邀请码可得赠送额度，这里放官网或你的邀请链接)
+    const url = 'https://cloud.siliconflow.cn/i/lvGIlSLg'; // 这是硅基流动的邀请链接，新用户有额度
+    
+    // #ifdef H5
+    window.open(url);
+    // #endif
+
+    // #ifdef APP-PLUS
+    plus.runtime.openURL(url);
+    // #endif
+
+    // #ifdef MP
+    // 小程序不能直接跳外链，通常改为复制链接
+    uni.setClipboardData({
+        data: url,
+        success: () => {
+            uni.showToast({ title: '链接已复制，请在浏览器打开', icon: 'none' });
+        }
+    });
+    // #endif
+};
+
 // --- 保存 ---
 const saveAllConfig = () => {
     if (llmSchemes.value.length === 0) {
@@ -681,4 +742,23 @@ const saveAllConfig = () => {
 .style-card.active { background-color: #fff3e0; border-color: #ff9f43; box-shadow: 0 4rpx 8rpx rgba(255,159,67,0.2); }
 .style-emoji { font-size: 40rpx; margin-right: 16rpx; }
 .style-name { font-size: 26rpx; color: #333; font-weight: 500; }
+
+/* --- 新增：输入框内的右侧链接样式 --- */
+.input-suffix-link {
+    font-size: 24rpx;
+    color: #007aff;           /* 蓝色文字 */
+    background-color: #e3f2fd; /* 浅蓝背景 */
+    padding: 6rpx 16rpx;
+    border-radius: 30rpx;      /* 圆角 */
+    margin-left: 16rpx;        /* 跟输入框拉开一点距离 */
+    white-space: nowrap;       /* 防止换行 */
+    flex-shrink: 0;            /* 防止被输入框挤扁 */
+    display: flex;
+    align-items: center;
+}
+
+.input-suffix-link:active {
+    opacity: 0.6;
+    background-color: #d0e4f7;
+}
 </style>

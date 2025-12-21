@@ -47,8 +47,9 @@
 
 <script setup>
 import { ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onShow,onReady } from '@dcloudio/uni-app';
 import CustomTabBar from '@/components/CustomTabBar.vue';
+import checkUpdate from '@/uni_modules/uni-upgrade-center-app/utils/check-update'
 
 const contactList = ref([]);
 
@@ -59,6 +60,11 @@ onShow(() => {
     contactList.value = list;
   }
 });
+
+// 3. 在 onReady 生命周期中调用检查更新
+onReady(() => {
+  checkUpdate();
+})
 
 const createNewContact = () => {
   // 跳转到创建页面 (新建模式)

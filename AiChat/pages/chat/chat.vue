@@ -1,125 +1,144 @@
 <template>
-  <view class="chat-container">
-    
+  <view class="chat-container" :class="{ 'in-edit-mode': isEditMode }">
+    <view v-if="isArchiving" class="archiving-bar">
+            <text class="archiving-text">🌙 整理中... 请勿退出</text>
+        </view>
     <view class="status-bar-wrapper">
       <view class="info-row">
-        <view class="location-box" :class="interactionMode === 'phone' ? 'phone-mode' : 'face-mode'">
-          <text class="location-icon">{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
-          
+        <view class="location-box" :class="interactionMode === 'phone' ? 'mode-phone' : 'mode-face'">
+          <view class="icon-circle">
+            <text>{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
+          </view>
           <view class="status-content">
-            <text class="location-text">
-              {{ interactionMode === 'phone' ? '对方在' : '当前' }}: {{ currentLocation }}
-            </text>
-            <text class="activity-text">
-              状态: {{ currentActivity }}
-            </text>
+            <view class="loc-row">
+              <text class="mode-tag">{{ interactionMode === 'phone' ? '远程' : '当面' }}</text>
+              <text class="location-text">{{ currentLocation }}</text>
+            </view>
+            <text class="activity-text">状态: {{ currentActivity }}</text>
           </view>
         </view>
-       
-        <view class="time-box" @click="showTimeSettingPanel = true">
-          <text class="time-icon">📅</text>
-          <text class="time-text">{{ formattedTime }}</text>
+        <view class="right-status-group">
+        <view class="status-pill player-pill" @click="showForceLocationPanel = true">
+            <text class="pill-icon">👤</text>
+            <text class="pill-text">{{ playerLocation }}</text>
+        </view>
+          <view class="status-pill time-pill" @click="showTimeSettingPanel = true">
+            <text class="time-clock">{{ timeParts.time }}</text>
+            <text class="time-week">{{ timeParts.week }}</text>
+          </view>
         </view>
       </view>
     </view>
 
-    <scroll-view class="chat-scroll" scroll-y="true" :scroll-into-view="scrollIntoView" :scroll-with-animation="true">
+    <scroll-view 
+      class="chat-scroll" 
+      scroll-y="true" 
+      :scroll-into-view="scrollIntoView" 
+      :scroll-with-animation="true"
+    >
       <view class="chat-content">
-        <view class="system-tip"><text>沉浸式扮演已就绪...</text></view>
-       
-        <view v-for="(msg, index) in messageList" :key="index" :id="'msg-' + index" class="message-item" :class="msg.role === 'user' ? 'right' : 'left'">
+        <view class="system-tip"><text>长按对话内容可进入多选删除模式</text></view>
+        
+        <view 
+          v-for="(msg, index) in messageList" 
+          :key="msg.id || index" 
+          :id="'msg-' + index" 
+          class="message-item" 
+          :class="[
+            msg.role === 'user' ? 'right' : 'left',
+            isEditMode && selectedIds.includes(msg.id) ? 'is-selected' : '',
+            isEditMode && !selectedIds.includes(msg.id) ? 'not-selected' : ''
+          ]"
+          @longpress="enterEditMode(msg)"
+          @click="isEditMode ? toggleSelect(msg) : null"
+        >
           
-          <view v-if="msg.isSystem" class="system-event">
-            <text v-if="!msg.isError">{{ msg.content }}</text>
-            <text v-else class="error-system-msg" @click="retryGenerateImage(msg)">
-               {{ msg.content }} 🔄
-            </text>
+          <view v-if="msg.type === 'think'" class="system-event think-bubble">
+             <text>{{ msg.content }}</text>
+          </view>
+          <view v-else-if="msg.isSystem" class="system-event">
+            <text>{{ msg.content }}</text>
           </view>
           
           <template v-else>
+            <view v-if="isEditMode" class="select-check-icon">
+                <view class="circle" :class="{ 'checked': selectedIds.includes(msg.id) }">
+                    <text v-if="selectedIds.includes(msg.id)">✓</text>
+                </view>
+            </view>
+
             <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
-           
+            
             <view class="bubble-wrapper">
               <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
                 <text class="msg-text" user-select>{{ msg.content }}</text>
               </view>
               <view v-else-if="msg.type === 'image'" class="bubble image-bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
-                 <image :src="msg.content" mode="widthFix" class="chat-image" @click="previewImage(msg.content)"></image>
+                  <image 
+                    v-if="!msg.hasError" 
+                    :src="msg.content" 
+                    mode="widthFix" 
+                    class="chat-image" 
+                    @click="previewImage(msg.content)"
+                    @error="handleImageLoadError(msg)" 
+                  ></image>
+              
+                  <view v-else class="image-error-box" @click.stop="handleRetry(msg)">
+                      <text class="error-icon">⚠️</text>
+                      <text class="error-text">图片生成失败</text>
+                      <view class="retry-btn">
+                          <text class="retry-icon">↻</text> 点击重试
+                      </view>
+                  </view>
               </view>
             </view>
-           
+            
             <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
           </template>
         </view>
-       
+        
         <view v-if="isLoading" class="loading-wrapper"><view class="loading-dots">...</view></view>
         <view id="scroll-bottom" style="height: 20rpx;"></view>
       </view>
     </scroll-view>
 
-    <view class="footer-area">
+    <view class="footer">
         
-        <view class="suggestion-bar" v-if="suggestionList.length > 0">
-            <view class="suggestion-chip" 
-                  v-for="(text, index) in suggestionList" 
-                  :key="index"
-                  @click="applySuggestion(text)">
-                {{ text }}
-            </view>
-            <view class="close-suggestion" @click="suggestionList = []">×</view>
+        <view class="edit-toolbar" v-if="isEditMode">
+            <view class="cancel-btn" @click="cancelEdit">取消</view>
+            <view class="count-tip">已选择 <text class="num">{{ selectedIds.length }}</text> 条内容</view>
+            <view class="delete-confirm-btn" @click="confirmDelete" :class="{ 'active': selectedIds.length > 0 }">删除</view>
         </view>
 
-        <view class="tool-bar" v-if="isToolbarOpen">
-            <view class="tool-item" hover-class="btn-hover" @click="showTimePanel = true">
-                <view class="tool-icon">⏱️</view>
-                <text class="tool-text">快进</text>
-            </view>
-
-            <view class="tool-item" hover-class="btn-hover" @click="triggerNextStep">
-                <view class="tool-icon">▶️</view>
-                <text class="tool-text">继续</text>
-            </view>
-
-            <view class="tool-item" hover-class="btn-hover" @click="getReplySuggestions">
-                <view class="tool-icon">💡</view>
-                <text class="tool-text">提示</text>
-            </view>
-			
-			<view class="tool-item" hover-class="btn-hover" @click="showLocationPanel = true">
-			                <view class="tool-icon">🚪</view>
-			                <text class="tool-text">串门</text>
-			</view>
-            <view class="tool-item" 
-                  :class="{ 'disabled-tool': interactionMode !== 'face' }"
-                  hover-class="btn-hover" 
-                  @click="handleCameraSend">
-                <view class="tool-icon">
-                    <text>{{ interactionMode === 'face' ? '📷' : '🚫' }}</text>
+        <view class="input-container" v-if="!isEditMode">
+            <view class="toolbar-compact" v-if="isToolbarOpen">
+                <view class="tool-grid">
+                    <view class="tool-item" @click="showTimePanel = true"><view class="tool-icon">⏳</view><text class="tool-text">时间</text></view>
+                    <view class="tool-item" @click="showLocationPanel = true"><view class="tool-icon">🗺️</view><text class="tool-text">移动</text></view>
+                    <picker mode="time" :value="wakeTime" start="00:00" end="23:59" @change="onSleepTimeChange" style="width: 100%;">
+                      <view class="tool-item">
+                        <view class="tool-icon">🛌</view>
+                        <text class="tool-text">睡到...</text>
+                      </view>
+                    </picker>
+                    <view class="tool-item" @click="handleCameraSend"><view class="tool-icon">📸</view><text class="tool-text">拍照</text></view>
+                    <view class="tool-item" @click="triggerNextStep"><view class="tool-icon">👉</view><text class="tool-text">继续</text></view>
+                    <view class="tool-item" @click="toggleThought">
+                        <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
+                        <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
+                    </view>
                 </view>
-                <text class="tool-text">{{ interactionMode === 'face' ? '抓拍' : '禁用' }}</text>
+            </view>
+            <view class="input-area">
+                <view class="action-btn" @click="toggleToolbar">
+                    <text>{{ isToolbarOpen ? '⬇️' : '⊕' }}</text>
+                </view>
+                <input class="input" v-model="inputText" confirm-type="send" @confirm="sendMessage(false)" placeholder="输入对话..." />
+                <view class="send-btn" @click="sendMessage(false)">发送</view>
             </view>
         </view>
-
-        <view class="input-row">
-            <view class="toggle-btn" hover-class="btn-hover" @click="toggleToolbar">
-                <text class="toggle-icon" :class="{ 'rotated': isToolbarOpen }">➕</text>
-            </view>
-
-            <input class="text-input" 
-                   v-model="inputText" 
-                   confirm-type="send" 
-                   @confirm="sendMessage()" 
-                   placeholder="与她对话..." 
-                   :disabled="isLoading" 
-                   :adjust-position="true"
-                   cursor-spacing="20" />
-
-            <button class="send-btn" :class="{ 'disabled': isLoading }" @click="sendMessage()">发送</button>
-        </view>
-        
-        <view class="safe-area-bottom"></view>
     </view>
-   
+    
     <view class="time-panel-mask" v-if="showTimePanel" @click="showTimePanel = false">
       <view class="time-panel" @click.stop>
         <view class="panel-title">时间跳跃</view>
@@ -152,2122 +171,1255 @@
                 <view class="picker-display">{{ tempTimeStr }}</view>
             </picker>
         </view>
+        <view class="setting-row">
+                <text class="setting-label">流速：</text>
+                <view class="ratio-input-box">
+                    <text class="txt">现实 1s = 游戏</text>
+                    <input class="mini-input" type="number" v-model="tempTimeRatio" />
+                    <text class="txt">s</text>
+                </view>
+            </view>
         <button class="confirm-time-btn" @click="confirmManualTime">确认修改</button>
       </view>
     </view>
-	<view class="time-panel-mask" v-if="showLocationPanel" @click="showLocationPanel = false">
-	      <view class="time-panel" @click.stop>
-	        <view class="panel-title">前往哪里？</view>
-	        
-	        <view class="grid-actions">
-	          <view 
-	            class="grid-btn" 
-	            v-for="(loc, index) in locationList" 
-	            :key="index"
-	            @click="handleMoveTo(loc)"
-	            :style="loc.style || ''"
-	          >
-	             <text>{{ loc.icon }} {{ loc.name }}</text>
-	             <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
-	          </view>
-	        </view>
-	
-	        <view class="custom-time">
-	          <text>自定义地点：</text>
-	          <input class="mini-input" v-model="customLocation" placeholder="输入地点 (如: 图书馆)"/>
-	          <view class="mini-btn" @click="handleMoveTo({name: customLocation, type: 'custom'})">出发</view>
-	        </view>
-	      </view>
-	    </view>
 
+    <view class="time-panel-mask" v-if="showLocationPanel" @click="showLocationPanel = false">
+        <view class="time-panel" @click.stop>
+            <view class="panel-title">前往哪里？</view>
+            <view class="grid-actions">
+                <view 
+                    class="grid-btn" 
+                    v-for="(loc, index) in locationList" 
+                    :key="index"
+                    @click="handleMoveTo(loc)"
+                    :style="loc.style || ''"
+                >
+                    <text>{{ loc.icon }} {{ loc.name }}</text>
+                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
+                </view>
+            </view>
+            <view class="custom-time">
+                <text>自定义地点：</text>
+                <input class="mini-input" v-model="customLocation" placeholder="输入地点"/>
+                <view class="mini-btn" @click="handleMoveTo({name: customLocation, type: 'custom'})">出发</view>
+            </view>
+        </view>
+    </view>
+    <view class="time-panel-mask" v-if="showForceLocationPanel" @click="showForceLocationPanel = false">
+        <view class="time-panel" @click.stop>
+            <view class="panel-title" style="color: #ff9800;">🛠️ 强制修正坐标 (不通知AI)</view>
+            <view class="grid-actions">
+                <view class="grid-btn" v-for="(loc, index) in locationList" :key="index" 
+                      @click="handleForceMove(loc)" :style="loc.style || ''">
+                    <text>{{ loc.icon }} {{ loc.name }}</text>
+                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
+                </view>
+            </view>
+            <view class="custom-time">
+                <text>自定义：</text>
+                <input class="mini-input" v-model="forceCustomLocation" placeholder="输入地点" />
+                <view class="mini-btn" @click="handleForceMove({name: forceCustomLocation})">修正</view>
+            </view>
+        </view>
+    </view>
+	
   </view>
 </template>
 
 <script setup>
-    import { ref, computed, nextTick, watch } from 'vue';
-    import { onLoad, onShow, onHide, onUnload, onNavigationBarButtonTap } from '@dcloudio/uni-app';
-    import { saveToGallery } from '@/utils/gallery-save.js';
-    
-    import { 
-        CORE_INSTRUCTION_LOGIC_MODE, 
-        SCENE_KEEPER_PROMPT, 
-        RELATIONSHIP_PROMPT, 
-        SNAPSHOT_TRIGGER_PROMPT, 
-        IMAGE_GENERATOR_PROMPT, 
-        CAMERA_MAN_PROMPT, 
-        PERSONALITY_TEMPLATE, 
-        NSFW_STYLE 
-    } from '@/utils/prompts.js';
-    
-    import { 
-        STYLE_PROMPT_MAP, 
-        NEGATIVE_PROMPTS, 
-        COMFY_WORKFLOW_TEMPLATE 
-    } from '@/utils/constants.js';
+import { ref, computed, nextTick, watch } from 'vue';
+import { onLoad, onShow, onHide, onUnload, onNavigationBarButtonTap } from '@dcloudio/uni-app';
+import { DB } from '@/utils/db.js';
+import { LLM } from '@/services/llm.js';
+import { buildSystemPrompt } from '@/core/prompt-builder.js';
 
-    // ==================================================================================
-    // 1. 状态管理
-    // ==================================================================================
-    const chatName = ref('AI');
-    const chatId = ref(null);
-    const currentRole = ref(null);
-    const messageList = ref([]);
-    const inputText = ref('');
-    const isLoading = ref(false);
-    const scrollIntoView = ref('');
-    
-    // 核心状态
-    const currentAction = ref('站立/闲逛'); 
-    const userName = ref('你');
-    const userAvatar = ref('/static/user-avatar.png');
-    const userHome = ref('未知地址');
-    const userAppearance = ref('');
-    
-    const charHome = ref('未知地址');
-    const currentAffection = ref(0);
-    const currentLust = ref(0);
-    const currentTime = ref(Date.now());
-    
-    const currentLocation = ref('角色家');
-    const interactionMode = ref('phone');
-    const currentClothing = ref('默认服装');
-    
-    const currentActivity = ref('自由活动');
-    const currentRelation = ref('初相识'); 
-    
-    const lastUpdateGameHour = ref(-1);
-    
-    // 面板控制
-    const showTimePanel = ref(false); 
-    const showTimeSettingPanel = ref(false); 
-    const showLocationPanel = ref(false); 
-    const customMinutes = ref('');
-    const customLocation = ref('');
-    
-    // 记忆与设置
-    const currentSummary = ref('');
-    const enableSummary = ref(false);
-    const summaryFrequency = ref(20);
-    const charHistoryLimit = ref(20);
-    
-    const tempDateStr = ref('');
-    const tempTimeStr = ref('');
-    
-    const suggestionList = ref([]); 
-    const isToolbarOpen = ref(false); 
-    const worldLocations = ref([]); 
-    
-    const toggleToolbar = () => {
-        isToolbarOpen.value = !isToolbarOpen.value;
-    };
-    
-    const lastImageGenerationTime = ref(0); 
-    const IMAGE_COOLDOWN_MS = 15000; 
+import { useGameTime } from '@/composables/useGameTime.js';
+import { useChatGallery } from '@/composables/useChatGallery.js';
+import { useGameLocation } from '@/composables/useGameLocation.js';
+import { useAgents } from '@/composables/useAgents.js';
 
-    const TIME_SPEED_RATIO = 6; 
-    let timeInterval = null;
+import { 
+    CORE_INSTRUCTION_LOGIC_MODE,
+    TIME_SHIFT_PROMPT // 👈 新增引入这个
+} from '@/utils/prompts.js';
+// ==================================================================================
+// 1. 核心状态定义 (State)
+// ==================================================================================
+const chatName = ref('AI');
+const chatId = ref(null);
+const currentRole = ref(null);
+const messageList = ref([]);
+const inputText = ref('');
+const isLoading = ref(false);
+const scrollIntoView = ref('');
 
-    // ==================================================================================
-    // 2. 计算属性
-    // ==================================================================================
-    const relationshipStatus = computed(() => {
-        const score = currentAffection.value;
-        if (score < 10) return '陌生/警惕';
-        if (score < 20) return '礼貌疏离';
-        if (score < 30) return '普通熟人';
-        if (score < 40) return '友善/缓和';
-        if (score < 50) return '朋友/在意';
-        if (score < 60) return '暧昧萌芽';
-        if (score < 70) return '心动/拉扯';
-        if (score < 80) return '恋人未满';
-        if (score < 90) return '热恋情侣';
-        return '灵魂伴侣';
+// 角色状态
+const currentAction = ref('站立/闲逛'); 
+const userName = ref('你');
+const userAvatar = ref('/static/user-avatar.png');
+const userHome = ref('未知地址');
+const userAppearance = ref('');
+const charHome = ref('未知地址');
+const currentAffection = ref(0);
+const currentLust = ref(0);
+const currentLocation = ref('角色家');
+const interactionMode = ref('phone');
+const currentClothing = ref('默认服装');
+const currentActivity = ref('自由活动');
+const currentRelation = ref('初相识'); 
+// 🌟 新增：玩家当前位置
+const playerLocation = ref('加载中...');
+
+// 记忆与设置
+const currentSummary = ref('');
+const enableSummary = ref(false);
+const summaryFrequency = ref(20);
+const charHistoryLimit = ref(20);
+// --- 🛌 睡觉相关状态 ---
+const wakeTime = ref('08:00'); // 默认睡到早上 8 点
+
+// UI 状态
+
+const isToolbarOpen = ref(false); 
+const worldLocations = ref([]); 
+
+const toggleToolbar = () => { isToolbarOpen.value = !isToolbarOpen.value; };
+
+// ==================================================================================
+// 2. 基础辅助函数
+// ==================================================================================
+const scrollToBottom = () => {
+    nextTick(() => {
+        scrollIntoView.value = '';
+        setTimeout(() => { scrollIntoView.value = 'scroll-bottom'; }, 100);
     });
-    
-    const formattedTime = computed(() => {
-        const date = new Date(currentTime.value);
-        const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const day = weekDays[date.getDay()];
-        const hour = date.getHours().toString().padStart(2, '0');
-        const minute = date.getMinutes().toString().padStart(2, '0');
-        return `${day} ${hour}:${minute}`;
-    });
+};
+// --- 变量定义 ---
+const showForceLocationPanel = ref(false);
+const forceCustomLocation = ref('');
 
-    const isCohabitation = () => {
-        const u = (userHome.value || '').trim();
-        const c = (charHome.value || '').trim();
-        if (!u || !c || u === '未知地址' || c === '未知地址' || u === '角色家' || u === '玩家家') {
-            return false;
+
+// 🧠 心理活动显示开关 (默认关闭，或从缓存读取)
+const showThought = ref(uni.getStorageSync('setting_show_thought') === true);
+
+// 切换开关
+const toggleThought = () => {
+    showThought.value = !showThought.value;
+    uni.setStorageSync('setting_show_thought', showThought.value);
+    uni.showToast({ 
+        title: showThought.value ? '已开启心声显示' : '已隐藏心声', 
+        icon: 'none' 
+    });
+};
+// --- 🛌 睡觉逻辑实现 ---
+
+/**
+ * 辅助函数：根据 "HH:mm" 计算目标时间戳
+ */
+const getWakeUpTimestamp = (targetTimeStr) => {
+    const now = new Date(currentTime.value); // 使用当前游戏时间
+    const [targetHour, targetMinute] = targetTimeStr.split(':').map(Number);
+    
+    let targetDate = new Date(now);
+    targetDate.setHours(targetHour, targetMinute, 0, 0);
+
+    // 逻辑判定：
+    // 如果设定时间比当前晚（比如现在 23:00，设为 23:30），就是今天
+    // 如果设定时间比当前早（比如现在 23:00，设为 08:00），就是明天
+    if (targetDate <= now) {
+        targetDate.setDate(targetDate.getDate() + 1);
+    }
+    
+    return targetDate.getTime();
+};
+
+/**
+ * 触发器：当时间选择器改变时调用
+ */
+const onSleepTimeChange = async (e) => {
+    // e.detail.value 是 uni-app picker 返回的 "HH:mm" 字符串
+    const selectedTime = e.detail.value;
+    wakeTime.value = selectedTime;
+    
+    if (isLoading.value) return uni.showToast({ title: '剧情进行中...', icon: 'none' });
+
+    // 1. 保存旧时间字符串用于 Prompt
+    const oldTimeStr = formattedTime.value; 
+
+    // 2. 计算目标时间戳
+    const newTimestamp = getWakeUpTimestamp(selectedTime);
+    
+    // 3. 判断是否跨天 (如果跨天，触发日记结算)
+    const oldDate = new Date(currentTime.value).getDate();
+    const newDate = new Date(newTimestamp).getDate();
+    if (oldDate !== newDate) {
+        console.log("🌙 检测到睡眠跨天，触发每日结算...");
+        await runDayEndSummary();
+    }
+
+    // 4. 更新核心游戏时间 (这会自动更新 formattedTime)
+    currentTime.value = newTimestamp;
+    
+    // 5. 界面显示系统消息
+    messageList.value.push({
+        role: 'system',
+        content: `💤 睡到了 ${selectedTime}... (体力已恢复)`,
+        isSystem: true
+    });
+    await saveHistory(); // 保存这条系统消息
+
+    // 6. 核心：构建 TIME_SHIFT Prompt 告诉 AI 醒来
+    // 使用 nextTick 确保 formattedTime 已经更新
+    nextTick(() => {
+        const transitionPrompt = TIME_SHIFT_PROMPT
+            .replace('{{old_time}}', oldTimeStr)
+            .replace('{{new_time}}', formattedTime.value) // 此时已是新时间
+            .replace('{{current_location}}', currentLocation.value || "卧室");
+
+        // 发送隐性指令给 AI (true 代表这是指令，不是用户说的话)
+        sendMessage(false, transitionPrompt);
+    });
+};
+const handleForceMove = (locObj) => {
+
+    const targetName = typeof locObj === 'object' 
+        ? (locObj.detail || locObj.name || '') 
+        : locObj;
+    
+    if (!targetName) return uni.showToast({ title: '无效地点', icon: 'none' });
+
+    // 2. 静默更新玩家位置
+    playerLocation.value = targetName;
+    console.log(`🛠️ [God Mode] 玩家位置强制修正为: ${targetName}`);
+
+    // 3. 智能模式纠错
+    // 逻辑：如果修正后的位置与角色当前位置一致 -> 强制 Face 模式
+    if (playerLocation.value === currentLocation.value) {
+        interactionMode.value = 'face';
+    } else {
+        interactionMode.value = 'phone';
+    }
+
+    // 4. 保存到数据库
+    saveCharacterState();
+
+    // 5. 关闭弹窗
+    showForceLocationPanel.value = false;
+    uni.showToast({ title: `已修正为: ${targetName}`, icon: 'none' });
+};
+
+const saveHistory = async (msg) => {
+    if (!chatId.value) return;
+    
+    // 🛠️ 兼容性处理：如果没有传 msg，则自动取 messageList 的最后一条
+    const targetMsg = msg || (messageList.value.length > 0 ? messageList.value[messageList.value.length - 1] : null);
+    if (!targetMsg) return;
+
+    try {
+        // 1. 物理保存到 SQLite 数据库
+        await DB.execute(
+            `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                targetMsg.id || (Date.now() + Math.random()), // 确保有ID
+                String(chatId.value), 
+                targetMsg.role, 
+                targetMsg.content, 
+                targetMsg.type || 'text', 
+                targetMsg.isSystem ? 1 : 0, 
+                Date.now()
+            ]
+        );
+
+        // 2. 🌟 同步更新列表页预览 (Index 页面显示用)
+        let list = uni.getStorageSync('contact_list') || [];
+        const index = list.findIndex(item => String(item.id) === String(chatId.value));
+        if (index !== -1) {
+            // 设置预览文字
+            list[index].lastMsg = targetMsg.isSystem ? `[系统] ${targetMsg.content}` : targetMsg.content;
+            list[index].lastTime = "刚刚"; 
+            uni.setStorageSync('contact_list', list);
         }
-        return u === c || u.includes(c) || c.includes(u);
-    };
-
-    const locationList = computed(() => {
-        const list = [];
-        const isTogether = isCohabitation();
         
-        // 1. 家的处理
-        if (isTogether) {
-            list.push({
-                name: '我们的家',
-                detail: charHome.value,
-                type: 'shared_home',
-                icon: '🏡',
-                mode: 'face', 
-                style: 'background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;'
-            });
-        } else {
-            list.push({
-                name: '她的家',
-                detail: charHome.value || '角色家',
-                type: 'char_home',
-                icon: '🏠',
-                mode: 'face', 
-                style: 'background-color:#fff0f5; color:#d81b60; border:1px solid #ffcdd2;'
-            });
-            list.push({
-                name: '我的家',
-                detail: userHome.value || '我家',
-                type: 'user_home',
-                icon: '🏡',
-                mode: 'phone',
-                style: 'background-color:#e3f2fd; color:#1565c0; border:1px solid #bbdefb;'
-            });
-        }
+        console.log('💾 [DB] 消息已保存且预览已更新');
+    } catch (e) {
+        console.error('❌ 数据库保存失败', e);
+    }
+};
 
-        // 2. 通用地点
-        worldLocations.value.forEach(item => {
-            const name = typeof item === 'string' ? item : item.name;
-            const icon = item.icon || '📍';
-            list.push({
-                name: name,
-                type: 'common',
-                icon: icon,
-                mode: 'phone', // 默认去外面是 Phone
-                style: 'background-color:#f5f5f5; color:#333; border:1px solid #eee;' 
-            });
+const getCurrentLlmConfig = () => {
+    const schemes = uni.getStorageSync('app_llm_schemes') || [];
+    const idx = uni.getStorageSync('app_current_scheme_index') || 0;
+    return (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
+};
+
+const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
+    if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
+    if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
+    if (newTime !== undefined) currentTime.value = newTime; 
+    if (newSummary !== undefined) currentSummary.value = newSummary;
+    if (newLocation !== undefined) currentLocation.value = newLocation;
+    if (newClothes !== undefined) currentClothing.value = newClothes;
+    if (newMode !== undefined) interactionMode.value = newMode;
+
+    if (chatId.value) {
+        const list = uni.getStorageSync('contact_list') || [];
+        const index = list.findIndex(item => String(item.id) === String(chatId.value));
+        if (index !== -1) {
+            const item = list[index];
+            item.affection = currentAffection.value;
+            item.lust = currentLust.value;
+            item.lastTimeTimestamp = currentTime.value;
+            item.summary = currentSummary.value;
+            // 🌟 核心改动：保存玩家位置
+            item.playerLocation = playerLocation.value;
+            item.currentLocation = currentLocation.value;
+            item.clothing = currentClothing.value;
+			item.currentAction = currentAction.value;
+            item.interactionMode = interactionMode.value;
+            item.lastActivity = currentActivity.value;
+            item.relation = currentRelation.value;
+            uni.setStorageSync('contact_list', list);
+        }
+    }
+};
+
+const relationshipStatus = computed(() => {
+    const score = currentAffection.value;
+    if (score < 20) return '礼貌疏离';
+    if (score < 40) return '普通熟人';
+    if (score < 60) return '暧昧萌芽';
+    if (score < 80) return '恋人未满';
+    return '热恋情侣';
+});
+
+const previewImage = (url) => { uni.previewImage({ urls: [url] }); };
+const onDateChange = (e) => { tempDateStr.value = e.detail.value; }; 
+const onTimeChange = (e) => { tempTimeStr.value = e.detail.value; }; 
+
+
+// --- 变量定义 ---
+const isEditMode = ref(false);
+const selectedIds = ref([]);
+
+// --- 逻辑方法 ---
+
+// 进入编辑模式并默认选中当前长按的消息
+const enterEditMode = (msg) => {
+    if (isLoading.value) return;
+    isEditMode.value = true;
+    selectedIds.value = [msg.id];
+    uni.vibrateShort(); // 震动反馈
+};
+
+// 切换选择
+const toggleSelect = (msg) => {
+    const index = selectedIds.value.indexOf(msg.id);
+    if (index > -1) {
+        selectedIds.value.splice(index, 1);
+        if (selectedIds.value.length === 0) isEditMode.value = false; // 选完了自动退出
+    } else {
+        selectedIds.value.push(msg.id);
+    }
+};
+
+// 取消编辑
+const cancelEdit = () => {
+    isEditMode.value = false;
+    selectedIds.value = [];
+};
+
+// 执行删除
+const confirmDelete = () => {
+    uni.showModal({
+        title: '物理删除',
+        content: '确定要从数据库中永久抹除这些记忆吗？',
+        success: async (res) => {
+            if (res.confirm) {
+                // 1. 内存删除
+                messageList.value = messageList.value.filter(m => !selectedIds.value.includes(m.id));
+                // 2. 数据库删除
+                const ids = selectedIds.value.map(id => `'${id}'`).join(',');
+                await DB.execute(`DELETE FROM messages WHERE id IN (${ids})`);
+                
+                cancelEdit();
+                uni.showToast({ title: '已物理抹除', icon: 'success' });
+            }
+        }
+    });
+};
+// ==================================================================================
+// 3. 🧩 初始化各大逻辑模块
+// ==================================================================================
+const { 
+    currentTime, formattedTime, 
+    timeRatio, tempTimeRatio,
+    showTimePanel, showTimeSettingPanel, tempDateStr, tempTimeStr, customMinutes,
+    startTimeFlow, stopTimeFlow, handleTimeSkip: _handleTimeSkip, 
+    confirmManualTime: _confirmManualTime  // 👈 改这里：重命名
+} = useGameTime(saveCharacterState);
+// ✨ 新增：在UI层拆分时间，不改动 useGameTime.js 底层逻辑
+const timeParts = computed(() => {
+    if (!formattedTime.value) return { week: '--', time: '--:--' };
+    // 假设 formattedTime 格式为 "周X HH:mm"
+    const parts = formattedTime.value.split(' ');
+    return { week: parts[0] || '', time: parts[1] || '' };
+});
+
+const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({
+    currentRole, interactionMode, userAppearance, 
+    messageList, chatId, chatName, saveHistory, scrollToBottom
+});
+
+const confirmManualTime = async () => {
+    // 1. 调用底层修改时间
+    const newTime = _confirmManualTime();
+
+    if (newTime) {
+        messageList.value.push({
+            role: 'system',
+            content: `⏳ 时间现在为为 ${formattedTime.value}`,
+            isSystem: true
         });
+        scrollToBottom();
 
-        return list;
+    } 
+    // 如果 newTime 为 null，这里什么都不做，AI 就不会收到那条“逻辑冲突”的消息
+};
+
+const { 
+    showLocationPanel, customLocation, 
+    locationList, checkIsWorking, calculateMoveResult 
+} = useGameLocation({ currentRole, userHome, charHome, currentTime, worldLocations });
+
+const {
+    runSceneCheck, runRelationCheck, runVisualDirectorCheck, runCameraManCheck, 
+    checkAndRunSummary, runDayEndSummary,isArchiving,
+    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration
+} = useAgents({
+    messageList, currentRole, chatName, currentLocation, currentClothing, currentAction,
+    interactionMode, currentRelation, currentAffection, // ✨ 确保这里传了好感度 Ref
+    currentActivity, formattedTime, playerLocation,
+    enableSummary, summaryFrequency, currentSummary,
+    saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration
+});
+
+const handleTimeSkip = async (type) => {
+    // 1. 调用底层时间逻辑修改时间
+    const isNextDay = _handleTimeSkip(type, messageList, scrollToBottom);
+    
+    // 2. 构建给 AI 的提示语
+    let skipDesc = "";
+    switch(type) {
+        case 'morning': skipDesc = "一上午过去了"; break;
+        case 'afternoon': skipDesc = "一下午过去了"; break;
+        case 'night': skipDesc = "一晚上过去了"; break;
+        case 'day': skipDesc = "一天过去了"; break;
+        case 'custom': skipDesc = `${customMinutes.value}分钟过去了`; break;
+    }
+
+    // 3. 将时间流逝上屏（系统消息）
+    messageList.value.push({
+        role: 'system',
+        content: `⏳ ${skipDesc}... 当前时间为 ${formattedTime.value}`,
+        isSystem: true
     });
 
-    watch(showTimeSettingPanel, (val) => {
-        if (val) {
-            const now = new Date(currentTime.value);
-            const y = now.getFullYear();
-            const m = (now.getMonth() + 1).toString().padStart(2, '0');
-            const d = now.getDate().toString().padStart(2, '0');
-            const hh = now.getHours().toString().padStart(2, '0');
-            const mm = now.getMinutes().toString().padStart(2, '0');
-            tempDateStr.value = `${y}-${m}-${d}`;
-            tempTimeStr.value = `${hh}:${mm}`;
+    // 4. 通知 AI 时间变化，让它根据新时间点产生反应
+    const timePrompt = `[SYSTEM EVENT: TIME_SKIP]\n**Action**: ${skipDesc}.\n**New Time**: ${formattedTime.value}.\n**Instruction**: 考虑到时间的流逝，请根据当前时间点（是否该吃饭、睡觉、上班等）自然地继续对话或发起新话题。`;
+    sendMessage(false, timePrompt);
+
+    // 5. 如果跨天，触发每日结算
+    if (isNextDay) {
+        await runDayEndSummary();
+    }
+    
+    scrollToBottom();
+};
+
+// 专门的睡觉按钮处理函数
+const handleSleep = () => {
+    handleTimeSkip('night');
+};
+
+const handleMoveTo = (locObj) => {
+    if (isLoading.value) return uni.showToast({ title: '对话进行中...', icon: 'none' });
+    if (locObj.type === 'custom' && !locObj.name) return uni.showToast({ title: '请输入地点', icon: 'none' });
+
+    const result = calculateMoveResult(locObj);
+    
+    console.log('🚶 [移动监控] -------------------------------------------------');
+    console.log(`📍 玩家地点: "${result.playerLocation}"`);
+    console.log(`📍 角色地点: "${result.aiLocation}"`);
+    console.log(`🔄 模式切换: ${result.newMode === 'face' ? '🥰 当面' : '📱 手机'}`);
+    if (result.shouldNotifyAI) console.log(`🤖 触发剧情: "${result.promptAction}"`);
+    console.log('-----------------------------------------------------------');
+
+    // 🌟 核心改动：更新双方地点
+    playerLocation.value = result.playerLocation;
+    currentLocation.value = result.aiLocation;
+    
+    interactionMode.value = result.newMode;
+    showLocationPanel.value = false;
+    uni.vibrateShort();
+    saveCharacterState();
+
+    if (result.shouldNotifyAI) {
+        messageList.value.push({ role: 'system', content: `🚗 ${result.sysMsgUser}`, isSystem: true });
+        // 🌟 核心改动：在 Prompt 中明确双地点
+        const movePrompt = `[SYSTEM EVENT: SCENE CHANGE]\n**Action**: ${result.promptAction}\n**Character Location**: ${result.aiLocation}\n**Player Location**: ${result.playerLocation}\n**New Mode**: ${result.newMode === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.\n**Time**: ${formattedTime.value}.\n**Instruction**: React naturally to this movement logic.`;
+        sendMessage(false, movePrompt);
+    } else {
+        uni.showToast({ title: result.sysMsgUser, icon: 'none', duration: 2500 });
+    }
+};
+// AiChat/pages/chat/chat.vue
+
+const handleRetry = async (msg) => {
+    // 防止重复点击
+    if (msg.isRetrying) return;
+    
+    uni.vibrateShort();
+    uni.showToast({ title: '正在重试...', icon: 'none' });
+
+    // 🌟 分流逻辑
+    if (msg.isLogicError) {
+        // 情况 A: AI 构图失败 (JSON 坏了/Prompt 没生成) -> 重新跑 LLM
+        // 调用 useAgents 里导出的重试函数
+        await retryAgentGeneration(msg);
+    } else {
+        // 情况 B: 图片生成了但加载失败/网络错误 -> 重新跑 ComfyUI 下载
+        try {
+           await retryGenerateImage(msg);
+        } catch (e) {
+           console.error('重试触发失败', e);
+           uni.showToast({ title: '重试失败', icon: 'none' });
         }
+    }
+};
+
+// --- 新增: 图片加载失败兜底 (可选) ---
+// 如果 ComfyUI 返回了 URL 但图片实际无法加载，也视为失败
+const handleImageLoadError = (msg) => {
+    // 只有当不是本地临时路径且没报错时才标记
+    if (msg.content && !msg.hasError) {
+        msg.hasError = true; 
+        // 强制更新视图
+        messageList.value = [...messageList.value];
+    }
+};
+// ==================================================================================
+// 5. 核心：消息发送与 AI 处理
+// ==================================================================================
+
+const processAIResponse = async (rawText) => {
+    // 基础判空
+    if (!rawText) return;
+
+    // =========================================================================
+    // 🧠 1. 心理活动提取与分流逻辑 (新增)
+    // =========================================================================
+    let thinkContent = "";
+    let mainContent = rawText; // 默认为原始内容
+    
+    // 正则提取 <think>...</think>
+    const thinkMatch = rawText.match(/<think>([\s\S]*?)<\/think>/i);
+    if (thinkMatch) {
+        thinkContent = thinkMatch[1].trim(); 
+        // 移除思考标签，保留纯正文给后续气泡处理
+        mainContent = rawText.replace(/<think>[\s\S]*?<\/think>/i, '').trim(); 
+    }
+
+    // 🚦【开关判断】
+    if (showThought.value && thinkContent) {
+        // [方案二]: 如果开关开启，且有心声，则显示为特殊气泡
+        const thinkMsg = {
+            id: Date.now() + Math.random(),
+            role: 'model',
+            type: 'think', // ✨ 标记为思考类型
+            content: `💭 ${thinkContent}`,
+            isSystem: true // 复用系统消息的布局基础
+        };
+        messageList.value.push(thinkMsg);
+        await saveHistory(thinkMsg);
+    } 
+    // [方案一]: 如果开关关闭 (else)，这里什么都不做，thinkContent 直接被丢弃，mainContent 也不包含它
+
+    // =========================================================================
+    // 💬 2. 正文上屏逻辑 (保留你原本的切割与保存逻辑)
+    // =========================================================================
+    // ⚠️ 注意：这里使用 mainContent (已去除think)，而不是 rawText
+    if (mainContent) {
+         // 直接对文本进行格式化处理，使其能拆分成多个气泡
+         let tempText = mainContent
+            .replace(/\n\s*([”"’])/g, '$1')     // 处理引号前的换行
+            .replace(/([“"‘])\s*\n/g, '$1')     // 处理引号后的换行
+            .replace(/([（\(])/g, '|||$1')      // 在左括号前加切割符
+            .replace(/([）\)])/g, '$1|||')      // 在右括号后加切割符
+            .replace(/(\r\n|\n|\r)+/g, '|||')   // 将普通换行符转为切割符
+            .replace(/(?:\|\|\|)+/g, '|||');    // 合并连续的切割符
+            
+         // 使用 for...of 循环来支持 await 顺序执行
+         const parts = tempText.split('|||');
+         
+         for (const part of parts) {
+             let cleanPart = part.trim();
+             // 防止重复添加和空消息
+             if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
+                 const newMsg = {
+                     id: Date.now() + Math.random(),
+                     role: 'model', 
+                     content: cleanPart 
+                 };
+                 
+                 messageList.value.push(newMsg);
+                 
+                 // ✅ 关键修复：每生成一个气泡，就立即显式保存这一条
+                 await saveHistory(newMsg);
+             }
+         }
+    }
+    
+    // 基础维护 (滚动到底部)
+    scrollToBottom();
+    
+    // =========================================================================
+    // 📊 3. 对话与状态监控日志 (完全保留原逻辑，使用 rawText 供 Agent 分析)
+    // =========================================================================
+    if (rawText) {
+        let lastUserMsg = "";
+        for (let i = messageList.value.length - 2; i >= 0; i--) {
+            // 兼容识别 role 为 user 的消息或包含“拍”字的 system 消息
+            const m = messageList.value[i];
+            if (m.role === 'user' || (m.isSystem && m.content.includes('拍'))) { 
+                lastUserMsg = m.content; 
+                break; 
+            }
+        }
+        
+        console.log('--- 💬 对话监控 ------------------------------------------');
+        console.log(`🗣️ [玩家]: ${lastUserMsg}`);
+        console.log(`🤖 [角色(RAW)]: ${rawText}`); // 这里打印包含 <think> 的原始内容，方便调试
+        console.log('--- 📊 角色状态快照 ---------------------------------------');
+        console.log(`📍 地点: ${currentLocation.value}`);
+        console.log(`💃 动作: ${currentAction.value}`);
+        console.log(`👗 服装: ${currentClothing.value}`);
+        console.log(`❤️ 关系: ${currentRelation.value} `);
+        console.log(`📅 时间: ${formattedTime.value}`);
+        console.log(`📱 模式: ${interactionMode.value === 'phone' ? '手机聊天' : '当面互动'}`);
+        console.log('-----------------------------------------------------------');
+
+        // 4. 触发 Agent 检查 (混合并行策略)
+        // ... (保留上面的 console.log 代码)
+        
+        // 4. 触发 Agent 检查 (混合并行策略)
+        setTimeout(() => {
+            console.log('🚦 [后台导演] 全并行策略启动...');
+        
+            // 轨道 A: 关系与记忆 (保持不变)
+            runRelationCheck(lastUserMsg, rawText); 
+            checkAndRunSummary(); 
+        
+            // 轨道 B: 场景与生图 (🔥🔥 改为并行 🔥🔥)
+            // 原逻辑：runSceneCheck(...).then(...) -> 导致了等待
+            // 新逻辑：同时触发，互不阻塞
+            
+            // 1. 启动场景分析 (让它自己在后台跑，更新地点/衣服)
+            runSceneCheck(lastUserMsg, rawText);
+        
+            // 2. 立即启动生图判定 (不再等待场景分析结束)
+            // 这样只要门卫 Agent (Visual Consent Check) 返回 true，UI 就会立刻显示“正在构图”
+            let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍');
+            
+            if (isCameraAction) {
+                runCameraManCheck(lastUserMsg, rawText);
+            } else {
+                runVisualDirectorCheck(lastUserMsg, rawText);
+            }
+            
+        }, 500);
+    }
+};
+
+const sendMessage = async (isContinue = false, systemOverride = '') => {
+    // 1. 基础校验 (保持不变)
+    if (!isContinue && !inputText.value.trim() && !systemOverride) return;
+    if (isLoading.value) return;
+    const config = getCurrentLlmConfig();
+    if (!config || !config.apiKey) return uni.showToast({ title: '请配置模型', icon: 'none' });
+    
+    let userMsgForRecall = inputText.value;
+
+    // 2. 处理用户输入与系统指令上屏 (保持不变)
+    if (!isContinue) {
+        if (inputText.value.trim()) { 
+            console.log(`🚀 [发送消息]: ${inputText.value}`);
+            const userMsg = { 
+                 id: Date.now() + Math.random(),
+                 role: 'user', 
+                 content: inputText.value 
+            };
+            messageList.value.push(userMsg); 
+            inputText.value = ''; 
+            
+            // ✅ 关键修复：用户发消息也要 await 保存，防止发完立刻退出导致用户消息丢失
+            await saveHistory(userMsg);
+        } 
+        else if (systemOverride && (systemOverride.includes('SNAPSHOT') || systemOverride.includes('SHUTTER') || systemOverride.includes('快门'))) { 
+            // 🛠️ 只要系统指令包含 '快门'，就会触发图标上屏
+            console.log(`⚙️ [系统触发]: ${systemOverride.slice(0, 50)}...`);
+            const sysMsg = { 
+                role: 'system', 
+                content: '📷 (你举起手机拍了一张)', 
+                isSystem: true 
+            };
+            messageList.value.push(sysMsg); 
+            
+            // ✅ 关键修复：系统动作也要 await 保存
+            await saveHistory(sysMsg);
+        }
+    }
+
+    scrollToBottom(); 
+    isLoading.value = true; 
+    // saveHistory(); ❌ [已删除] 删掉这行，因为上面已经针对性存过了
+    
+    const appUser = uni.getStorageSync('app_user_info') || {};
+    if (appUser.name) userName.value = appUser.name;
+
+    // 3. ✨✨✨ 记忆系统逻辑 (双轨制) ✨✨✨
+    
+    // 轨道 A: 被动检索 (Passive - 针对特定关键词的往事)
+    let recallDetail = null;
+    if (!isContinue && !systemOverride && userMsgForRecall) {
+        recallDetail = await checkHistoryRecall(userMsgForRecall);
+    }
+
+    // 轨道 B: 主动显性记忆 (Active - 注入最近几天的印象)
+    // 🆕 新增逻辑
+    let activeMemory = "";
+    try {
+        activeMemory = await fetchActiveMemoryContext();
+        if (activeMemory) console.log("🧠 [Active Memory] 已注入短期记忆上下文");
+    } catch (e) { console.error("Active memory error:", e); }
+
+    // 4. 构建 Prompt (保持不变)
+    const prompt = buildSystemPrompt({
+        role: currentRole.value || {}, userName: userName.value, summary: currentSummary.value,
+        formattedTime: formattedTime.value, location: currentLocation.value, mode: interactionMode.value,
+        activity: currentActivity.value, clothes: currentClothing.value, relation: currentRelation.value
     });
 
-    const getCurrentLlmConfig = () => {
-        const schemes = uni.getStorageSync('app_llm_schemes') || [];
-        const idx = uni.getStorageSync('app_current_scheme_index') || 0;
-        if (schemes.length > 0 && schemes[idx]) {
-            return schemes[idx];
-        }
-        return uni.getStorageSync('app_api_config');
-    };
+    const historyLimit = charHistoryLimit.value; 
+    let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
+    if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
+    
+    // 基础消息清洗
+    const cleanHistoryForAI = contextMessages.map(item => ({ 
+        role: item.role === 'user' ? 'user' : 'assistant', 
+        content: item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/\[.*?\]/gi, '').trim() 
+    })).filter(m => m.content);
 
-    // ==================================================================================
-    // 3. 生命周期
-    // ==================================================================================
-    onLoad((options) => {
-        const appUser = uni.getStorageSync('app_user_info');
-        if (appUser) {
-            if (appUser.name) userName.value = appUser.name;
-            if (appUser.avatar) userAvatar.value = appUser.avatar;
+    // ✨ 注入: 短期显性记忆 (放在历史记录最前面，作为背景知识)
+    if (activeMemory) {
+        cleanHistoryForAI.unshift({
+            role: 'system',
+            content: activeMemory
+        });
+    }
+
+    // ✨ 注入: 检索到的日记细节 (放在最后，作为针对性提示)
+    if (recallDetail) {
+        cleanHistoryForAI.push({ 
+            role: 'system', 
+            content: `[Recall Detail]: The following is a detailed diary entry of the past event user mentioned: "${recallDetail}". Use this to answer correctly.` 
+        });
+    }
+
+    if (systemOverride) cleanHistoryForAI.push({ role: 'user', content: systemOverride });
+    
+    // =========================================================================
+    // 🔥 核心逻辑：稳定版并行请求 (保持不变)
+    // =========================================================================
+    try {
+        // 1. 发起请求
+        const rawText = await LLM.chat({ 
+            config, 
+            messages: cleanHistoryForAI, 
+            systemPrompt: prompt, 
+            temperature: 0.8, 
+            maxTokens: 1500
+        });
+   
+        if (rawText) {
+            // ✅ 关键修复：这里必须加 await，等待 processAIResponse 里的数据库写入全部完成
+            // 只有这样，finally 里的 isLoading = false 才会等到数据存完才执行
+            await processAIResponse(rawText);
+        } else {
+            uni.showToast({ title: '无内容响应', icon: 'none' });
         }
-        if (options.id) {
+
+    } catch (e) { 
+        console.error(e); 
+        uni.showToast({ title: '网络/API错误', icon: 'none' }); 
+    } finally { 
+        isLoading.value = false; 
+        scrollToBottom(); 
+    }
+};
+
+const triggerNextStep = () => {
+    if (isLoading.value) return;
+    sendMessage(true, `[System Command: NARRATIVE_CONTINUATION]\n**Status**: User waiting.\n**Task**: Finish msg or initiate action.\n**Rules**: No repeat.`);
+};
+
+const handleCameraSend = () => {
+    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+    
+    // 🛠️ 修改这里的 Prompt，从系统指令改为描述性动作
+    // 这样 AI 会根据当前氛围决定是“发现你拍照并害羞/配合”还是“完全没发现继续手头的动作”
+    const cameraPrompt = `(你举起手机，寻找一个合适的角度，按下了快门。由于是在这种氛围下，她可能会注意到你的镜头并给出反应，也可能正专注于自己的事而完全没察觉。请根据当前情境自然衔接剧情。)`;
+    
+    sendMessage(false, cameraPrompt);
+};
+
+
+
+const checkProactiveGreeting = () => {
+    if (!chatId.value || !currentRole.value || !currentRole.value.allowProactive) return;
+    const now = Date.now();
+    const lastActiveTime = uni.getStorageSync(`last_real_active_time_${chatId.value}`) || 0;
+    const hoursSinceActive = (now - lastActiveTime) / (1000 * 60 * 60);
+    if (hoursSinceActive < (currentRole.value.proactiveInterval || 4)) {
+        uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
+        return; 
+    }
+    const gameDate = new Date(currentTime.value);
+    const gameHour = gameDate.getHours();
+    let gameTimeDesc = "daytime";
+    if (gameHour >= 6 && gameHour < 11) gameTimeDesc = "morning";
+    else if (gameHour >= 22 || gameHour < 5) gameTimeDesc = "late night";
+    const triggerPrompt = `[系统事件: 用户回归]\n**背景**: 用户离开 ${Math.floor(hoursSinceActive)} 小时。\n**游戏时间**: ${gameTimeDesc} (${gameHour}:00)。\n**任务**: 主动发起对话 (简体中文，简短，30字内)。`;
+    sendMessage(false, triggerPrompt);
+    uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
+};
+
+const loadRoleData = (id) => {
+    const list = uni.getStorageSync('contact_list') || [];
+    const target = list.find(item => String(item.id) === String(id));
+    if (target) {
+        currentRole.value = target;
+        chatName.value = target.name;
+        uni.setNavigationBarTitle({ title: target.name });
+   
+        currentLust.value = target.lust || 0;
+        currentTime.value = target.lastTimeTimestamp || Date.now();
+        currentClothing.value = target.clothing || '便服';
+        charHome.value = target.location || '角色家';
+        userHome.value = target.settings?.userLocation || '玩家家';
+        userAppearance.value = target.settings?.userAppearance || '';
+
+        // 1. 加载双方位置
+        playerLocation.value = target.playerLocation || userHome.value;
+        currentLocation.value = target.currentLocation || charHome.value;
+
+        // 🌟 核心修复逻辑 🌟
+        // 判定条件：如果“没有存模式” OR “两人位置完全相同”，则重新计算模式
+        if (!target.interactionMode || playerLocation.value === currentLocation.value) {
+            // 如果位置相同，强制 face；否则默认为 phone
+            interactionMode.value = (playerLocation.value === currentLocation.value) ? 'face' : 'phone';
+        } else {
+            // 位置不同且有存档，才信任存档
+            interactionMode.value = target.interactionMode;
+        }
+		currentAction.value = target.currentAction || '站立/闲逛';
+        currentActivity.value = target.lastActivity || '自由活动';
+        currentRelation.value = target.relation || '初相识';
+        enableSummary.value = target.enableSummary || false;
+        summaryFrequency.value = target.summaryFrequency || 20;
+        currentSummary.value = target.summary || "";
+        charHistoryLimit.value = target.historyLimit || 20;
+
+        // 加载世界观地点
+        const allWorlds = uni.getStorageSync('app_world_settings') || [];
+        const myWorld = allWorlds.find(w => String(w.id) === String(target.worldId));
+        
+        if (myWorld && myWorld.locations && myWorld.locations.length > 0) {
+            worldLocations.value = myWorld.locations.map(loc => ({
+                name: loc,
+                icon: '📍'
+            }));
+            console.log(`🌍 [Worldview] 已加载世界 "${myWorld.name}" 的 ${worldLocations.value.length} 个地点`);
+        } else {
+            const globalLocs = uni.getStorageSync('app_world_locations');
+            if (globalLocs) {
+                worldLocations.value = globalLocs;
+            } else {
+                worldLocations.value = [{ name: '学校', icon: '🏫' }, { name: '公司', icon: '🏢' }];
+            }
+        }
+    }
+};
+
+onShow(() => {
+    // 修正：不再在 onShow 里直接覆盖 worldLocations，全部逻辑交由 loadRoleData 处理
+    if (chatId.value) {
+        loadRoleData(chatId.value);
+        scrollToBottom();
+        startTimeFlow();
+        setTimeout(() => checkProactiveGreeting(), 1000);
+    }
+});
+
+onLoad(async(options) => {
+    const appUser = uni.getStorageSync('app_user_info');
+    if (appUser) {
+        if (appUser.name) userName.value = appUser.name;
+        if (appUser.avatar) userAvatar.value = appUser.avatar;
+    }
+    if (options.id) {
             chatId.value = options.id;
             loadRoleData(options.id);
-            loadHistory(options.id);
-        }
-    });
-    
-    onShow(() => {
-        const appUser = uni.getStorageSync('app_user_info');
-        if (appUser) {
-            if (appUser.name) userName.value = appUser.name;
-            if (appUser.avatar) userAvatar.value = appUser.avatar;
-        }
-
-        const cachedLocs = uni.getStorageSync('app_world_locations');
-        if (cachedLocs && Array.isArray(cachedLocs) && cachedLocs.length > 0) {
-            worldLocations.value = cachedLocs;
-        } else {
-            worldLocations.value = [
-                { name: '学校', icon: '🏫' },
-                { name: '公司', icon: '🏢' },
-                { name: '酒店', icon: '🏩' },
-                { name: '公园', icon: '🌳' },
-                { name: '商场', icon: '🛍️' }
-            ];
-        }
-
-        if (chatId.value) {
-            loadRoleData(chatId.value);
-            const history = uni.getStorageSync(`chat_history_${chatId.value}`);
-            if (!history || history.length === 0) {
-                messageList.value = [];
-            } else {
-                messageList.value = history;
-                scrollToBottom();
-            }
-            startTimeFlow();
-            setTimeout(() => { checkProactiveGreeting(); }, 1000);
-        }
-    });
-    
-    onHide(() => { 
-        stopTimeFlow(); 
-        saveCharacterState(); 
-    });
-    
-    onUnload(() => { 
-        stopTimeFlow(); 
-        saveCharacterState(); 
-    });
-    
-    onNavigationBarButtonTap((e) => {
-        if (e.key === 'setting') {
-            uni.navigateTo({ url: `/pages/create/create?id=${chatId.value}` });
-        }
-    });
-
-    // ==================================================================================
-    // 4. 辅助函数
-    // ==================================================================================
-    const startTimeFlow = () => {
-        if (timeInterval) clearInterval(timeInterval);
-        lastUpdateGameHour.value = new Date(currentTime.value).getHours();
-
-        timeInterval = setInterval(() => {
-            currentTime.value += 1000 * TIME_SPEED_RATIO;
-            const date = new Date(currentTime.value);
-            const currentHour = date.getHours();
-            if (currentHour !== lastUpdateGameHour.value) {
-                lastUpdateGameHour.value = currentHour;
-            }
-        }, 1000);
-    };
-    
-    const stopTimeFlow = () => {
-        if (timeInterval) { clearInterval(timeInterval); timeInterval = null; }
-    };
-
-	// 🕒 同样的辅助函数：兜底用
-	    const getInitialGameTime = () => {
-	        const now = new Date();
-	        now.setHours(8, 0, 0, 0); 
-	        return now.getTime();
-	    };
-		
-    const loadRoleData = (id) => {
-        const list = uni.getStorageSync('contact_list') || [];
-        const target = list.find(item => String(item.id) === String(id));
-        if (target) {
-            currentRole.value = target;
-            chatName.value = target.name;
-            uni.setNavigationBarTitle({ title: target.name });
-            currentAffection.value = target.affection !== undefined ? target.affection : (target.initialAffection || 10);
-            currentLust.value = target.lust !== undefined ? target.lust : (target.initialLust || 0);
             
-            currentTime.value = target.lastTimeTimestamp || getInitialGameTime();
-            currentClothing.value = target.clothing || '便服';
-            charHome.value = target.location || target.settings?.location || '角色家';
-            userHome.value = target.settings?.userLocation || '玩家家';
-            userAppearance.value = target.settings?.userAppearance || '1boy, short hair';
-            currentLocation.value = target.currentLocation || charHome.value;
-            interactionMode.value = target.interactionMode || 'phone';
-            currentActivity.value = target.lastActivity || '自由活动';
-            currentRelation.value = target.relation || '初相识';
-            
-            enableSummary.value = target.enableSummary || false;
-            summaryFrequency.value = target.summaryFrequency || 20;
-            currentSummary.value = target.summary || "暂无重要记忆。";
-            charHistoryLimit.value = target.historyLimit !== undefined ? target.historyLimit : 20;
-        }
-    };
-
-    const loadHistory = (id) => {
-        const history = uni.getStorageSync(`chat_history_${id}`);
-        if (history && Array.isArray(history)) {
-            messageList.value = history;
-            scrollToBottom();
-        }
-    };
-    
-    const saveHistory = () => {
-        if (chatId.value) {
-            uni.setStorageSync(`chat_history_${chatId.value}`, messageList.value);
-        }
-    };
-    
-    const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
-        if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
-        if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
-        if (newTime !== undefined) currentTime.value = newTime;
-        if (newSummary !== undefined) currentSummary.value = newSummary;
-        if (newLocation !== undefined) currentLocation.value = newLocation;
-        if (newClothes !== undefined) currentClothing.value = newClothes;
-        if (newMode !== undefined) interactionMode.value = newMode;
-
-        if (chatId.value) {
-            const list = uni.getStorageSync('contact_list') || [];
-            const index = list.findIndex(item => String(item.id) === String(chatId.value));
-            if (index !== -1) {
-                const item = list[index];
-                item.affection = currentAffection.value;
-                item.lust = currentLust.value;
-                item.lastTimeTimestamp = currentTime.value;
-                item.summary = currentSummary.value;
-                item.currentLocation = currentLocation.value;
-                item.clothing = currentClothing.value;
-                item.interactionMode = interactionMode.value;
-                item.lastActivity = currentActivity.value;
-                item.relation = currentRelation.value;
-                
-                uni.setStorageSync('contact_list', list);
-            }
-        }
-    };
-    
-    const previewImage = (url) => { uni.previewImage({ urls: [url] }); };
-    const onDateChange = (e) => { tempDateStr.value = e.detail.value; };
-    const onTimeChange = (e) => { tempTimeStr.value = e.detail.value; };
-
-    const confirmManualTime = () => {
-        const fullStr = `${tempDateStr.value} ${tempTimeStr.value}`;
-        const newTimestamp = new Date(fullStr).getTime();
-        if (isNaN(newTimestamp)) return uni.showToast({title: '时间格式错误', icon: 'none'});
-        currentTime.value = newTimestamp;
-        saveCharacterState(undefined, newTimestamp);
-        showTimeSettingPanel.value = false;
-        uni.showToast({ title: '时间已调整', icon: 'none' });
-    };
-
-    const handleTimeSkip = (type) => {
-        let addMs = 0;
-        let desc = "";
-        const now = new Date(currentTime.value);
-        const currentHour = now.getHours();
-        switch (type) {
-            case 'morning': addMs = 4 * 60 * 60 * 1000; desc = "一上午过去了..."; break;
-            case 'afternoon': addMs = 4 * 60 * 60 * 1000; desc = "一下午过去了..."; break;
-            case 'night':
-                if (currentHour >= 20 || currentHour < 5) {
-                    const target = new Date(currentTime.value);
-                    if (currentHour >= 20) target.setDate(target.getDate() + 1);
-                    target.setHours(8, 0, 0, 0);
-                    addMs = target.getTime() - currentTime.value;
-                    desc = "一夜过去了，天亮了...";
-                } else {
-                    addMs = 8 * 60 * 60 * 1000;
-                    desc = "不知不觉到了晚上...";
-                }
-                break;
-            case 'day': addMs = 24 * 60 * 60 * 1000; desc = "整整一天过去了..."; break;
-            case 'custom':
-                const mins = parseInt(customMinutes.value);
-                if (!mins || mins <= 0) return uni.showToast({ title: '请输入分钟', icon: 'none' });
-                addMs = mins * 60 * 1000;
-                desc = `${mins}分钟过去了...`;
-                break;
-        }
-        const newTime = currentTime.value + addMs;
-        saveCharacterState(undefined, newTime);
-        showTimePanel.value = false;
-        messageList.value.push({ role: 'system', content: `【系统】${desc} 当前时间：${formattedTime.value}`, isSystem: true });
-        scrollToBottom();
-    };
-
-    // ==================================================================================
-    // 5. 核心：地点与工作状态检测逻辑
-    // ==================================================================================
-    
-    // 🔍 检查角色是否正在工作
-    const checkIsWorking = () => {
-        const s = currentRole.value?.settings || {};
-        
-        // 1. 如果没有工作地点，视为“家庭主妇/自由职业”，全天在家
-        if (!s.workplace || s.workplace.trim() === '') return false;
-        
-        // 2. 如果没有勾选任何工作日，也视为全天在家
-        const workDays = s.workDays || []; // [1,2,3,4,5]
-        if (workDays.length === 0) return false;
-        
-        // 3. 时间判断
-        const date = new Date(currentTime.value);
-        const day = date.getDay(); // 0-6 (0是周日)
-        const hour = date.getHours(); // 0-23
-        
-        const start = s.workStartHour !== undefined ? s.workStartHour : 9;
-        const end = s.workEndHour !== undefined ? s.workEndHour : 18;
-        
-        // 必须是工作日，且在工作时间内
-        if (workDays.includes(day) && hour >= start && hour < end) {
-            return true; // 正在上班！
-        }
-        
-        return false; // 下班了/休息日
-    };
-
-    // 🚪 串门/移动处理函数
-    const handleMoveTo = (locObj) => {
-        if (isLoading.value) {
-            uni.showToast({ title: '对话进行中...', icon: 'none' });
-            return;
-        }
-        
-        if (locObj.type === 'custom' && !locObj.name) {
-            return uni.showToast({ title: '请输入地点', icon: 'none' });
-        }
-
-        let targetName = locObj.name;
-        if (locObj.detail) targetName = locObj.detail;
-        
-        // --- 核心变量初始化 ---
-        let newMode = 'phone'; 
-        let shouldNotifyAI = false; 
-        let sysMsgUser = "";   
-        let promptAction = ""; 
-        
-        const isTogether = isCohabitation(); 
-        const isWorking = checkIsWorking(); // 🔥 此时此刻她是否在上班？
-        const s = currentRole.value?.settings || {};
-        const workplaceName = s.workplace || "单位";
-
-        // =========================================================
-        // 🚦 逻辑分支
-        // =========================================================
-
-        // --- A. 如果我们同居 (Shared Home) ---
-        if (isTogether) {
-            if (locObj.type === 'shared_home') {
-                // 回家
-                if (isWorking) {
-                    // 我回家了，但她在上班 -> 扑空 -> Phone
-                    newMode = 'phone';
-                    shouldNotifyAI = true;
-                    sysMsgUser = `你回到了家，但她正在【${workplaceName}】上班，家里空荡荡的。`;
-                    promptAction = `Player returned to the shared home, but you are currently at work (${workplaceName}). Player is alone at home. Describe being at work and receiving a text/call.`;
-                } else {
-                    // 我回家了，她也在家 -> 见面
-                    newMode = 'face';
-                    shouldNotifyAI = true;
-                    sysMsgUser = `你回到了家（${targetName}）。`;
-                    promptAction = `Player returned to the shared home. You are off work and at home. Describe the greeting.`;
-                }
-            } else {
-                // 去其他地方 -> 出门离开她 -> Phone
-                newMode = 'phone';
-                shouldNotifyAI = true;
-                sysMsgUser = `你离开了家，前往${targetName}。`;
-                promptAction = `Player left home and went to <${targetName}>. Mode switched to PHONE. Describe the parting/texting.`;
-            }
-        } 
-        
-        // --- B. 如果分居 (Separate Homes) ---
-        else {
-            if (locObj.type === 'char_home') {
-                // 去她家
-                if (isWorking) {
-                    // 她在上班 -> 扑空 -> Phone
-                    newMode = 'phone';
-                    shouldNotifyAI = true;
-                    sysMsgUser = `你来到她家门口，但没人在家。她应该在【${workplaceName}】上班。`;
-                    promptAction = `Player visited your home, but you are at work (${workplaceName}). You are NOT there. Switch to PHONE mode. Describe getting a notification that player visited your empty house.`;
-                } else {
-                    // 她在家 -> 拜访 -> Face
-                    newMode = 'face';
-                    shouldNotifyAI = true;
-                    sysMsgUser = `你来到了${targetName}（拜访）。`;
-                    promptAction = `Player arrived at your door/house. You are at home. Mode switched to FACE. Describe hearing the knock or opening the door.`;
-                }
-            } 
-            else if (locObj.type === 'user_home') {
-                // 回我家 -> 辞别 -> Phone
-                newMode = 'phone';
-                shouldNotifyAI = true;
-                sysMsgUser = `你告别了她，回到了自己家。`;
-                promptAction = `Player said goodbye and left your place to go home. Mode switched to PHONE. Describe the farewell.`;
-            } 
-            else {
-                // 去公共场所 (学校/公司/自定义)
-                // 🔥 探班逻辑：如果我去的地方 恰好是 她的工作地点
-                const isVisitingWork = workplaceName && targetName.includes(workplaceName);
-                
-                if (isVisitingWork && isWorking) {
-                    // 探班成功 -> Face
-                    newMode = 'face';
-                    shouldNotifyAI = true;
-                    sysMsgUser = `你来到了【${targetName}】，正好看到她在工作。`;
-                    promptAction = `Player visited your workplace (${targetName}) while you are working! Mode switched to FACE. Describe your reaction to seeing the player at your job.`;
-                } 
-                else if (isVisitingWork && !isWorking) {
-                    // 探班扑空 -> Phone
-                    newMode = 'phone';
-                    shouldNotifyAI = false; // 没见到人，静默切换即可，或者通知也行
-                    sysMsgUser = `你来到了【${targetName}】，但她已经下班了。`;
-                }
-                else {
-                    // 纯路人地点 -> 静默切换
-                    newMode = 'phone';
-                    shouldNotifyAI = false; 
-                    sysMsgUser = `已抵达${targetName} (手机通讯)`;
-                }
-            }
-        }
-
-        // =========================================================
-        // 💾 执行状态更新
-        // =========================================================
-        currentLocation.value = targetName;
-        interactionMode.value = newMode;
-        showLocationPanel.value = false;
-        uni.vibrateShort();
-        saveCharacterState();
-
-        // =========================================================
-        // 🚀 发送指令 (或静默)
-        // =========================================================
-        if (shouldNotifyAI) {
-            messageList.value.push({ 
-                role: 'system', 
-                content: `🚗 ${sysMsgUser}`, 
-                isSystem: true 
-            });
-            
-            const movePrompt = `
-            [SYSTEM EVENT: SCENE CHANGE]
-            **Action**: ${promptAction}
-            **New Location**: ${targetName}
-            **New Mode**: ${newMode === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.
-            **Time**: ${formattedTime.value}.
-            **Instruction**: React naturally to this movement logic.
-            `;
-            
-            sendMessage(false, movePrompt);
-        } else {
-            uni.showToast({ title: sysMsgUser, icon: 'none', duration: 2500 });
-        }
-    };
-
-    const applySuggestion = (text) => {
-        inputText.value = text;
-        suggestionList.value = []; 
-    };
-
-    // =========================================================================
-    // 6. 智能体逻辑 (Agents & API)
-    // =========================================================================
-    const getReplySuggestions = async () => {
-        if (isLoading.value) return;
-        
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) {
-            uni.showToast({ title: '请先配置API', icon: 'none' });
-            return;
-        }
-
-        uni.showLoading({ title: '军师正在分析局势...', mask: true });
-
-        const recentContext = messageList.value
-            .slice(-10)
-            .filter(m => m.type !== 'image' && (!m.isSystem || m.content.includes('系统') || m.content.includes('过去了'))) 
-            .map(m => {
-                if (m.isSystem) return `[System Event]: ${m.content}`;
-                return `${m.role === 'user' ? 'Me' : 'Her'}: ${m.content}`;
-            })
-            .join('\n');
-
-        const score = currentAffection.value;
-        const role = currentRole.value || {};
-        const s = role.settings || {};
-        
-        const herJob = role.occupation || s.occupation || "Unknown";
-        const myJob = s.userOccupation || "Unknown";
-        const myName = userName.value || 'Me';
-
-        const coachPrompt = `
-        [System: Text Completion]
-        You are a dating assistant.
-        
-        **Current Status**:
-        - Time: ${formattedTime.value}  (CRITICAL: Notice the time change!)
-        - Mode: ${interactionMode.value === 'phone' ? 'Phone Chat' : 'Face-to-Face'} @ ${currentLocation.value}
-        - Relation: ${currentRelation.value}
-        
-        **Profiles**:
-        - HER: ${chatName.value} (${herJob}).
-        - ME: ${myName} (${myJob}).
-        - Relation Score: ${score}/100.
-        
-        **Context (Recent 10 messages)**:
-        ${recentContext}
-        
-        **Task**:
-        Provide 3 short, natural, Simplified Chinese responses for "Me" to continue the conversation.
-        If [System Event] indicates time passed, acknowledge it (e.g. "Good morning").
-        
-        **Output Rules**:
-        1. Return ONLY a raw JSON Array. 
-        2. NO markdown.
-        3. Example: ["早安，昨晚睡得好吗？", "起床了吗？", "新的一天开始了。"]
-        `;
-
-        try {
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-            
-            let requestBody = {};
-            let targetUrl = '';
-            let header = { 'Content-Type': 'application/json' };
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { 
-                    contents: [{ parts: [{ text: coachPrompt }] }],
-                    generationConfig: { responseMimeType: "application/json" }
-                };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = {
-                    model: config.model,
-                    messages: [{ role: "user", content: coachPrompt }],
-                    max_tokens: 200,
-                    temperature: 0.7,
-                };
-            }
-
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let rawContent = "";
-            if (config.provider === 'gemini') {
-                rawContent = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                rawContent = data?.choices?.[0]?.message?.content;
-            }
-
-            if (rawContent) {
-                let suggestions = [];
-                try {
-                    const cleanStr = rawContent.replace(/```json|```/g, '').trim();
-                    if (cleanStr.startsWith('[')) {
-                         suggestions = JSON.parse(cleanStr);
-                    } else {
-                         throw new Error('Not JSON');
-                    }
-                } catch (e) {
-                    const regex = /"([^"]*?)"/g;
-                    let match;
-                    while ((match = regex.exec(rawContent)) !== null) {
-                        if (match[1].length > 1 && !match[1].includes('Example')) suggestions.push(match[1]);
-                    }
-                }
-                
-                if (suggestions.length > 0) {
-                    suggestionList.value = suggestions.slice(0, 3);
-                } else {
-                    uni.showToast({ title: '军师暂无计策', icon: 'none' });
-                }
-            }
-        } catch (e) {
-            console.error(e);
-            uni.showToast({ title: '网络波动', icon: 'none' });
-        } finally {
-            uni.hideLoading();
-        }
-    };
-
-    const optimizePromptForComfyUI = async (actionAndSceneDescription) => {
-            let aiTags = actionAndSceneDescription || "";
-            const settings = currentRole.value?.settings || {};
-            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
-            
-            // console.log("🎨 [Prompt Debug] 1. Loaded Appearance:", appearanceSafe); 
-    
-            const isPhone = interactionMode.value === 'phone';
-            let isDuo = false;
-            
-            if (isPhone) {
-                isDuo = false;
-                // console.log("📡 [生图模式] 电话聊天中 -> 强制单人 (Solo)"); 
-                aiTags = aiTags.replace(/\b(1boy|boys|man|men|male|couple|2people|multiple|penis|testicles|cum)\b/gi, "");
-                aiTags = aiTags.replace(/\bdoggystyle\b/gi, "all fours, kneeling, from behind");
-            } else {
-                const duoKeywords = /\b(couple|2people|1boy|boys|man|men|male|holding|straddling|sex|fuck|penis|insertion|fellatio|paizuri|kiss|kissing|hug|hugging)\b/i;
-                isDuo = duoKeywords.test(aiTags);
-                if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
-                // console.log(`📍 [生图模式] -> ${isDuo ? '双人 (Duo)' : '单人 (Solo)'}`);
-            }
-    
-            let parts = [];
-            parts.push(isDuo ? "couple, 2people" : "solo");
-            parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
-            
-            const imgConfig = uni.getStorageSync('app_image_config') || {};
-            const styleSetting = imgConfig.style || 'anime';
-            parts.push(STYLE_PROMPT_MAP[styleSetting] || STYLE_PROMPT_MAP['anime']);
-            parts.push(appearanceSafe);
-    
-            if (isDuo) {
-                parts.push(userAppearance.value || "1boy, male focus");
-            }
-            
-            if (aiTags) parts.push(`(${aiTags}:1.2)`);
-            
-            let rawPrompt = parts.join(', ');
-            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
-            const finalPrompt = uniqueTags.join(', ');
-    
-            // console.log("🚀 [Prompt Debug] 3. Final Prompt (Free Mode):", finalPrompt);
-            return finalPrompt;
-        };
-        
-    const generateImageFromComfyUI = async (englishTags, baseUrl) => {
-        const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
-        workflow["3"].inputs.text = englishTags;
-        const isDuo = /couple|2people|1boy|multiple boys|kiss|sex|paizuri|doggystyle/i.test(englishTags);
-        workflow["4"].inputs.text = isDuo ? NEGATIVE_PROMPTS.DUO : NEGATIVE_PROMPTS.SOLO;
-        workflow["5"].inputs.seed = Math.floor(Math.random() * 999999999999999);
-        try {
-            const queueRes = await uni.request({
-                url: `${baseUrl}/prompt`, method: 'POST', header: { 'Content-Type': 'application/json' },
-                data: { prompt: workflow }, sslVerify: false
-            });
-            if (queueRes.statusCode !== 200) throw new Error(`队列失败: ${queueRes.statusCode}`);
-            const promptId = queueRes.data.prompt_id;
-            // console.log('⏳ [ComfyUI] Queued ID:', promptId);
-
-            for (let i = 0; i < 120; i++) {
-                await new Promise(r => setTimeout(r, 1000));
-                const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: 'GET', sslVerify: false });
-                if (historyRes.statusCode === 200 && historyRes.data[promptId]) {
-                    const outputs = historyRes.data[promptId].outputs;
-                    if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
-                        const imgInfo = outputs["16"].images[0];
-                        return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
-                    }
-                }
-            }
-            throw new Error('生成超时');
-        } catch (e) { throw e; }
-    };
-
-    const generateChatImage = async (sceneDescription) => {
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        if (!imgConfig.baseUrl) return null;
-        
-        const finalPrompt = await optimizePromptForComfyUI(sceneDescription);
-        if (!finalPrompt) return null;
-        
-        try {
-            return await generateImageFromComfyUI(finalPrompt, imgConfig.baseUrl);
-        } catch (e) { console.error(e); }
-        return null;
-    };
-    
-    const handleAsyncImageGeneration = async (imgDesc, placeholderId) => {
-        try {
-            const imgUrl = await generateChatImage(imgDesc);
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-            if (idx !== -1 && imgUrl) {
-                const localPath = await saveToGallery(imgUrl, chatId.value, chatName.value, imgDesc);
-                messageList.value[idx] = { role: 'model', type: 'image', content: localPath, id: placeholderId };
-                saveHistory();
-                scrollToBottom();
-            } else if (idx !== -1) {
-                 messageList.value[idx] = { role: 'system', content: '❌ 照片显影失败 (点击重试)', isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
-                 saveHistory();
-            }
-        } catch(e) {
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-             if (idx !== -1) {
-                 messageList.value[idx] = { role: 'system', content: '❌ 照片显影异常 (点击重试)', isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
-                 saveHistory();
-            }
-        }
-    };
-
-    const retryGenerateImage = (msg) => {
-        if (!msg.isError || !msg.originalPrompt) return;
-        const idx = messageList.value.findIndex(m => m.id === msg.id);
-        if (idx !== -1) {
-            messageList.value[idx] = { role: 'system', content: '📷 影像显影中... (重试中)', isSystem: true, id: msg.id };
-            handleAsyncImageGeneration(msg.originalPrompt, msg.id);
-        }
-    };
-
-    const triggerNextStep = () => {
-        if (isLoading.value) return;
-        // 🌟 修正：更强力的驱动指令，防复读
-        const drivePrompt = `[System Command: NARRATIVE_CONTINUATION]
-        **Status**: The user is waiting for you to continue the scene.
-        **Task**: 
-        1. If your last message was incomplete, finish it.
-        2. If the scene paused, INITIATE a new action or dialogue based on the current mood.
-        3. **FORBIDDEN**: Do NOT repeat your last message. Do NOT ask "What's wrong?". 
-        4. **ACTION**: Make the character move, touch, or speak to advance the plot immediately.`;
-        
-        sendMessage(true, drivePrompt);
-    };
-
-    const handleCameraSend = () => {
-        if (interactionMode.value !== 'face') {
-            uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
-            return;
-        }
-        if (isLoading.value) return;
-        const extraInstruction = `[SYSTEM EVENT: SNAPSHOT TRIGGERED] 用户正在对你进行**抓拍 (Candid Shot)**。**执行死命令 (CRITICAL)**：1. **禁止互动**：在生成的 [IMG] 中，**绝对禁止**回头看镜头、摆姿势或对快门声做出反应。2. **时间冻结**：照片必须**100% 还原**上一条消息中描述的动作和状态。3. **优先输出**：请优先输出 [IMG: ...] 描述当下的画面，然后再进行后续的对话反应。4. **英文Tag**：[IMG] 内容必须使用英文。`;
-        sendMessage(false, extraInstruction);
-    };
-    
-    const checkProactiveGreeting = () => {
-        if (!chatId.value || !currentRole.value) return;
-        if (!currentRole.value.allowProactive) return;
-
-        const now = Date.now();
-        const lastActiveTime = uni.getStorageSync(`last_real_active_time_${chatId.value}`) || 0;
-        const lastProactiveTime = uni.getStorageSync(`last_proactive_lock_${chatId.value}`) || 0;
-        
-        const hoursSinceActive = (now - lastActiveTime) / (1000 * 60 * 60);
-        const hoursSinceLastGreet = (now - lastProactiveTime) / (1000 * 60 * 60);
-        const userInterval = currentRole.value.proactiveInterval || 4; 
-
-        if (isLoading.value) return;
-        if (messageList.value.length > 0) {
-            const lastMsg = messageList.value[messageList.value.length - 1];
-            if (lastMsg.role === 'user') return; 
-        }
-
-        if (hoursSinceActive < userInterval || hoursSinceLastGreet < userInterval) {
-            uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
-            return; 
-        }
-        
-        const gameDate = new Date(currentTime.value);
-        const gameHour = gameDate.getHours();
-        let gameTimeDesc = "daytime";
-        if (gameHour >= 6 && gameHour < 11) gameTimeDesc = "morning";
-        else if (gameHour >= 22 || gameHour < 5) gameTimeDesc = "late night";
-        else if (gameHour >= 18 && gameHour < 22) gameTimeDesc = "evening";
-
-        const triggerPrompt = `
-        [系统事件: 用户回归]
-        **背景**: 用户已经离开 APP 约 ${Math.floor(hoursSinceActive)} 小时。
-        **游戏内时间**: 现在是 ${gameTimeDesc} (${gameHour}:00)。
-        **当前任务**: 根据你的人设，主动发起对话。
-        **关键要求 (CRITICAL)**:
-        1. **语言锁死**: 必须使用**简体中文**回复。
-        2. **保持人设**: 不要像个机器人。
-        3. **话题**: 对“时间过去了多久”或“现在的天色”做出反应。
-        4. **长度**: 简短自然 (30字以内)。
-        `;
-        
-        sendMessage(false, triggerPrompt);
-        uni.setStorageSync(`last_proactive_lock_${chatId.value}`, now);
-        uni.setStorageSync(`last_real_active_time_${chatId.value}`, now);
-    };
-    
-
-    const runSceneCheck = async (lastUserMsg, aiResponseText) => {
-        if (!aiResponseText || aiResponseText.length < 3) return;
-
-        // console.log('🏠 [Scene Keeper] Checking physical state...');
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-
-        const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-
-        const prompt = SCENE_KEEPER_PROMPT
-            .replace('{{location}}', currentLocation.value)
-            .replace('{{clothes}}', currentClothing.value)
-            .replace('{{mode}}', interactionMode.value)
-            .replace('{{current_action}}', currentAction.value || "站立/闲逛") 
-            + `\n\n【Interaction】\n${conversationContext}`;
-
-        try {
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 200, temperature: 0.1 };
-            }
-
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-
-            let cleanJson = resultText.replace(/```json|```/g, '').trim();
-            const firstOpen = cleanJson.indexOf('{');
-            const lastClose = cleanJson.lastIndexOf('}');
-            
-            if (firstOpen !== -1 && lastClose !== -1) {
-                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-            }
-
-            const state = JSON.parse(cleanJson);
-            // console.log('🏠 [Scene Keeper] Verdict:', state);
-
-            let hasChange = false;
-            
-            if (state.mode && ['phone', 'face'].includes(state.mode) && state.mode !== interactionMode.value) {
-                interactionMode.value = state.mode;
-                hasChange = true;
-                if(state.mode === 'face') uni.vibrateShort();
-            }
-            if (state.location && state.location.length < 20 && state.location !== currentLocation.value) {
-                currentLocation.value = state.location;
-                hasChange = true;
-            }
-            if (state.clothes && state.clothes.length < 50 && state.clothes !== currentClothing.value) {
-                currentClothing.value = state.clothes;
-                hasChange = true;
-            }
-            if (state.action && state.action !== currentAction.value) {
-                currentAction.value = state.action;
-            }
-
-            if (hasChange) saveCharacterState();
-
-        } catch (e) {
-            console.warn('Scene check failed:', e); 
-        }
-    };
-
-    const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
-        const now = Date.now();
-        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-            return;
-        }
-
-        let targetAction = ""; 
-        const len = messageList.value.length;
-        let aiMsgCount = 0;
-        
-        for (let i = len - 1; i >= 0; i--) {
-            const msg = messageList.value[i];
-            if (msg.role === 'model' && (!msg.type || msg.type === 'text')) {
-                aiMsgCount++;
-                if (aiMsgCount === 2) { 
-                    targetAction = msg.content;
-                    break;
-                }
-            }
-        }
-        if (!targetAction) targetAction = aiResponseText;
-
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-
-        const prompt = CAMERA_MAN_PROMPT
-            .replace('{{current_action}}', currentAction.value || "维持当前动作") 
-            .replace('{{ai_response}}', targetAction)
-            .replace('{{clothes}}', currentClothing.value || "Casual clothes")
-            .replace('{{location}}', currentLocation.value || "Unknown Indoor")
-            .replace('{{time}}', formattedTime.value);
-
-        try {
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { 
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }], 
-                    generationConfig: { responseMimeType: "application/json" } 
-                };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { 
-                    model: config.model, 
-                    messages: [{ role: "user", content: prompt }], 
-                    max_tokens: 300, 
-                    temperature: 0.3 
-                };
-            }
-
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-
-            const cleanJson = resultText.replace(/```json|```/g, '').trim();
-            let result = {};
+            // ❌ 旧代码：const history = uni.getStorageSync(...)
+            // ✅ 新代码：从 SQLite 异步加载该角色的历史消息
             try {
-                result = JSON.parse(cleanJson);
-            } catch (jsonErr) {
-                console.warn('Camera Man JSON error:', jsonErr);
-                return;
-            }
-
-            if (result.description && result.description.length > 5) {
-                // console.log('📷 [Action] Developing photo:', result.description);
-                
-                lastImageGenerationTime.value = Date.now();
-                const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-                
-                messageList.value.push({ 
-                    role: 'system', 
-                    content: '📸 (定格刚才的瞬间...)', 
-                    isSystem: true, 
-                    id: placeholderId 
-                });
-                
-                scrollToBottom();
-                saveHistory();
-                
-                handleAsyncImageGeneration(result.description, placeholderId);
-            }
-        } catch (e) {
-            console.warn('Camera Man failed:', e);
-        }
-    };
-        
-    const runRelationCheck = async (lastUserMsg, aiResponseText) => {
-        if (!aiResponseText || aiResponseText.length < 5) return;
-    
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-    
-        const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
-    
-        const prompt = RELATIONSHIP_PROMPT
-            .replace('{{relation}}', currentRelation.value || "初相识，还没有具体印象")
-            .replace('{{activity}}', currentActivity.value)
-            + `\n\n【Interaction】\n${conversationContext}`;
-    
-        try {
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { model: config.model, messages: [{ role: "user", content: prompt }], max_tokens: 300, temperature: 0.5 }; 
-            }
-    
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-    
-            const state = JSON.parse(resultText.replace(/```json|```/g, '').trim());
-            
-            // 🟢【保留】心理状态日志 - 方便你查看 AI 心态
-            console.log(`❤️ [心态变化] 印象: ${state.relation} | 状态: ${state.activity}`);
-    
-            let hasChange = false;
-            
-            if (state.relation && state.relation !== currentRelation.value) {
-                currentRelation.value = state.relation;
-                hasChange = true;
-            }
-            if (state.activity && state.activity !== currentActivity.value) {
-                currentActivity.value = state.activity;
-                hasChange = true;
-            }
-    
-            if (hasChange) saveCharacterState();
-    
-        } catch (e) {
-            console.warn('Relation check failed:', e);
-        }
-    };
-
-    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText) => {
-        // 1. 基础校验
-        if (!aiResponseText || aiResponseText.length < 2) return;
-        
-        // 2. 冷却检查
-        const now = Date.now();
-        if (now - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) {
-            return;
-        }
-
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-
-        // =================================================================
-        // 🚀 第一阶段：门卫快速检查 (Gatekeeper)
-        // =================================================================
-        // console.log('👀 [Gatekeeper] Checking visual intent...');
-        
-        const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
-            .replace('{{user_msg}}', lastUserMsg)
-            .replace('{{ai_msg}}', aiResponseText);
-
-        let shouldGenerate = false;
-
-        try {
-            // --- 门卫 API 请求 ---
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { 
-                    contents: [{ role: 'user', parts: [{ text: gatekeeperPrompt }] }], 
-                    generationConfig: { responseMimeType: "application/json" } 
-                };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { 
-                    model: config.model, 
-                    messages: [{ role: "user", content: gatekeeperPrompt }], 
-                    max_tokens: 100, 
-                    temperature: 0.1 
-                };
-            }
-
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-
-            let cleanJson = resultText.replace(/```json|```/g, '').trim();
-            const firstOpen = cleanJson.indexOf('{');
-            const lastClose = cleanJson.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose !== -1) {
-                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-            }
-
-            const gateResult = JSON.parse(cleanJson);
-            shouldGenerate = gateResult.result === true;
-
-        } catch (e) {
-            console.warn('Gatekeeper check failed:', e);
-            return; 
-        }
-
-        if (!shouldGenerate) {
-            return; 
-        }
-
-        // =================================================================
-        // ⏳ UI 补位
-        // =================================================================
-        // console.log('✅ [Gatekeeper] Intent detected! Starting UI placeholder...');
-        
-        const placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-        
-        messageList.value.push({ 
-            role: 'system', 
-            content: '📷 正在调整镜头... (构图中)', 
-            isSystem: true, 
-            id: placeholderId 
-        });
-        scrollToBottom();
-        saveHistory(); 
-
-        // =================================================================
-        // 🎨 第二阶段：导演深度生成 (Director)
-        // =================================================================
-        // console.log('🎨 [Director] Composing scene with FULL context...');
-        
-        const directorPrompt = IMAGE_GENERATOR_PROMPT
-            .replace('{{clothes}}', currentClothing.value || "Casual clothes") 
-            .replace('{{location}}', currentLocation.value || "Unknown Indoor") 
-            .replace('{{time}}', formattedTime.value)
-            .replace('{{user_msg}}', lastUserMsg)
-            .replace('{{ai_msg}}', aiResponseText);
-
-        try {
-            // --- 导演 API 请求 ---
-            let targetUrl = '';
-            let requestBody = {};
-            let header = { 'Content-Type': 'application/json' };
-            let baseUrl = config.baseUrl || '';
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-            if (config.provider === 'gemini') {
-                const cleanBase = 'https://generativelanguage.googleapis.com';
-                targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-                requestBody = { 
-                    contents: [{ role: 'user', parts: [{ text: directorPrompt }] }], 
-                    generationConfig: { responseMimeType: "application/json" } 
-                };
-            } else {
-                targetUrl = `${baseUrl}/chat/completions`;
-                header['Authorization'] = `Bearer ${config.apiKey}`;
-                requestBody = { 
-                    model: config.model, 
-                    messages: [{ role: "user", content: directorPrompt }], 
-                    max_tokens: 300, 
-                    temperature: 0.3 
-                };
-            }
-
-            const res = await uni.request({ url: targetUrl, method: 'POST', header, data: requestBody, sslVerify: false });
-            
-            let resultText = "";
-            if (config.provider === 'gemini') {
-                resultText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            } else {
-                let data = res.data;
-                if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e){} }
-                resultText = data?.choices?.[0]?.message?.content || "{}";
-            }
-
-            let cleanJson = resultText.replace(/```json|```/g, '').trim();
-            const firstOpen = cleanJson.indexOf('{');
-            const lastClose = cleanJson.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose !== -1) {
-                cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-            }
-            
-            const directorResult = JSON.parse(cleanJson);
-            // console.log('🎨 [Director] Result:', directorResult);
-
-            if (directorResult.description && directorResult.description.length > 5) {
-                // console.log('📸 [Action] Director generated prompt. Starting ComfyUI...');
-                
-                lastImageGenerationTime.value = Date.now();
-
-                const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
-                if (msgIdx !== -1) {
-                    messageList.value[msgIdx].content = '📷 捕捉瞬间... (显影中)';
-                    messageList.value = [...messageList.value];
+                const history = await DB.select(
+                    `SELECT * FROM messages WHERE chatId = ? ORDER BY timestamp ASC`,
+                    [String(options.id)]
+                );
+                if (history && history.length > 0) {
+                    // 将数据库的 0/1 转回布尔值
+                    messageList.value = history.map(m => ({
+                        ...m,
+                        isSystem: !!m.isSystem
+                    }));
                 }
-                
-                handleAsyncImageGeneration(directorResult.description, placeholderId);
-            } else {
-                messageList.value = messageList.value.filter(m => m.id !== placeholderId);
-            }
-
-        } catch (e) {
-            console.warn('Visual Director pipeline failed:', e);
-            const msgIdx = messageList.value.findIndex(m => m.id === placeholderId);
-            if (msgIdx !== -1) {
-                messageList.value[msgIdx].content = '❌ 构图失败 (系统繁忙)';
-                messageList.value[msgIdx].isError = true;
-                messageList.value[msgIdx].originalPrompt = ""; 
-                saveHistory();
+            } catch (e) {
+                console.error('加载数据库历史失败', e);
             }
         }
-    };
+});
+const clearHistoryAndReset = () => {
+    uni.showModal({
+        title: '彻底重置', content: '确定重置对话与位置吗？',
+        success: (res) => {
+            if (res.confirm) {
+                // 🌟 核心改动：重置为初始家宅位置
+                playerLocation.value = userHome.value;
+                currentLocation.value = charHome.value;
+                // 自动判定重置后的模式
+                interactionMode.value = (playerLocation.value === currentLocation.value) ? 'face' : 'phone';
 
-    const sendMessage = async (isContinue = false, systemOverride = '') => {
-        // 1. 基础校验
-        if (!isContinue && !inputText.value.trim() && !systemOverride) return;
-        if (isLoading.value) return;
-        
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) {
-            uni.showToast({ title: '请配置模型', icon: 'none' });
-            return;
-        }
-        
-        // 2. 处理用户输入上屏
-        if (!isContinue) {
-            if (inputText.value.trim()) {
-                 messageList.value.push({ role: 'user', content: inputText.value });
-                 inputText.value = '';
-            } 
-            else if (systemOverride && (systemOverride.includes('SHUTTER') || systemOverride.includes('SNAPSHOT'))) {
-                 messageList.value.push({ role: 'system', content: '📷 (你举起手机拍了一张)', isSystem: true });
+                messageList.value = [];
+                saveCharacterState();
+                uni.removeStorageSync(`chat_history_${chatId.value}`);
+                uni.navigateBack();
             }
         }
+    });
+};
 
-        scrollToBottom();
-        isLoading.value = true;
-        saveHistory();
-        
-        // 3. 准备 Prompt 数据
-        // 🌟 修正：每次发送前强制刷新用户信息
-        const appUser = uni.getStorageSync('app_user_info') || {};
-        if (appUser.name) userName.value = appUser.name;
 
-        const role = currentRole.value || {};
-        const s = role.settings || {};
-        
-        // 优先使用角色专属昵称，否则用全局昵称
-        const myName = s.userNameOverride || userName.value || appUser.name || 'User';
-        
-        // 构建玩家画像
-        let myProfile = `[User Profile]\nName: ${myName}`;
-        if (s.userOccupation) myProfile += `\nOccupation: ${s.userOccupation}`;
-        if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
-        if (s.userPersona) myProfile += `\nPersonality: ${s.userPersona}`;       
-        if (s.userAppearance || appUser.appearance) myProfile += `\nAppearance: ${s.userAppearance || appUser.appearance}`;
+onHide(() => { stopTimeFlow(); saveCharacterState(); });
+onUnload(() => { stopTimeFlow(); saveCharacterState(); });
 
-        const charName = chatName.value;
-        const charBio = s.bio || "No bio provided.";
-        const charLogic = s.personalityNormal || "React naturally based on your bio.";
-        
-        // 🌟 修正：注入长期记忆摘要 (Memory Injection)
-        const memoryBlock = currentSummary.value ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${currentSummary.value}` : "";
-        
-        // 将记忆拼接到逻辑块中
-        const dynamicLogic = `${charLogic}${memoryBlock}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${currentRelation.value || '初相识，还没有具体印象'}`;
-
-        // 4. 组装最终 System Prompt
-        let prompt = CORE_INSTRUCTION_LOGIC_MODE
-            .replace(/{{char}}/g, charName)
-            .replace(/{{bio}}/g, charBio)
-            .replace(/{{logic}}/g, dynamicLogic) // 包含记忆和心理状态
-            .replace(/{{likes}}/g, s.likes || "Unknown")
-            .replace(/{{dislikes}}/g, s.dislikes || "Unknown")
-            .replace(/{{speaking_style}}/g, s.speakingStyle || "Normal")
-            .replace(/{{current_time}}/g, formattedTime.value)
-            .replace(/{{current_location}}/g, currentLocation.value)
-            .replace(/{{interaction_mode}}/g, interactionMode.value)
-            .replace(/{{current_activity}}/g, currentActivity.value)
-            .replace(/{{current_clothes}}/g, currentClothing.value)
-            .replace(/{{user_profile}}/g, myProfile);
-
-        // 5. 截取历史记录 (Short-term Context)
-        const historyLimit = charHistoryLimit.value; 
-        let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
-        if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
-        
-        // 6. 构造 API 请求
-        let targetUrl = '';
-        let requestBody = {};
-        let baseUrl = config.baseUrl || '';
-        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-        const cleanHistoryForAI = contextMessages.map(item => {
-            let cleanText = item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-            cleanText = cleanText.replace(/\[.*?\]/gi, ''); 
-            return { role: item.role === 'user' ? 'user' : (item.role === 'model' ? 'assistant' : 'system'), content: cleanText };
-        }).filter(m => m.content.trim() !== '');
-
-        if (config.provider === 'gemini') {
-            const cleanBase = 'https://generativelanguage.googleapis.com';
-            targetUrl = `${cleanBase}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-            
-            const geminiContents = cleanHistoryForAI.map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
-            }));
-            if (systemOverride) geminiContents.push({ role: 'user', parts: [{ text: systemOverride }] });
-            
-            requestBody = {
-                contents: geminiContents,
-                system_instruction: { parts: { text: prompt } },
-                // 🌟 修正：增加防复读参数
-                generationConfig: { 
-                    responseMimeType: "application/json", 
-                    temperature: 0.9,       
-                    frequencyPenalty: 0.5,  
-                    presencePenalty: 0.3    
-                }
-            };
-        } else {
-            targetUrl = `${baseUrl}/chat/completions`;
-            const openAIMessages = [{ role: "system", content: prompt }, ...cleanHistoryForAI];
-            if (systemOverride) openAIMessages.push({ role: 'user', content: systemOverride });
-            
-            requestBody = {
-                model: config.model,
-                messages: openAIMessages,
-                max_tokens: 1500,
-                stream: false,
-                // 🌟 修正：增加防复读参数
-                temperature: 0.8,
-                frequency_penalty: 0.5, 
-                presence_penalty: 0.3
-            };
-        }
-        
-        // 7. 发送请求
-        try {
-            const header = { 'Content-Type': 'application/json' };
-            if (config.provider !== 'gemini') header['Authorization'] = `Bearer ${config.apiKey}`;
-            
-            const res = await uni.request({ url: targetUrl, method: 'POST', header: header, data: requestBody, sslVerify: false });
-
-            if (res.statusCode === 200) {
-                let rawText = "";
-                if (config.provider === 'gemini') rawText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                else { 
-                    let data = res.data; 
-                    if (typeof data === 'string') try { data = JSON.parse(data); } catch(e){} 
-                    rawText = data?.choices?.[0]?.message?.content || ""; 
-                }
-
-                if (rawText) processAIResponse(rawText);
-                else uni.showToast({ title: '无内容响应', icon: 'none' });
-            } else {
-                console.error("API Error", res);
-                uni.showToast({ title: `API错误 ${res.statusCode}`, icon: 'none' });
-            }
-        } catch (e) {
-            console.error('Request failed:', e);
-            uni.showToast({ title: '网络错误', icon: 'none' });
-        } finally {
-            isLoading.value = false;
-            scrollToBottom();
-        }
-    };
-    
-    const processAIResponse = (rawText) => {
-        // 1. 基础清洗
-        let displayText = rawText.replace(/^\[(model|assistant|user)\]:\s*/i, '').replace(/^\[SYSTEM.*?\]\s*/i, '').trim();
-        
-        const thinkMatch = displayText.match(/<think>([\s\S]*?)<\/think>/i);
-        const thinkContent = thinkMatch ? thinkMatch[1].trim() : "";
-        
-        // 🟢【保留】思维链日志 - 观察 AI 思考过程
-        if (thinkContent) console.log('🧠 [思考过程]:', thinkContent);
-
-        const genericTagRegex = /<([^\s>]+)[^>]*>[\s\S]*?<\/\1>/gi;
-        displayText = displayText.replace(genericTagRegex, '');
-        const endTagRegex = /<\/[^>]+>/i;
-        if (endTagRegex.test(displayText)) displayText = displayText.split(endTagRegex).pop().trim();
-        displayText = displayText.replace(/\[(LOC|ACT|IMG|MODE|AFF).*?\]/gi, '');
-        displayText = displayText.replace(/^\s*\*\*.*?\*\*\s*/i, ''); 
-
-        const cleanDisplayText = displayText.trim();
-        
-        // 2. 气泡切分
-        if (cleanDisplayText) {
-             let processedText = cleanDisplayText.replace(/\n\s*([”"’])/g, '$1'); 
-             processedText = processedText.replace(/([“"‘])\s*\n/g, '$1');   
-             processedText = processedText.replace(/([（\(])/g, '|||$1');
-             processedText = processedText.replace(/([）\)])/g, '$1|||');
-             let tempText = processedText.replace(/(\r\n|\n|\r)+/g, '|||');
-             tempText = tempText.replace(/(?:\|\|\|)+/g, '|||');
-             
-             const rawParts = tempText.split('|||');
-             rawParts.forEach(part => {
-                 let cleanPart = part.trim();
-                 if (!cleanPart) return;
-                 const historyLen = messageList.value.length;
-                 const lastMsg = historyLen > 0 ? messageList.value[historyLen - 1].content : '';
-                 if (cleanPart !== lastMsg) {
-                     messageList.value.push({ role: 'model', content: cleanPart });
-                 }
-             });
-        }
-        
-        saveHistory();
-        scrollToBottom();
-
-        // =========================================================
-        // 🚀 多智能体协作流水线
-        // =========================================================
-        if (cleanDisplayText) {
-            let lastUserMsg = "";
-            let isCameraAction = false; 
-
-            for (let i = messageList.value.length - 2; i >= 0; i--) {
-                if (messageList.value[i].role === 'user') {
-                    lastUserMsg = messageList.value[i].content;
-                    break;
-                }
-                if (messageList.value[i].role === 'system' && messageList.value[i].content.includes('举起手机拍了一张')) {
-                    lastUserMsg = messageList.value[i].content;
-                    isCameraAction = true;
-                    break;
-                }
-            }
-            
-            if (!isCameraAction && (lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍'))) {
-                isCameraAction = true;
-            }
-            
-            // 🟢【保留】对话日志 - 方便判断质量
-            console.log('📝 [对话监控] -------------------------------------------------');
-            console.log('👤 用户:', lastUserMsg);
-            if (thinkContent) console.log('🧠 思考:', thinkContent);
-            console.log('🤖 回复:', cleanDisplayText);
-            console.log('-----------------------------------------------------------');
-            
-            setTimeout(async () => {
-                try {
-                    // 1. 场景和心理检查
-                    const scenePromise = runSceneCheck(lastUserMsg, cleanDisplayText);
-                    const relationPromise = runRelationCheck(lastUserMsg, cleanDisplayText);
-                    await scenePromise;
-                    
-                    // 2. 视觉分流
-                    if (isCameraAction) {
-                        await runCameraManCheck(lastUserMsg, cleanDisplayText);
-                    } else {
-                        await runVisualDirectorCheck(lastUserMsg, cleanDisplayText);
-                    }
-
-                    await relationPromise;
-                } catch (e) {
-                    console.error('Agent pipeline error:', e);
-                }
-            }, 500); 
-        }
-    };
-        
-    const scrollToBottom = () => {
-        nextTick(() => {
-            scrollIntoView.value = '';
-            setTimeout(() => { scrollIntoView.value = 'scroll-bottom'; }, 100);
-        });
-    };
+onNavigationBarButtonTap((e) => {
+    if (e.key === 'setting') uni.navigateTo({ url: `/pages/create/create?id=${chatId.value}` });
+});
 </script>
 
-
 <style lang="scss" scoped>
-/* ==========================================================================
-   1. 全局容器与布局
-   ========================================================================== */
-.chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background-color: #f5f5f5;
-    overflow: hidden; /* 防止页面整体滚动 */
+/* 1. 基础容器 */
+.chat-container { 
+    display: flex; 
+    flex-direction: column; 
+    height: 100vh; 
+    background-color: #f5f5f5; /* 保持你原来的背景色 */
+    overflow: hidden; 
 }
 
-/* ==========================================================================
-   2. 顶部状态栏
-   ========================================================================== */
+/* 2. 顶部状态栏 - 优化美化版 */
 .status-bar-wrapper {
-    background-color: #fff;
-    padding: 10rpx 30rpx;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    flex-direction: column;
-    gap: 12rpx;
-    flex-shrink: 0; /* 防止被挤压 */
+    background-color: rgba(255, 255, 255, 0.95); /* 增加一点磨砂感 */
+    backdrop-filter: blur(10px);
+    padding: 20rpx 24rpx; 
+    border-bottom: 1px solid rgba(0,0,0,0.05);
     z-index: 10;
+    flex-shrink: 0;
+    box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); /* 轻微投影，增加层次 */
 }
 
 .info-row {
     display: flex;
     justify-content: space-between;
     align-items: stretch;
-    margin-top: 10rpx;
+    height: 100rpx; /* 固定高度，确保布局稳定 */
+    gap: 16rpx;
 }
 
-/* 地点/模式状态盒 */
+/* --- 左侧：角色卡片 --- */
 .location-box {
-    flex: 1;
+    flex: 1.4;
     display: flex;
     align-items: center;
-    padding: 8rpx 20rpx;
-    border-radius: 16rpx;
-    margin-right: 20rpx;
-    transition: all 0.3s;
+    padding: 0 20rpx;
+    border-radius: 20rpx;
     border: 1px solid transparent;
-
-    &.phone-mode {
-        background-color: #f0f3f5;
-        color: #555;
-        border-color: #e1e4e8;
+    transition: all 0.3s;
+    
+    /* 手机模式：简约白灰 */
+    &.mode-phone { 
+        background: linear-gradient(to right, #ffffff, #f7f7f7);
+        border-color: #eee;
+        .icon-circle { background: #f0f0f0; color: #666; }
+        .mode-tag { background: #eee; color: #666; }
     }
-
-    &.face-mode {
-        background-color: #e3f2fd;
-        color: #007aff;
+    
+    /* 见面模式：淡蓝渐变 */
+    &.mode-face { 
+        background: linear-gradient(135deg, #e3f2fd 0%, #f0f8ff 100%);
         border-color: #bbdefb;
+        .icon-circle { background: #fff; color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
+        .mode-tag { background: rgba(255,255,255,0.6); color: #007aff; }
     }
 }
 
-.location-icon {
-    font-size: 36rpx;
+.icon-circle {
+    width: 64rpx; height: 64rpx;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32rpx;
     margin-right: 16rpx;
+    flex-shrink: 0;
 }
 
 .status-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
+}
+
+.loc-row {
+    display: flex; align-items: center; margin-bottom: 4rpx;
+}
+
+.mode-tag {
+    font-size: 18rpx; padding: 2rpx 8rpx; border-radius: 6rpx; 
+    margin-right: 8rpx; font-weight: bold; flex-shrink: 0;
 }
 
 .location-text {
-    font-size: 22rpx;
-    font-weight: bold;
-    opacity: 0.9;
+    font-size: 26rpx; font-weight: bold; color: #333;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .activity-text {
-    font-size: 20rpx;
-    opacity: 0.7;
-    margin-top: 2rpx;
+    font-size: 20rpx; color: #888;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* 时间显示盒 */
-.time-box {
+/* --- 右侧：状态组 (改为上下胶囊结构) --- */
+.right-status-group {
+    flex: 0.9;
     display: flex;
-    align-items: center;
-    font-size: 24rpx;
-    color: #555;
-    background-color: #f8f8f8;
-    padding: 0 24rpx;
-    border-radius: 16rpx;
-    border: 1px solid #eee;
+    flex-direction: column; /* 垂直排列，上下各一个胶囊 */
+    justify-content: space-between;
+    gap: 8rpx;
 }
 
-.time-icon {
-    margin-right: 8rpx;
-}
-
-/* ==========================================================================
-   3. 聊天内容区域
-   ========================================================================== */
-.chat-scroll {
+.status-pill {
     flex: 1;
-    overflow: hidden;
-    background-color: #f5f5f5;
-}
-
-.chat-content {
-    padding: 20rpx;
-    padding-bottom: 40rpx;
-}
-
-.system-tip {
-    text-align: center;
-    color: #aaa;
-    font-size: 24rpx;
-    margin-bottom: 30rpx;
-    font-style: italic;
-}
-
-.message-item {
-    display: flex;
-    margin-bottom: 30rpx;
-    width: 100%;
-
-    &.left {
-        flex-direction: row;
-        .avatar { margin-right: 20rpx; }
-    }
-
-    &.right {
-        flex-direction: row-reverse;
-        .avatar { margin-left: 20rpx; }
-    }
-}
-
-.avatar {
-    width: 80rpx;
-    height: 80rpx;
-    border-radius: 10rpx;
-    background-color: #ddd;
-    flex-shrink: 0;
-}
-
-.bubble-wrapper {
-    max-width: 72%;
-    display: flex;
-    flex-direction: column;
-}
-
-.bubble {
-    padding: 18rpx 24rpx;
-    border-radius: 16rpx;
-    font-size: 30rpx;
-    line-height: 1.5;
-    box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.05);
-
-    &.left-bubble {
-        background-color: #ffffff;
-        color: #333;
-        border-top-left-radius: 4rpx;
-    }
-
-    &.right-bubble {
-        background-color: #95ec69;
-        color: #000;
-        border-top-right-radius: 4rpx;
-    }
-    
-    &.image-bubble {
-        padding: 0;
-        background-color: transparent !important;
-        box-shadow: none;
-        overflow: hidden;
-    }
-}
-
-.chat-image {
-    width: 400rpx;
-    border-radius: 16rpx;
-    box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.1);
-    display: block;
-}
-
-.msg-text {
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
-/* 系统事件/错误消息 */
-.system-event {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin: 20rpx 0;
-
-    text {
-        background-color: rgba(0, 0, 0, 0.1);
-        color: #666;
-        font-size: 22rpx;
-        padding: 6rpx 20rpx;
-        border-radius: 20rpx;
-    }
-}
-
-.error-system-msg {
-    background-color: #ffebee !important;
-    color: #ff4757 !important;
-    border: 1px solid #ffcdd2;
-    cursor: pointer;
-
-    &:active {
-        opacity: 0.7;
-        transform: scale(0.95);
-    }
-}
-
-.loading-wrapper {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20rpx;
-}
-
-.loading-dots {
-    color: #999;
-    letter-spacing: 4rpx;
-    font-weight: bold;
-}
-
-/* ==========================================================================
-   4. 底部交互区域 (Footer Area) - 新版
-   ========================================================================== */
-.footer-area {
-    background-color: #f7f7f7;
-    border-top: 1px solid #e5e5e5;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    z-index: 99;
-    flex-shrink: 0;
-}
-
-/* 建议气泡栏 */
-.suggestion-bar {
-    display: flex;
-    gap: 15rpx;
-    padding: 15rpx 20rpx;
-    background-color: #fff;
-    border-bottom: 1px solid #f0f0f0;
-    white-space: nowrap;
-    overflow-x: auto;
-}
-
-.suggestion-chip {
-    background-color: #f0f8ff;
-    color: #007aff;
-    padding: 8rpx 24rpx;
-    border-radius: 30rpx;
-    font-size: 24rpx;
-    border: 1px solid #dbeafe;
-    flex-shrink: 0;
-    
-    &:active {
-        background-color: #dbeafe;
-    }
-}
-
-.close-suggestion {
-    padding: 0 15rpx;
-    color: #999;
-    font-size: 32rpx;
     display: flex;
     align-items: center;
-}
-
-/* 工具栏 (可折叠) */
-.tool-bar {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 20rpx 10rpx;
-    background-color: #fcfcfc;
-    border-bottom: 1px solid #eee;
-    animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(10rpx); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.tool-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 120rpx;
-}
-
-.tool-icon {
-    font-size: 40rpx;
-    margin-bottom: 6rpx;
-    width: 80rpx;
-    height: 80rpx;
-    background: #fff;
-    border-radius: 20rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.05);
-}
-
-.tool-text {
+    padding: 0 16rpx;
+    border-radius: 12rpx;
     font-size: 22rpx;
-    color: #666;
 }
-
-.disabled-tool {
-    opacity: 0.5;
-    filter: grayscale(100%);
-}
-
-/* 输入行 (Input Row) */
-.input-row {
-    display: flex;
-    align-items: center;
-    padding: 16rpx 20rpx;
-    background-color: #f7f7f7;
-}
-
-.toggle-btn {
-    width: 70rpx;
-    height: 70rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 16rpx;
-}
-
-.toggle-icon {
-    font-size: 44rpx;
-    color: #666;
-    transition: transform 0.3s ease;
-    
-    &.rotated {
-        transform: rotate(45deg);
-        color: #333;
+.selected-msg {
+    .bubble {
+        opacity: 0.7;
+        transform: scale(0.98);
+        border: 2rpx solid #007aff !important;
     }
 }
 
-.text-input {
-    flex: 1;
-    height: 76rpx;
-    background: #fff;
-    border-radius: 10rpx;
-    padding: 0 20rpx;
-    font-size: 30rpx;
-    margin-right: 16rpx;
-}
-
-.send-btn {
-    width: 120rpx;
-    height: 76rpx;
-    background: #95ec69;
-    color: #000;
-    line-height: 76rpx;
-    font-size: 28rpx;
-    padding: 0;
-    margin: 0;
-    font-weight: bold;
-    border-radius: 10rpx;
-
-    &.disabled {
-        background: #e0e0e0;
-        color: #999;
-    }
-}
-
-.btn-hover {
-    opacity: 0.7;
-    transform: scale(0.96);
-}
-
-.safe-area-bottom {
-    height: constant(safe-area-inset-bottom);
-    height: env(safe-area-inset-bottom);
-    background-color: #f7f7f7;
-}
-
-/* ==========================================================================
-   5. 弹窗面板 (时间设置等)
-   ========================================================================== */
-.time-panel-mask {
+.edit-toolbar {
     position: fixed;
-    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 100;
+    height: 100rpx;
+    background: #fff;
     display: flex;
-    justify-content: center;
     align-items: center;
-}
-
-.time-panel {
-    width: 600rpx;
-    background-color: #fff;
-    border-radius: 20rpx;
-    padding: 30rpx;
-    animation: popIn 0.2s ease-out;
-}
-
-@keyframes popIn {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-.panel-title {
-    font-size: 32rpx;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 30rpx;
-    color: #333;
-}
-
-.grid-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20rpx;
-    margin-bottom: 30rpx;
-}
-
-.grid-btn {
-    background-color: #f0f8ff;
-    color: #007aff;
-    text-align: center;
-    padding: 20rpx 0;
-    border-radius: 10rpx;
-    font-size: 28rpx;
-    font-weight: 500;
+    justify-content: space-between;
+    padding: 0 40rpx;
+    box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.1);
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
     
-    &:active {
-        background-color: #dbeafe;
+    .delete-confirm-btn { color: #ff4d4f; font-weight: bold; }
+    .cancel-btn { color: #666; }
+    .count-tip { font-size: 24rpx; color: #999; }
+}
+/* 玩家位置胶囊 (绿色) */
+.player-pill {
+    background: #f0f9eb; border: 1px solid #e1f3d8; color: #166534;
+    .pill-icon { margin-right: 8rpx; font-size: 24rpx; }
+    .pill-text { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* 时间胶囊 (白色) */
+.time-pill {
+    background: #fff; border: 1px solid #eee; color: #333;
+    justify-content: space-between; /* 时间和星期左右分布 */
+    .time-clock { font-weight: bold; font-size: 26rpx; font-family: Helvetica, sans-serif; }
+    .time-week { color: #999; font-size: 20rpx; }
+}
+
+/* 3. 聊天内容区 */
+.chat-scroll { flex: 1; overflow: hidden; }
+.chat-content { padding: 20rpx; padding-bottom: 240rpx; }
+.system-tip { text-align: center; color: #aaa; font-size: 24rpx; margin-bottom: 30rpx; }
+.message-item { display: flex; margin-bottom: 30rpx; &.left { flex-direction: row; .avatar { margin-right: 20rpx; } } &.right { flex-direction: row-reverse; .avatar { margin-left: 20rpx; } } }
+.avatar { width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; background-color: #eee; }
+.bubble-wrapper { max-width: 72%; }
+.bubble { padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; &.left-bubble { background-color: #fff; color: #333; border-top-left-radius: 4rpx; } &.right-bubble { background-color: #95ec69; color: #000; border-top-right-radius: 4rpx; } &.image-bubble { padding: 0; background: transparent; box-shadow: none; } }
+.chat-image { width: 400rpx; border-radius: 16rpx; }
+.system-event { width: 100%; text-align: center; margin: 20rpx 0; text { background: rgba(0,0,0,0.05); color: #999; font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 20rpx; } }
+.error-system-msg { background: #ffebee; color: #ff4757; border: 1px solid #ffcdd2; }
+.loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
+.loading-dots { color: #999; font-weight: bold; }
+
+/* 4. 底部工具栏 */
+.footer { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #eee; z-index: 99; padding-bottom: env(safe-area-inset-bottom); }
+.input-area { display: flex; align-items: center; padding: 16rpx 20rpx; background: #f7f7f7; }
+.action-btn { width: 70rpx; height: 70rpx; display: flex; align-items: center; justify-content: center; margin-right: 16rpx; font-size: 44rpx; color: #666; }
+.input { flex: 1; height: 76rpx; background: #fff; border-radius: 38rpx; padding: 0 30rpx; font-size: 30rpx; margin-right: 16rpx; border: 1px solid #e5e5e5; }
+.send-btn { width: 120rpx; height: 76rpx; background: #007aff; color: #fff; line-height: 76rpx; border-radius: 38rpx; text-align: center; font-size: 28rpx; font-weight: bold; }
+.toolbar-compact { background: #f9f9f9; border-bottom: 1px solid #eee; padding: 16rpx 10rpx; }
+.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
+.tool-item { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10rpx 0; border-radius: 12rpx; }
+.tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
+.tool-text { font-size: 20rpx; color: #666; }
+
+/* 5. 弹窗 */
+.time-panel-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; justify-content: center; align-items: center; }
+.time-panel { width: 600rpx; background: #fff; border-radius: 24rpx; padding: 40rpx 30rpx; animation: popCenter 0.25s; }
+@keyframes popCenter { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.panel-title { font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 40rpx; }
+.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; max-height: 60vh; overflow-y: auto; }
+.grid-btn { background: #f0f8ff; color: #007aff; text-align: center; padding: 24rpx 0; border-radius: 12rpx; font-size: 28rpx; }
+.custom-time { display: flex; align-items: center; justify-content: center; margin-top: 30rpx; gap: 10rpx; }
+.mini-input { width: 100rpx; border-bottom: 1px solid #ddd; text-align: center; }
+.mini-btn { background: #eee; padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; }
+.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
+.picker-display { border: 1px solid #ddd; padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; background: #f8f8f8; }
+.confirm-time-btn { background: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
+/* 编辑模式全局：让没选中的变淡，选中的保持清晰或加重 */
+.not-selected {
+    opacity: 0.3; /* 没选中的直接变成 30% 透明度，非常明显 */
+    filter: grayscale(80%); /* 并且变灰 */
+}
+
+.is-selected {
+    .bubble {
+        background-color: #007aff !important; /* 选中的气泡强制变深蓝色 */
+        color: #fff !important;
+        transform: scale(1.05); /* 稍微放大一点点 */
+        border: 2rpx solid #0056b3 !important;
     }
 }
 
-.custom-time {
+/* 勾选小圆圈 */
+.select-check-icon {
+    display: flex; align-items: center; padding: 0 10rpx;
+    .circle {
+        width: 36rpx; height: 36rpx; border: 2rpx solid #999; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; font-size: 24rpx;
+        &.checked { background: #007aff; border-color: #007aff; color: #fff; }
+    }
+}
+
+/* 底部删除条 */
+.edit-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    height: 100rpx; padding: 0 40rpx; background: #fff; border-top: 1px solid #eee;
+}
+.ratio-input-box {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 10rpx;
-    font-size: 28rpx;
-    color: #666;
-}
-
-.mini-input {
-    width: 100rpx;
-    border-bottom: 1px solid #ddd;
-    text-align: center;
-    font-size: 28rpx;
-    color: #333;
-}
-
-.mini-btn {
-    background-color: #eee;
-    padding: 10rpx 20rpx;
-    border-radius: 8rpx;
-    font-size: 24rpx;
-}
-
-.setting-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 30rpx;
-    justify-content: center;
-}
-
-.setting-label {
-    width: 100rpx;
-    font-size: 30rpx;
-    color: #666;
-    text-align: right;
-}
-
-.picker-display {
-    border: 1px solid #ddd;
-    padding: 10rpx 30rpx;
+    background: #f0f0f0;
+    padding: 8rpx 20rpx;
     border-radius: 10rpx;
-    min-width: 240rpx;
-    text-align: center;
-    background-color: #f8f8f8;
-    color: #333;
-    font-size: 30rpx;
+    .txt { font-size: 24rpx; color: #666; }
+    .mini-input { 
+        width: 80rpx; 
+        text-align: center; 
+        font-weight: bold; 
+        color: #007aff; 
+        border-bottom: 2rpx solid #007aff;
+        margin: 0 10rpx;
+    }
+}
+/* 🧠 心理活动气泡样式 */
+.think-bubble {
+    margin: 10rpx 0;
+    opacity: 0.9;
 }
 
-.confirm-time-btn {
-    background-color: #007aff;
-    color: #fff;
-    width: 100%;
-    border-radius: 40rpx;
-    margin-top: 20rpx;
-    font-size: 30rpx;
-    line-height: 88rpx;
+.think-bubble text {
+    background: transparent !important;
+    color: #888 !important; /* 灰色文字 */
+    font-size: 24rpx;       /* 字号稍小 */
+    font-style: italic;     /* 斜体 */
+    font-family: serif;     /* 衬线体，更有旁白感 */
+    padding: 8rpx 24rpx;
+    border: 2rpx dashed #dcdcdc; /* 虚线边框 */
+    border-radius: 20rpx;
+    display: inline-block;
+}
+/* 图片失败占位符样式 */
+.image-error-box {
+    width: 400rpx;
+    height: 300rpx;
+    background-color: #f8f8f8;
+    border: 2rpx dashed #ff4d4f;
+    border-radius: 16rpx;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16rpx;
+    
+    .error-icon {
+        font-size: 48rpx;
+    }
+    
+    .error-text {
+        font-size: 26rpx;
+        color: #ff4d4f;
+    }
+    
+    .retry-btn {
+        display: flex;
+        align-items: center;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 8rpx 24rpx;
+        border-radius: 30rpx;
+        font-size: 24rpx;
+        color: #333;
+        box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+        
+        .retry-icon {
+            font-size: 24rpx;
+            margin-right: 8rpx;
+            font-weight: bold;
+        }
+        
+        &:active {
+            background-color: #f0f0f0;
+            transform: scale(0.98);
+        }
+    }
 }
 </style>

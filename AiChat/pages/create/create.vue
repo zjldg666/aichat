@@ -125,12 +125,23 @@
                   <view class="category-block">
                       <text class="block-title">A. 头部特征</text>
                       
-                      <view class="feature-row">
-                          <text class="feat-label">画风锁定 (Style)</text>
+<view class="feature-row">
+                          <text class="feat-label">画风/面貌 (Face Style)</text>
+                          
                           <view class="input-row">
-                              <input class="mini-input-text" v-model="formData.faceStyle" placeholder="选择或输入 (如: flat color)" />
+                              <input class="mini-input-text" 
+                                     v-model="formData.faceStyle" 
+                                     placeholder="例: sharp eyes, smug smile (自信吊眼)" />
                           </view>
-                          <view class="tip" style="margin-bottom: 10rpx;">自定义提示：可填 1990s (复古), sketch (素描), oil painting (油画) 等。</view>
+                          
+                          <view class="tip" style="margin-bottom: 12rpx; font-size: 22rpx; color: #666; line-height: 1.5; background: #f9f9f9; padding: 12rpx; border-radius: 8rpx;">
+                              <view class="tip" style="margin-bottom: 12rpx; font-size: 22rpx; color: #666; line-height: 1.5; background: #f9f9f9; padding: 12rpx; border-radius: 8rpx;">
+                                                            <text style="font-weight: bold; color: #333;">💡 自定义指南 (英文词汇)：</text><br/>
+                                                            👀 <text style="color:#007aff;">眼型：</text> tsurime (吊眼), tareme (下垂眼), sanpaku (三白眼), slit pupils (竖瞳)<br/>
+                                                            ✨ <text style="color:#007aff;">气质：</text> shy (害羞), gloomy (阴郁/黑眼圈), arrogant (傲慢), gentle (温柔), expressionless (无表情)
+                                                        </view>
+                          </view>
+
                           <scroll-view scroll-x class="chips-scroll">
                               <view class="chips-flex">
                                   <view v-for="(tags, key) in FACE_STYLES_MAP" :key="key" 
@@ -176,7 +187,22 @@
 
                   <view class="category-block">
                       <text class="block-title">B. 上身穿搭 (Top)</text>
-                      
+                      <view class="feature-row">
+                                                <text class="feat-label">穿衣模式</text>
+                                                <scroll-view scroll-x class="chips-scroll">
+                                                    <view class="chips-flex">
+                                                        <view v-for="item in OPTIONS.wearStatus" :key="item" 
+                                                              class="chip" 
+                                                              :class="{
+                                                                  'active': formData.charFeatures.wearStatus === item,
+                                                                  'chip-warn': item === '暴露/H' 
+                                                              }" 
+                                                              @click="setFeature('char', 'wearStatus', item)">
+                                                            {{item}}
+                                                        </view>
+                                                    </view>
+                                                </scroll-view>
+                                            </view>
                       <view class="feature-row">
                           <text class="feat-label">上衣颜色</text>
                           <input class="mini-input-text" v-model="formData.charFeatures.topColor" placeholder="自定义颜色" />
@@ -287,7 +313,7 @@
                   </view>
 
                   <view class="category-block">
-                      <text class="block-title" style="color: #ff6b81;">E. 秘密花园 (NSFW)</text>
+                      <text class="block-title" style="color: #ff6b81;">E. dddd</text>
                       
                       <view class="feature-row">
                           <text class="feat-label">蓓蕾颜色</text>
@@ -480,37 +506,71 @@
            </view>
         </view>
       </view>
-
-      <view class="form-section">
-        <view class="section-header" @click="toggleSection('init')">
-          <view class="section-title-wrapper"><view class="section-title">初始状态设置</view></view>
-          <text class="arrow-icon">{{ activeSections.init ? '▼' : '▶' }}</text>
-        </view>
-        <view v-show="activeSections.init" class="section-content">
-             <view class="input-item" style="border-top: 1px dashed #eee; padding-top: 20rpx; margin-top: 20rpx;">
-                  <view class="label-row">
-                      <text class="label">🤖 允许角色主动找我</text>
-                      <switch :checked="formData.allowProactive" @change="(e) => formData.allowProactive = e.detail.value" color="#007aff"/>
-                  </view>
-                  
-                  <template v-if="formData.allowProactive">
-                      <view class="slider-header" style="margin-top: 20rpx;">
-                          <text class="label">主动间隔: {{ formData.proactiveInterval }} 小时</text>
-                      </view>
-                      <slider :value="formData.proactiveInterval" min="1" max="48" step="1" show-value activeColor="#007aff" @change="(e) => formData.proactiveInterval = e.detail.value" />
-                      <view class="tip">当您离开 App 超过这个时间，角色可能会主动发消息。</view>
-
-                      <view class="label-row" style="margin-top: 20rpx;">
-                          <text class="label">🔔 开启系统弹窗通知</text>
-                          <switch :checked="formData.proactiveNotify" @change="(e) => formData.proactiveNotify = e.detail.value" color="#ff9f43"/>
-                      </view>
-                      <view class="tip" v-if="formData.proactiveNotify">需在手机设置中允许 App 通知权限。</view>
-                  </template>
-             </view>
-        </view>
-      </view>
       
       <view class="form-section">
+		  
+	  <view class="form-section">
+	            <view class="section-header" @click="toggleSection('memory_manage')">
+	              <view class="section-title-wrapper">
+	                <view class="section-title" style="color: #9b59b6;">记忆与日记管理</view>
+	                <text class="section-subtitle">查看她的秘密日记</text>
+	              </view>
+	              <text class="arrow-icon">{{ activeSections.memory_manage ? '▼' : '▶' }}</text>
+	            </view>
+	            
+	            <view v-show="activeSections.memory_manage" class="section-content">
+	                <view class="input-item" style="background:#e3f2fd; padding:15rpx; border-radius:12rpx;">
+	                    <view class="slider-header">
+	                        <text class="label" style="color:#007aff; font-weight:bold;">🧠 最近印象 (Active): {{ formData.activeMemoryDays }} 天</text>
+	                    </view>
+	                    <slider :value="formData.activeMemoryDays" min="0" max="7" step="1" show-value activeColor="#007aff" @change="(e) => formData.activeMemoryDays = e.detail.value" />
+	                    <view class="tip" style="color:#666;">这几天的回忆大纲会<text style="font-weight:bold; color:#007aff">始终</text>包含在对话背景里，直接影响她的当下语气。</view>
+	                </view>
+	            
+	                <view class="input-item" style="margin-top:20rpx; background:#f3e5f5; padding:15rpx; border-radius:12rpx;">
+	                    <view class="slider-header">
+	                        <text class="label" style="color:#9b59b6; font-weight:bold;">📚 往事检索范围 (Passive): {{ formData.diaryHistoryLimit }} 天</text>
+	                    </view>
+	                    <slider :value="formData.diaryHistoryLimit" min="7" max="60" step="1" show-value activeColor="#9b59b6" @change="(e) => formData.diaryHistoryLimit = e.detail.value" />
+	                    <view class="tip" style="color:#666;">当你问起很久以前的事时，她会在这个范围内进行搜索和回忆。</view>
+	                </view>
+	            
+	                <view class="diary-list" style="margin-top: 40rpx;">
+	                    <text class="label" style="margin-bottom: 20rpx; display: block;">📖 往事日记本 ({{ diaryList.length }})</text>
+	                    
+	                    <view v-if="diaryList.length === 0" class="empty-tip" style="text-align:center; color:#999; padding:20rpx; font-size: 24rpx;">
+	                        暂无日记，去和她多聊聊天吧~
+	                    </view>
+	  
+						<view 
+						v-for="(log, index) in diaryList" 
+						:key="index" 
+						class="diary-item" 
+						style="background:#fff; padding:20rpx; margin-bottom:16rpx; border-radius:12rpx; border:1px solid #eee;"
+						@click="log.expanded = !log.expanded"
+						@longpress="handleDeleteDiary(log, index)" 
+						>
+
+	                      <view class="diary-header" style="display:flex; justify-content:space-between; align-items:center;">
+	                        <text class="diary-date" style="font-size:24rpx; color:#999;">{{ log.dateStr }}</text>
+	                        <text class="diary-mood" style="font-size:24rpx; background:#f0f0f0; padding:2rpx 10rpx; border-radius:8rpx;">{{ log.mood || '❤️' }}</text>
+	                      </view>
+	                      
+	                      <view class="diary-brief" style="font-size:28rpx; font-weight:bold; margin:10rpx 0; color:#333;">
+	                        {{ log.brief }}
+	                      </view>
+	                      
+	                      <view v-if="log.expanded" class="diary-detail" style="margin-top:16rpx; padding-top:16rpx; border-top:1px dashed #eee; font-size:26rpx; color:#555; line-height:1.6;">
+	                        {{ log.detail }}
+	                      </view>
+	                      
+	                      <view v-else style="text-align:center;">
+	                          <text style="font-size:20rpx; color:#ccc;">▼ 点击展开详情</text>
+	                      </view>
+	                    </view>
+	                </view>
+	            </view>
+	          </view>
           <view class="section-header" @click="toggleSection('memory')">
             <view class="section-title-wrapper"><view class="section-title" style="color: #9b59b6;">记忆增强</view></view>
             <text class="arrow-icon">{{ activeSections.memory ? '▼' : '▶' }}</text>
@@ -561,41 +621,25 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { saveToGallery } from '@/utils/gallery-save.js';
-import { COMFY_WORKFLOW_TEMPLATE } from '@/utils/constants.js';
+// saveToGallery 不需要了，因为已经在 useCharacterCreate 里引入了
+// import { saveToGallery } from '@/utils/gallery-save.js'; 
+// 在 script setup 顶部
+import { DB } from '@/utils/db.js';
+// 引入常量
+import { FACE_STYLES_MAP, FACE_LABELS } from '@/utils/constants.js';
+// 引入逻辑 Hook
+import { useCharacterCreate } from '@/composables/useCharacterCreate.js';
 
 // =========================================================================
-// 1. 常量定义
+// 1. 常量定义 (UI 选项保留在页面内是没问题的)
 // =========================================================================
-
-const FACE_STYLES_MAP = {
-    'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
-    'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
-    'sexy': 'mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara',
-    'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
-    'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
-    'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
-};
-
-const FACE_LABELS = {
-    'cute': '🍭 可爱/幼态',
-    'cool': '❄️ 高冷/御姐',
-    'sexy': '💋 成熟/人妻',
-    'energetic': '🌟 元气/活泼',
-    'emotionless': '😐 三无/冷淡',
-    'yandere': '🔪 病娇/黑化'
-};
-
-// 🌟 常量更新：拆分发色/发型，拆分上下装，拆分下身部位，隐晦NSFW
 const OPTIONS = {
     hairColor: ['黑色', '银白', '金色', '粉色', '红色', '蓝色', '紫色', '棕色'],
     hairStyle: ['长直发', '大波浪', '双马尾', '短发', '姬发式', '丸子头', '单马尾', '凌乱发'],
     eyeColor: ['红色', '蓝色', '金色', '绿色', '紫色', '黑色', '异色'],
     wearStatus: ['正常穿戴', '暴露/H'], 
     
-    // 上装 (Top)
     topStyle: ['T恤', '衬衫', '毛衣', '吊带背心', '抹胸', '比基尼上衣', '运动内衣', '水手服上衣', '旗袍上身', '透视衫'],
-    // 下装 (Bottom)
     bottomStyle: ['百褶裙', '牛仔短裤', '瑜伽裤', '包臀裙', '比基尼泳裤', '蕾丝内裤', '丁字裤(T-back)', '开档内裤', '运动短裤', '牛仔长裤'],
     
     clothingColor: ['白色', '黑色', '粉色', '蓝色', '红色', '紫色', '黑白相间'],
@@ -603,13 +647,11 @@ const OPTIONS = {
     skinGloss: ['自然哑光', '柔嫩白皙', '水润微光', '油亮光泽', '汗湿淋漓', '晒痕'],
     chestSize: ['贫乳(Flat)', '微乳(Small)', '丰满(Medium)', '巨乳(Large)', '爆乳(Huge)'],
     
-    // NSFW 隐晦版
     nippleColor: ['淡粉色', '粉红', '红润', '深褐色', '肿胀'],
     waist: ['纤细腰身', '柔软腰肢', '丰满腰臀', '马甲线', '人鱼线'],
     hips: ['丰满圆润', '挺翘', '安产型宽胯', '肉感'],
     legs: ['纤细长腿', '肉感大腿', '筷子腿', '肌肉线条'],
     
-    // 隐晦词汇 (UI显示用，Prompt逻辑里还是会翻译成对应的Tag)
     pubicHair: ['白虎(无毛)', '一线天', '修剪整齐', '自然茂盛', '爱心形状'], 
     vulvaType: ['馒头型(饱满)', '粉嫩(Pink)', '紧致', '湿润(Wet)', '蝴蝶型(外翻)'],
     
@@ -654,7 +696,7 @@ const PERSONALITY_TEMPLATES = {
 };
 
 // =========================================================================
-// 2. 状态管理
+// 2. 状态管理 (必须先定义这些，才能传给 useCharacterCreate)
 // =========================================================================
 
 const isEditMode = ref(false);
@@ -665,62 +707,50 @@ const currentTemplateKey = ref('');
 const activeSections = ref({ basic: false, player: false, core: false, init: false, memory: false, danger: false });
 const toggleSection = (key) => { activeSections.value[key] = !activeSections.value[key]; };
 
-// 🌟 更新：subSections 增加了 charWork
 const subSections = ref({ charWorld: false, charWork: false, charLooks: false, userWorld: false, userLooks: false });
 const toggleSubSection = (key) => { subSections.value[key] = !subSections.value[key]; };
 
 const worldList = ref([]);
 const worldIndex = ref(-1);
 const userWorldIndex = ref(-1);
-
-const tempClothingTagsForAvatar = ref('');
-
+const diaryList = ref([]);
 const formData = ref({
   // --- 基础信息 ---
   name: '', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
+  
+  diaryHistoryLimit: 30, // 默认检索 30 天
+    activeMemoryDays: 3,   // ✨ 新增：默认记住最近 3 天
   // --- 核心外貌数据 ---
   appearance: '',       
   appearanceSafe: '',   
   appearanceNsfw: '',   
   
   faceStyle: 'cute', 
-  // 🌟 数据结构更新：适配拆分后的特征
   charFeatures: {
       hairColor: '', hairStyle: '', eyeColor: '',
       wearStatus: '正常穿戴',
-      
-      // 上装
       topColor: '', topStyle: '',
-      // 下装
       bottomColor: '', bottomStyle: '',
       legWear: '',
-      
       skinGloss: '',
       chestSize: '', nippleColor: '',
-      
-      // 下身拆分
       waist: '', hips: '', legs: '',
-      
       pubicHair: '', vulvaType: ''
   },
   
-  // 工作与作息
   workplace: '',          
   workStartHour: 9,       
   workEndHour: 18,        
   workDays: [1, 2, 3, 4, 5], 
 
-  // 细节
   speakingStyle: '', 
   likes: '',          
   dislikes: '',       
-  
   personalityNormal: '', 
 
-  // 玩家设定
   userNameOverride: '', 
   userRelation: '',     
   userPersona: '',      
@@ -728,7 +758,6 @@ const formData = ref({
   userAppearance: '', 
   userFeatures: { hair: '', body: '', privates: '' },
 
-  // 系统设置
   maxReplies: 1, 
   initialAffection: 10,
   initialLust: 0, 
@@ -739,6 +768,60 @@ const formData = ref({
   
   historyLimit: 20, enableSummary: false, summaryFrequency: 20, summary: ''
 });
+
+
+// AiChat/pages/create/create.vue
+
+/**
+ * 处理长按删除日记
+ * @param {Object} log - 日记对象
+ * @param {number} index - 在当前列表中的索引
+ */
+const handleDeleteDiary = (log, index) => {
+    // 震动反馈（增强体验）
+    uni.vibrateShort();
+
+    uni.showModal({
+        title: '删除日记',
+        content: `确定要抹除这段往事吗？\n「${log.brief}」\n删除后将无法恢复，且AI也会忘记这段记忆。`,
+        confirmColor: '#ff4757',
+        success: async (res) => {
+            if (res.confirm) {
+                try {
+                    // 1. 从 SQLite 数据库中物理删除
+                    // 使用 log.id 作为唯一标识，这个 ID 是在数据库查询时带出来的
+                    await DB.execute(
+                        `DELETE FROM diaries WHERE id = ?`, 
+                        [log.id]
+                    );
+
+                    // 2. 从当前页面的响应式列表中移除，实现无感刷新
+                    diaryList.value.splice(index, 1);
+
+                    uni.showToast({
+                        title: '已从记忆中抹除',
+                        icon: 'success'
+                    });
+                    
+                    console.log(`✅ [DB] Diary ID ${log.id} deleted successfully.`);
+                } catch (e) {
+                    console.error('❌ 删除日记失败:', e);
+                    uni.showToast({
+                        title: '删除失败',
+                        icon: 'none'
+                    });
+                }
+            }
+        }
+    });
+};
+// ✨✨✨ 修正位置：必须在 formData 定义之后调用！✨✨✨
+const {
+    generateEnglishPrompt,
+    generateUserDescription,
+    autoGenerateBehavior,
+    generateAvatar
+} = useCharacterCreate(formData, targetId);
 
 const selectedWorld = computed(() => (worldIndex.value > -1 && worldList.value[worldIndex.value]) ? worldList.value[worldIndex.value] : null);
 const selectedUserWorld = computed(() => (userWorldIndex.value > -1 && worldList.value[userWorldIndex.value]) ? worldList.value[userWorldIndex.value] : null);
@@ -751,263 +834,20 @@ const setFeature = (type, key, value) => {
 };
 
 const weekDayOptions = [
-    { label: '一', value: 1 },
-    { label: '二', value: 2 },
-    { label: '三', value: 3 },
-    { label: '四', value: 4 },
-    { label: '五', value: 5 },
-    { label: '六', value: 6 },
-    { label: '日', value: 0 }
+    { label: '一', value: 1 }, { label: '二', value: 2 }, { label: '三', value: 3 },
+    { label: '四', value: 4 }, { label: '五', value: 5 }, { label: '六', value: 6 }, { label: '日', value: 0 }
 ];
 
 const toggleWorkDay = (val) => {
     const idx = formData.value.workDays.indexOf(val);
-    if (idx > -1) {
-        formData.value.workDays.splice(idx, 1);
-    } else {
-        formData.value.workDays.push(val);
-    }
-};
-
-const getCurrentLlmConfig = () => {
-    const schemes = uni.getStorageSync('app_llm_schemes') || [];
-    const idx = uni.getStorageSync('app_current_scheme_index') || 0;
-    if (schemes.length > 0 && schemes[idx]) {
-        return schemes[idx];
-    }
-    return null;
+    if (idx > -1) formData.value.workDays.splice(idx, 1);
+    else formData.value.workDays.push(val);
 };
 
 // =========================================================================
-// 3. API 与 生成逻辑
+// ❌ 重点：这里原来的 4 个 generate 函数全部删除了！
+// 因为它们已经通过上面的 useCharacterCreate 引入了。
 // =========================================================================
-
-const performLlmRequest = async (prompt, customSystem = null) => {
-    const chatConfig = getCurrentLlmConfig();
-    if (!chatConfig || !chatConfig.apiKey) {
-        throw new Error('未配置 API Key');
-    }
-
-    let baseUrl = chatConfig.baseUrl || '';
-    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-    let targetUrl = '';
-    let method = 'POST';
-    let headers = { 'Content-Type': 'application/json' };
-    let requestData = {};
-
-    const systemInstruction = customSystem || "You are a prompt translator. Output only English tags.";
-
-    if (chatConfig.provider === 'gemini') {
-        const cleanBase = 'https://generativelanguage.googleapis.com'; 
-        targetUrl = `${cleanBase}/v1beta/models/${chatConfig.model}:generateContent?key=${chatConfig.apiKey}`;
-        requestData = {
-            contents: [{
-                parts: [{ text: `${systemInstruction}\n\nTask: ${prompt}` }]
-            }]
-        };
-    } else {
-        headers['Authorization'] = `Bearer ${chatConfig.apiKey}`;
-        targetUrl = `${baseUrl}/chat/completions`;
-        requestData = {
-            model: chatConfig.model,
-            messages: [
-                { role: "system", content: systemInstruction },
-                { role: "user", content: prompt }
-            ],
-            max_tokens: customSystem ? 1000 : 300,
-            stream: false
-        };
-    }
-
-    const res = await uni.request({
-        url: targetUrl, method: method, header: headers, data: requestData, sslVerify: false
-    });
-
-    if (res.statusCode === 429) {
-        throw new Error('请求太频繁 (429)。请稍后再试或检查 API 配额。');
-    }
-
-    let resultText = '';
-    if (chatConfig.provider === 'gemini') {
-        if (res.statusCode === 200 && res.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            resultText = res.data.candidates[0].content.parts[0].text;
-        } else {
-            throw new Error(`Gemini API 错误 (${res.statusCode})`);
-        }
-    } else {
-        let responseData = res.data;
-        if (typeof responseData === 'string') { try { responseData = JSON.parse(responseData); } catch (e) {} }
-        if (res.statusCode === 200 && responseData?.choices?.[0]?.message?.content) {
-            resultText = responseData.choices[0].message.content;
-        } else {
-            throw new Error(`API 错误 (${res.statusCode})`);
-        }
-    }
-
-    return resultText.trim();
-};
-
-// 🌟 逻辑更新：适配上下装拆分
-const generateEnglishPrompt = async () => {
-    const f = formData.value.charFeatures;
-    const faceTags = FACE_STYLES_MAP[formData.value.faceStyle] || '';
-    
-    // 1. 身体特征 (Safe)
-    let safeParts = [];
-    if (f.hairColor || f.hairStyle) safeParts.push(`${f.hairColor || ''}${f.hairStyle || ''}`);
-    if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
-    if (f.skinGloss) safeParts.push(`皮肤${f.skinGloss}`);
-    if (f.chestSize) safeParts.push(`胸部${f.chestSize}`);
-    
-    // 新的下身特征拼接
-    if (f.waist) safeParts.push(f.waist);
-    if (f.hips) safeParts.push(f.hips);
-    if (f.legs) safeParts.push(f.legs);
-    
-    const safeChinese = safeParts.join('，');
-
-    // 2. 私密特征 (NSFW)
-    let nsfwParts = [];
-    if (f.nippleColor) nsfwParts.push(`乳头${f.nippleColor}`);
-    if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
-    const nsfwChinese = nsfwParts.join('，');
-
-    // 3. 衣服 (Clothes) - 拼接上下装
-    let clothesParts = [];
-    if (f.topStyle) clothesParts.push(`上身穿着${f.topColor || ''}${f.topStyle}`);
-    if (f.bottomStyle) clothesParts.push(`下身穿着${f.bottomColor || ''}${f.bottomStyle}`);
-    
-    if (clothesParts.length === 0) clothesParts.push('穿着日常便服');
-    
-    if (f.legWear) clothesParts.push(`穿着${f.legWear}`);
-    const clothesChinese = clothesParts.join('，');
-    
-    if (!safeChinese && !clothesChinese) {
-        return uni.showToast({ title: '请先选择特征', icon: 'none' });
-    }
-
-    uni.showLoading({ title: '生成纯净人设Prompt...', mask: true });
-
-    try {
-        const prompt = `Translate these 3 parts from Chinese to Danbooru English tags.
-        Separate the parts with "|||".
-        
-        Part 1 (Body): "${safeChinese}"
-        Part 2 (NSFW Details): "${nsfwChinese}"
-        Part 3 (Clothing): "${clothesChinese}"
-        
-        Rules:
-        1. Use specific tags (e.g. 'sweater', 'plaid skirt', 'pantyhose').
-        2. Output ONLY the tags.
-        3. Format: Part1Tags ||| Part2Tags ||| Part3Tags`;
-        
-        const result = await performLlmRequest(prompt);
-        
-        const parts = result.split('|||');
-        const safeTags = parts[0] ? parts[0].trim() : '';
-        const nsfwTags = parts[1] ? parts[1].trim() : '';
-        const clothingTags = parts[2] ? parts[2].trim() : ''; 
-        
-        formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
-        formData.value.appearanceNsfw = nsfwTags;
-        
-        if (f.wearStatus === '暴露/H') {
-             formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
-        } else {
-             formData.value.appearance = `${formData.value.appearanceSafe}`;
-        }
-
-        tempClothingTagsForAvatar.value = clothingTags;
-
-        uni.showToast({ title: 'Prompt已生成 (不含衣物)', icon: 'success' });
-    } catch (e) {
-        console.error(e);
-        formData.value.appearance = `${faceTags}, ${safeChinese}`; 
-        formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
-        tempClothingTagsForAvatar.value = clothesChinese;
-        uni.showToast({ title: '翻译失败，使用原文', icon: 'none' });
-    } finally {
-        uni.hideLoading();
-    }
-};
-
-const generateUserDescription = async () => {
-    const f = formData.value.userFeatures;
-    let tags = [];
-    if (f.hair) tags.push(f.hair);
-    if (f.body) tags.push(f.body);
-    if (f.privates) tags.push(`下体${f.privates}`);
-    
-    const rawKeywords = tags.join('，');
-    if (!rawKeywords) return uni.showToast({ title: '请先选择特征', icon: 'none' });
-
-    uni.showLoading({ title: '生成中...', mask: true });
-
-    try {
-        const prompt = `Translate to English tags: "${rawKeywords}". Start with "1boy". Output ONLY tags.`;
-        const result = await performLlmRequest(prompt);
-        formData.value.userAppearance = result;
-        uni.showToast({ title: '成功', icon: 'success' });
-    } catch (e) {
-        formData.value.userAppearance = `1boy, ${rawKeywords}`;
-        uni.showToast({ title: e.message || '生成失败', icon: 'none' });
-    } finally {
-        uni.hideLoading();
-    }
-};
-
-const generateImageFromComfyUI = async (promptText, baseUrl) => {
-    const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
-    workflow["3"].inputs.text = promptText;
-    workflow["5"].inputs.seed = Math.floor(Math.random() * 999999999999999);
-    try {
-        const queueRes = await uni.request({
-            url: `${baseUrl}/prompt`, method: 'POST', header: { 'Content-Type': 'application/json' },
-            data: { prompt: workflow }, sslVerify: false
-        });
-        if (queueRes.statusCode !== 200) throw new Error(`队列请求失败: ${queueRes.statusCode}`);
-        const promptId = queueRes.data.prompt_id;
-        for (let i = 0; i < 60; i++) { 
-            await new Promise(r => setTimeout(r, 1000));
-            const historyRes = await uni.request({ url: `${baseUrl}/history/${promptId}`, method: 'GET', sslVerify: false });
-            if (historyRes.statusCode === 200 && historyRes.data[promptId]) {
-                const outputs = historyRes.data[promptId].outputs;
-                if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
-                    const imgInfo = outputs["16"].images[0];
-                    return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
-                }
-            }
-        }
-        throw new Error('生成超时');
-    } catch (e) { throw e; }
-};
-
-const generateAvatar = async () => {
-  if (!formData.value.appearance.trim()) return uni.showToast({ title: '请先生成 Prompt', icon: 'none' });
-  const imgConfig = uni.getStorageSync('app_image_config') || {};
-  if (!imgConfig.baseUrl) {
-      return uni.showToast({ title: '请在[我的]设置中配置 ComfyUI 地址', icon: 'none' });
-  }
-  
-  uni.showLoading({ title: 'ComfyUI 绘图中...', mask: true });
-  
-  const clothes = tempClothingTagsForAvatar.value || '';
-  const avatarPrompt = `best quality, masterpiece, anime style, cel shading, solo, cowboy shot, upper body, looking at viewer, ${formData.value.appearance}, ${clothes}`;
-  
-  try {
-      const tempUrl = await generateImageFromComfyUI(avatarPrompt, imgConfig.baseUrl);
-      if (tempUrl) {
-          const saveId = targetId.value || 'temp_create';
-          const localPath = await saveToGallery(tempUrl, saveId, formData.value.name || '新角色', avatarPrompt);
-          formData.value.avatar = localPath;
-          uni.showToast({ title: '成功', icon: 'success' });
-      } else { throw new Error("ComfyUI 返回为空"); }
-  } catch (e) {
-      console.error(e);
-      uni.showModal({ title: '错误', content: e.message || '请求异常', showCancel: false });
-  } finally { uni.hideLoading(); }
-};
 
 // =========================================================================
 // 4. 数据加载与处理
@@ -1045,9 +885,7 @@ const handleWorldChange = (e) => {
     worldIndex.value = e.detail.value;
     if (selectedWorld.value) {
         formData.value.worldId = selectedWorld.value.id;
-        if (selectedWorld.value.description) {
-            formData.value.worldLore = selectedWorld.value.description;
-        }
+        if (selectedWorld.value.description) formData.value.worldLore = selectedWorld.value.description;
     }
 };
 
@@ -1056,90 +894,102 @@ const handleUserWorldChange = (e) => {
     if (selectedUserWorld.value) formData.value.userWorldId = selectedUserWorld.value.id;
 };
 
-const loadCharacterData = (id) => {
-  const list = uni.getStorageSync('contact_list') || [];
-  const target = list.find(item => String(item.id) === String(id));
-  if (target) {
-    formData.value.name = target.name;
-    formData.value.avatar = target.avatar;
-    formData.value.worldId = target.worldId || '';
-    formData.value.location = target.location || '';
-    formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
+// AiChat/pages/create/create.vue
 
-    if (target.settings) {
-        // 基本设定
-        formData.value.userNameOverride = target.settings.userNameOverride || '';
-        formData.value.userRelation = target.settings.userRelation || '';
-        formData.value.userPersona = target.settings.userPersona || '';
-        
-        // 工作设定
-        formData.value.workplace = target.settings.workplace || '';
-        formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings.workStartHour : 9;
-        formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings.workEndHour : 18;
-        formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
-        
-        // 外貌
-        formData.value.appearance = target.settings.appearance || '';
-        formData.value.appearanceSafe = target.settings.appearanceSafe || '';
-        formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
-        formData.value.faceStyle = target.settings.faceStyle || 'cute';
-        
-        formData.value.bio = target.settings.bio || '';
-        formData.value.speakingStyle = target.settings.speakingStyle || ''; 
-        formData.value.likes = target.settings.likes || '';                  
-        formData.value.dislikes = target.settings.dislikes || '';            
-        
-        formData.value.personalityNormal = target.settings.personalityNormal || '';
-        
-        formData.value.userWorldId = target.settings.userWorldId || '';
-        formData.value.userLocation = target.settings.userLocation || '';
-        formData.value.userOccupation = target.settings.userOccupation || '';
-        formData.value.userAppearance = target.settings.userAppearance || '';
-        formData.value.worldLore = target.settings.worldLore || '';
-        
-        if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
-        if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
-    }
-    
-    if (formData.value.worldId) {
-        const idx = worldList.value.findIndex(w => String(w.id) === String(formData.value.worldId));
-        if (idx !== -1) worldIndex.value = idx;
-    }
-    if (formData.value.userWorldId) {
-        const uIdx = worldList.value.findIndex(w => String(w.id) === String(formData.value.userWorldId));
-        if (uIdx !== -1) userWorldIndex.value = uIdx;
-    }
+const loadCharacterData = async (id) => { // 🌟 必须加 async
+    const list = uni.getStorageSync('contact_list') || [];
+    const target = list.find(item => String(item.id) === String(id));
+    if (target) {
+        formData.value.name = target.name;
+        formData.value.avatar = target.avatar;
+        formData.value.worldId = target.worldId || '';
+        formData.value.location = target.location || '';
+        formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
-    formData.value.maxReplies = target.maxReplies || 1;
-    formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
-    formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
-    
-    formData.value.allowProactive = target.allowProactive || false;
-    formData.value.proactiveInterval = target.proactiveInterval || 4;
-    formData.value.proactiveNotify = target.proactiveNotify || false;
-    
-    formData.value.historyLimit = target.historyLimit !== undefined ? target.historyLimit : 20;
-    formData.value.enableSummary = target.enableSummary || false;
-    formData.value.summaryFrequency = target.summaryFrequency || 20;
-    formData.value.summary = target.summary || '';
-  }
+        if (target.settings) {
+            formData.value.userNameOverride = target.settings.userNameOverride || '';
+            formData.value.userRelation = target.settings.userRelation || '';
+            formData.value.userPersona = target.settings.userPersona || '';
+            formData.value.workplace = target.settings.workplace || '';
+            formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings.workStartHour : 9;
+            formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings.workEndHour : 18;
+            formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
+            
+            formData.value.appearance = target.settings.appearance || '';
+            formData.value.appearanceSafe = target.settings.appearanceSafe || '';
+            formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
+            formData.value.faceStyle = target.settings.faceStyle || 'cute';
+            
+            formData.value.bio = target.settings.bio || '';
+            formData.value.speakingStyle = target.settings.speakingStyle || ''; 
+            formData.value.likes = target.settings.likes || '';                  
+            formData.value.dislikes = target.settings.dislikes || '';            
+            formData.value.personalityNormal = target.settings.personalityNormal || '';
+            
+            formData.value.userWorldId = target.settings.userWorldId || '';
+            formData.value.userLocation = target.settings.userLocation || '';
+            formData.value.userOccupation = target.settings.userOccupation || '';
+            formData.value.userAppearance = target.settings.userAppearance || '';
+            formData.value.worldLore = target.settings.worldLore || '';
+            
+            if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
+            if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+        }
+        
+        if (formData.value.worldId) {
+            const idx = worldList.value.findIndex(w => String(w.id) === String(formData.value.worldId));
+            if (idx !== -1) worldIndex.value = idx;
+        }
+        if (formData.value.userWorldId) {
+            const uIdx = worldList.value.findIndex(w => String(w.id) === String(formData.value.userWorldId));
+            if (uIdx !== -1) userWorldIndex.value = uIdx;
+        }
+
+        formData.value.maxReplies = target.maxReplies || 1;
+        formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
+        formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
+        
+        formData.value.allowProactive = target.allowProactive || false;
+        formData.value.proactiveInterval = target.proactiveInterval || 4;
+        formData.value.proactiveNotify = target.proactiveNotify || false;
+        
+        formData.value.historyLimit = target.historyLimit !== undefined ? target.historyLimit : 20;
+        formData.value.enableSummary = target.enableSummary || false;
+        formData.value.summaryFrequency = target.summaryFrequency || 20;
+        formData.value.summary = target.summary || '';
+
+        // 🌟 核心修改：从 SQLite 数据库加载日记列表，显示在设置页下方
+        try {
+            const dbLogs = await DB.select(
+                `SELECT * FROM diaries WHERE roleId = ? ORDER BY id DESC`, 
+                [String(id)]
+            );
+            if (typeof diaryList !== 'undefined') {
+                diaryList.value = dbLogs.map(l => ({ ...l, expanded: false }));
+            }
+        } catch (e) {
+            console.error('加载数据库日记列表失败', e);
+        }
+
+        // 读取 AI 可见日记目录的天数限制
+        formData.value.diaryHistoryLimit = target.diaryHistoryLimit !== undefined ? target.diaryHistoryLimit : 30;
+		formData.value.activeMemoryDays = target.activeMemoryDays !== undefined ? target.activeMemoryDays : 3;
+    }
 };
 
-// 🕒 辅助函数
 const getInitialGameTime = () => {
     const now = new Date();
     now.setHours(8, 0, 0, 0); 
     return now.getTime();
 };
 
+// AiChat/pages/create/create.vue
+
 const saveCharacter = () => {
-  if (!formData.value.name.trim()) {
-      return uni.showToast({ title: '名字不能为空', icon: 'none' });
-  }
+  if (!formData.value.name.trim()) return uni.showToast({ title: '名字不能为空', icon: 'none' });
   
   let list = uni.getStorageSync('contact_list') || [];
   
-  // 构建衣物描述字符串 (用于聊天界面显示)
   let clothingStr = '便服';
   if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
       clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
@@ -1148,48 +998,40 @@ const saveCharacter = () => {
   const charData = {
     name: formData.value.name,
     avatar: formData.value.avatar || '/static/ai-avatar.png',
-    
     maxReplies: formData.value.maxReplies,
     initialAffection: formData.value.initialAffection,
     initialLust: formData.value.initialLust, 
-    
     allowProactive: formData.value.allowProactive,
     proactiveInterval: formData.value.proactiveInterval,
     proactiveNotify: formData.value.proactiveNotify,
-    
     historyLimit: formData.value.historyLimit, 
+    // 🌟 关键：保存“可见天数”设置到存档，供 Agent 读取
+    diaryHistoryLimit: formData.value.diaryHistoryLimit, 
+	activeMemoryDays: formData.value.activeMemoryDays,
     enableSummary: formData.value.enableSummary,
     summaryFrequency: formData.value.summaryFrequency,
     summary: formData.value.summary,
-    
     location: formData.value.location,
     clothing: clothingStr, 
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
-
-    // Settings (完整字段)
     settings: {
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
-        
         userNameOverride: formData.value.userNameOverride,
         userRelation: formData.value.userRelation,
         userPersona: formData.value.userPersona,
-        
-        // 🌟 核心字段
         workplace: formData.value.workplace,
         workStartHour: formData.value.workStartHour,
         workEndHour: formData.value.workEndHour,
         workDays: formData.value.workDays,
-        
         bio: formData.value.bio,
         speakingStyle: formData.value.speakingStyle, 
         likes: formData.value.likes,                  
         dislikes: formData.value.dislikes,            
-        
         occupation: formData.value.occupation, 
         userWorldId: formData.value.userWorldId,
         userLocation: formData.value.userLocation,
@@ -1197,10 +1039,8 @@ const saveCharacter = () => {
         userAppearance: formData.value.userAppearance, 
         userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
-        
         personalityNormal: formData.value.personalityNormal,
     },
-    
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
     lastTime: isEditMode.value ? undefined : '刚刚',
     unread: isEditMode.value ? undefined : 0
@@ -1214,22 +1054,16 @@ const saveCharacter = () => {
     }
   } else {
     const newChar = { 
-        id: Date.now(), 
-        ...charData, 
-        
+        id: Date.now(), ...charData, 
         affection: formData.value.initialAffection, 
         lust: formData.value.initialLust, 
-        
-        // 🌟 新建时锁定初始时间
         lastTimeTimestamp: getInitialGameTime(), 
         unread: 0,
-        
         relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
     };
     list.unshift(newChar);
     uni.showToast({ title: '创建成功', icon: 'success' });
   }
-  
   uni.setStorageSync('contact_list', list);
   setTimeout(() => { uni.navigateBack(); }, 800);
 };
@@ -1237,52 +1071,66 @@ const saveCharacter = () => {
 const clearHistoryAndReset = () => {
   uni.showModal({
     title: '彻底重置', 
-    content: `将清空聊天记录、重置好感度、位置、状态，并让角色回归【背景设定】的初始状态。确定吗？`, 
+    content: `将从数据库永久抹除聊天记录与日记，重置好感度、位置、状态，并让角色回归初始状态。确定吗？`, 
     confirmColor: '#ff4757',
-    success: (res) => {
+    success: async (res) => { // 🌟 变成 async 函数
       if (res.confirm && targetId.value) {
+        const cid = String(targetId.value);
+
+        // --- 🛠️ 新增：物理清理 SQLite 数据库 ----------------------
+        try {
+            // 1. 删除消息记录
+            await DB.execute(`DELETE FROM messages WHERE chatId = ?`, [cid]);
+            // 2. 删除往事日记
+            await DB.execute(`DELETE FROM diaries WHERE roleId = ?`, [cid]);
+            console.log('✅ SQLite 数据库相关记录已清空');
+        } catch (dbErr) {
+            console.error('❌ 数据库清理失败:', dbErr);
+        }
+        // --------------------------------------------------------
+
+        // 3. 原有的 Storage 清理逻辑
         uni.removeStorageSync(`chat_history_${targetId.value}`);
         uni.removeStorageSync(`last_real_active_time_${targetId.value}`);
         uni.removeStorageSync(`last_proactive_lock_${targetId.value}`);
+        // 如果你之前还存了日记缓存，也顺便清了
+        uni.removeStorageSync(`diary_logs_${targetId.value}`);
 
         let list = uni.getStorageSync('contact_list') || [];
-        const index = list.findIndex(item => String(item.id) === String(targetId.value));
+        const index = list.findIndex(item => String(item.id) === cid);
         
         if (index !== -1) {
           const currentRole = list[index];
-          // 🌟 重置时保留时间
           const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
-
+          
           let clothingStr = '便服';
           if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
               clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
           }
 
           const resetData = {
-              lastMsg: '（记忆已清除）',
+              lastMsg: '（记忆已清空）', 
               lastTime: '刚刚',
               lastTimeTimestamp: preservedTime, 
-              unread: 0,
+              unread: 0, 
               summary: '', 
-              
               currentLocation: formData.value.location || '角色家',
-              interactionMode: 'phone',
+              interactionMode: 'phone', 
               clothing: clothingStr,
-              
               lastActivity: '自由活动', 
               affection: formData.value.initialAffection || 10,
               lust: formData.value.initialLust || 0,
-              
               relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
           };
-          
+
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);
           
+          // ✨ 清空当前页面的日记列表显示
+          if (typeof diaryList !== 'undefined') diaryList.value = [];
+
           uni.showToast({ title: '重置成功', icon: 'success' });
-          setTimeout(() => {
-              uni.navigateBack();
-          }, 800);
+          setTimeout(() => { uni.navigateBack(); }, 800);
         } else {
             uni.showToast({ title: '未找到角色数据', icon: 'none' });
         }

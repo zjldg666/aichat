@@ -1,15 +1,22 @@
 // AiChat/utils/constants.js
 
-// 1. 画风映射 (对应 Mine 页面的选择)
+// 1. 画风映射 (必须与 Mine 页面 DRAWING_STYLES 的 value 一一对应)
 export const STYLE_PROMPT_MAP = {
+    // === 原有保留 ===
     'anime': 'anime style, cel shading, vibrant colors, clean lines, high quality',
     'impasto': 'impasto oil painting, thick brushstrokes, textured, artistic, expressive',
     'retro': '1990s anime style, retro art, vhs glitch, lo-fi aesthetic, nostalgic',
     'shinkai': 'makoto shinkai style, hyper detailed clouds, lens flare, cinematic lighting, breathtaking scenery',
-    'gothic': 'gothic art style, dark atmosphere, intricate details, mysterious, somber colors',
-    'cyber': 'cyberpunk style, neon lights, futuristic, high tech, chromatic aberration',
     'pastel': 'pastel colors, soft lighting, dreamy atmosphere, watercolor texture, gentle',
-    'sketch': 'monochrome sketch, pencil lines, rough texture, artistic, manga style'
+    'sketch': 'monochrome sketch, pencil lines, rough texture, artistic, manga style',
+
+    // === ✨ 新增/修改的画风 (关键修复点) ===
+    
+    // 吉卜力 (Ghibli)
+    'ghibli': 'studio ghibli style, miyazaki hayao style, anime style, watercolor background, lush details, peaceful atmosphere, painting',
+    
+    // 古风仙侠 (GuFeng) - AI听不懂拼音，必须翻译成描述
+    'gufeng': 'chinese traditional art, ink painting style, wuxia, xianxia, hanfu, ancient chinese architecture, flowing fabric, elegant, eastern fantasy, watercolor ink'
 };
 
 // 2. 负面提示词 (Negative Prompt)
@@ -161,4 +168,24 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "title": "SDXL空Latent尺寸选择"
     }
   }
+};
+// ... 原有的代码保持不变 ...
+
+// 4. 捏人界面的画风预设 (Create Page)
+export const FACE_STYLES_MAP = {
+    'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
+    'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
+    'sexy': 'mature beauty, milf, mature female face, slight crow’s feet, defined cheekbones, full lips, lipstick, heavy makeup, mole under eye, long loose hair, ara ara',
+    'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
+    'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
+    'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
+};
+
+export const FACE_LABELS = {
+    'cute': '🍭 可爱/幼态',
+    'cool': '❄️ 高冷/御姐',
+    'sexy': '💋 成熟/人妻',
+    'energetic': '🌟 元气/活泼',
+    'emotionless': '😐 三无/冷淡',
+    'yandere': '🔪 病娇/黑化'
 };
