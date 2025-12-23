@@ -1,5 +1,5 @@
 <template>
-  <view class="edit-container">
+  <view class="edit-container" :class="{ 'dark-mode': isDarkMode }">
     <!-- 头像区域 -->
     <view class="avatar-section">
       <view class="avatar-box">
@@ -44,12 +44,18 @@
 
 <script setup>
 import { ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad,onShow } from '@dcloudio/uni-app';
 import { saveToGallery } from '@/utils/gallery-save.js';
 // 🔥 1. 引入 Prompt 模板
 import { IMAGE_GENERATOR_OPENAI_PROMPT } from '@/utils/prompts.js';
+import { useTheme } from '@/composables/useTheme.js';
+const { isDarkMode, applyNativeTheme } = useTheme();
+onShow(() => {
 
+    applyNativeTheme(); 
 
+   
+});
 const form = ref({
     name: '',
     avatar: '',
@@ -185,24 +191,21 @@ imageUrl = await generateOpenAIImageInternal(
 
 // 🔧 内部函数：OpenAI/豆包 生图请求 (复刻自 useChatGallery.js)
 const generateOpenAIImageInternal = async (baseUrl, apiKey, model, prompt) => {
-    let targetUrl = baseUrl;
-    // 自动补全路径
-    if (!targetUrl.endsWith('/images/generations')) {
-        if (targetUrl.endsWith('/v1')) targetUrl += '/images/generations';
-        else if (targetUrl.endsWith('/')) targetUrl += 'images/generations';
-        else targetUrl += '/images/generations';
-    }
 
-    // 针对 SiliconFlow/豆包 的特殊处理
-    const isSiliconFlow = targetUrl.includes('siliconflow') || targetUrl.includes('volces');
-    const requestBody = {
-        model: model || 'dall-e-3',
-        prompt: prompt,
-        n: 1,
-        // 豆包/SiliconFlow 推荐用 1024x1024，DALL-E 3 也是
-        size: "1024x1024", 
-        response_format: "url"
-    };
+        let targetUrl = baseUrl.trim(); 
+    
+        // 针对 SiliconFlow/豆包 的特殊处理
+        const isSiliconFlow = targetUrl.includes('siliconflow') || targetUrl.includes('volces');
+        const requestBody = {
+            model: model || 'dall-e-3',
+            prompt: prompt,
+            n: 1,
+            // 豆包/SiliconFlow 推荐用 1024x1024，DALL-E 3 也是
+            size: "1024x1024", 
+            response_format: "url"
+        };
+
+
     
     // 如果是 SiliconFlow，可能需要 image_size
     if (isSiliconFlow) {
@@ -217,7 +220,7 @@ const generateOpenAIImageInternal = async (baseUrl, apiKey, model, prompt) => {
             'Content-Type': 'application/json'
         },
         data: requestBody,
-        timeout: 60000 // 60秒超时
+        timeout: 120000 // 60秒超时
     });
 
     if (res.statusCode === 200 && res.data?.data?.[0]?.url) {
@@ -256,7 +259,7 @@ const generateComfyAvatar = async (promptText, baseUrl) => {
     
     const promptId = queueRes.data.prompt_id;
     
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 1000));
         const historyRes = await uni.request({
             url: `${baseUrl}/history/${promptId}`, method: 'GET', sslVerify: false
@@ -281,32 +284,102 @@ const saveProfile = () => {
 </script>
 
 <style lang="scss">
-.edit-container { min-height: 100vh; background-color: #f5f7fa; padding: 40rpx; }
+/* --- 基础布局 --- */
+.edit-container { 
+    min-height: 100vh; 
+    /* 全局背景色 */
+    background-color: var(--bg-color); 
+    padding: 40rpx; 
+    transition: background-color 0.3s;
+}
 
-.avatar-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 60rpx; }
-.avatar-box { position: relative; width: 220rpx; height: 220rpx; border-radius: 50%; box-shadow: 0 10rpx 30rpx rgba(0,0,0,0.1); overflow: hidden; background: #fff;}
+/* --- 头像区域 --- */
+.avatar-section { 
+    display: flex; flex-direction: column; align-items: center; 
+    margin-bottom: 60rpx; 
+}
+
+.avatar-box { 
+    position: relative; width: 220rpx; height: 220rpx; border-radius: 50%; 
+    box-shadow: var(--shadow); 
+    overflow: hidden; 
+    /* 卡片背景色 */
+    background: var(--card-bg);
+}
+
 .avatar-preview { width: 100%; height: 100%; }
-.generating-mask { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 24rpx; backdrop-filter: blur(4px); }
+
+.generating-mask { 
+    position: absolute; top:0; left:0; right:0; bottom:0; 
+    background: rgba(0,0,0,0.6); /* 遮罩层保持半透明黑 */
+    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    color: #fff; font-size: 24rpx; backdrop-filter: blur(4px); 
+}
+
 .loading-icon { font-size: 48rpx; margin-bottom: 10rpx; animation: spin 2s infinite linear; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.avatar-tips { margin-top: 20rpx; font-size: 24rpx; color: #999; }
 
-.form-group { background: #fff; border-radius: 20rpx; padding: 0 30rpx; margin-bottom: 40rpx; }
-.form-item { padding: 30rpx 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
+.avatar-tips { 
+    margin-top: 20rpx; font-size: 24rpx; 
+    color: var(--text-sub); /* 适配灰色文字 */
+}
+
+/* --- 表单区域 --- */
+.form-group { 
+    background: var(--card-bg); /* 卡片背景 */
+    border-radius: 20rpx; padding: 0 30rpx; margin-bottom: 40rpx; 
+    box-shadow: var(--shadow);
+}
+
+.form-item { 
+    padding: 30rpx 0; 
+    border-bottom: 1px solid var(--border-color); /* 边框适配 */
+    display: flex; align-items: center; 
+}
 .form-item:last-child { border-bottom: none; }
 .form-item.column { flex-direction: column; align-items: flex-start; }
 
-.label { width: 160rpx; font-size: 30rpx; color: #333; font-weight: bold; }
+.label { 
+    width: 160rpx; font-size: 30rpx; 
+    color: var(--text-color); /* 标题文字 */
+    font-weight: bold; 
+}
+
 .label-row { display: flex; align-items: center; width: 100%; margin-bottom: 20rpx; }
-.ai-tag { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 20rpx; padding: 2rpx 10rpx; border-radius: 8rpx; margin-left: 10rpx; }
 
-.input { flex: 1; font-size: 30rpx; color: #333; text-align: right; }
-.textarea { width: 100%; height: 160rpx; background: #f8f8f8; border-radius: 12rpx; padding: 20rpx; font-size: 28rpx; color: #333; box-sizing: border-box; margin-bottom: 20rpx; }
+.ai-tag { 
+    background: linear-gradient(135deg, #667eea, #764ba2); 
+    color: #fff; font-size: 20rpx; padding: 2rpx 10rpx; border-radius: 8rpx; margin-left: 10rpx; 
+}
 
-.gen-btn { width: 100%; background: #e0eaff; color: #4a90e2; font-size: 28rpx; border: none; font-weight: bold; border-radius: 12rpx; }
-.gen-btn[disabled] { opacity: 0.6; color: #999; }
+.input { 
+    flex: 1; font-size: 30rpx; 
+    color: var(--text-color); /* 输入内容文字 */
+    text-align: right; 
+}
+
+.textarea { 
+    width: 100%; height: 160rpx; 
+    background: var(--input-bg); /* 输入框背景 */
+    border-radius: 12rpx; padding: 20rpx; font-size: 28rpx; 
+    color: var(--text-color); /* 输入内容文字 */
+    box-sizing: border-box; margin-bottom: 20rpx; 
+    border: 1px solid var(--border-color);
+}
+
+.gen-btn { 
+    width: 100%; 
+    /* 使用半透明蓝，自动适配黑白模式 */
+    background: rgba(0, 122, 255, 0.1); 
+    color: #007aff; 
+    font-size: 28rpx; border: none; font-weight: bold; border-radius: 12rpx; 
+}
+.gen-btn[disabled] { opacity: 0.6; color: var(--text-sub); }
 .btn-hover { opacity: 0.8; }
 
 .action-area { margin-top: 60rpx; }
-.save-btn { background: #007aff; color: #fff; border-radius: 50rpx; font-weight: bold; box-shadow: 0 10rpx 20rpx rgba(0,122,255,0.3); }
+.save-btn { 
+    background: #007aff; color: #fff; border-radius: 50rpx; font-weight: bold; 
+    box-shadow: 0 10rpx 20rpx rgba(0,122,255,0.3); 
+}
 </style>

@@ -1,9 +1,7 @@
 <template>
   <view class="tabbar-container">
-    <!-- 占位块 -->
     <view class="tabbar-placeholder"></view>
     
-    <!-- TabBar 本体 -->
     <view class="tabbar">
       <view class="tab-item" @click="switchTab(0, '/pages/index/index')">
         <image 
@@ -47,9 +45,43 @@ const switchTab = (index, path) => {
 <style scoped>
 .tabbar-container { width: 100%; }
 .tabbar-placeholder { width: 100%; height: calc(100rpx + constant(safe-area-inset-bottom)); height: calc(100rpx + env(safe-area-inset-bottom)); }
-.tabbar { position: fixed; bottom: 0; left: 0; width: 100%; height: 100rpx; background-color: #ffffff; display: flex; align-items: center; justify-content: space-around; border-top: 1px solid #eeeeee; z-index: 999; padding-bottom: constant(safe-area-inset-bottom); padding-bottom: env(safe-area-inset-bottom); box-sizing: content-box; }
-.tab-item { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+.tabbar { 
+  position: fixed; 
+  bottom: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100rpx; 
+  /* 🔥 修改点：使用全局变量适配夜间模式 */
+  background-color: var(--card-bg); 
+  border-top: 1px solid var(--border-color); 
+  
+  display: flex; 
+  align-items: center; 
+  justify-content: space-around; 
+  z-index: 999; 
+  padding-bottom: constant(safe-area-inset-bottom); 
+  padding-bottom: env(safe-area-inset-bottom); 
+  box-sizing: content-box; 
+  transition: background-color 0.3s;
+}
+
+.tab-item { 
+  flex: 1; 
+  height: 100%; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+}
+
 .icon { width: 48rpx; height: 48rpx; margin-bottom: 6rpx; }
-.text { font-size: 20rpx; color: #999999; }
+
+.text { 
+  font-size: 20rpx; 
+  /* 🔥 修改点：文字颜色也适配一下 */
+  color: var(--text-sub); 
+}
+
 .text.active { color: #007AFF; }
 </style>

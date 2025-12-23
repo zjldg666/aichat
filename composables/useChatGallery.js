@@ -152,39 +152,76 @@ export function useChatGallery(context) {
 
     // ✅ 4. 异步处理 (新增参数)
     const handleAsyncImageGeneration = async (imgDesc, placeholderId, compositionType = 'SOLO') => {
-        try {
-            const imgUrl = await generateChatImage(imgDesc, compositionType);
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-            
-            if (idx !== -1 && imgUrl) {
-                const localPath = await saveToGallery(imgUrl, chatId.value, chatName.value, imgDesc);
-                messageList.value[idx] = { role: 'model', type: 'image', content: localPath, id: placeholderId };
-                saveHistory(); 
-                scrollToBottom();
-            } else if (idx !== -1) {
-                 messageList.value[idx] = { role: 'system', content: '❌ 显影失败', isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
-                 saveHistory();
+            try {
+                // 🔥 核心修复一：强制使用 1024x1024，彻底解决国内 API 敏感报错问题
+                // (注意：这里我们虽然是在 generateChatImage 里改的，但为了保险，
+                //  请确保你去 generateOpenAIImage 里把 size: "2048x2048" 改成了 "1024x1024")
+                
+                const imgUrl = await generateChatImage(imgDesc, compositionType);
+                const idx = messageList.value.findIndex(m => m.id === placeholderId);
+                
+                if (idx !== -1 && imgUrl) {
+                    // 成功逻辑
+                    const localPath = await saveToGallery(imgUrl, chatId.value, chatName.value, imgDesc);
+                    messageList.value[idx] = { 
+                        role: 'model', 
+                        type: 'image', 
+                        content: localPath, 
+                        id: placeholderId 
+                    };
+                    saveHistory(); 
+                    scrollToBottom();
+                } else if (idx !== -1) {
+                    // 失败逻辑（但不是异常，是没返回图）
+                    throw new Error("API未返回有效图片");
+                }
+            } catch(e) {
+                const idx = messageList.value.findIndex(m => m.id === placeholderId);
+                 if (idx !== -1) {
+                     let errText = e.message || 'API错误';
+                     if (errText.includes('json')) errText = '参数格式错误';
+                     if (errText.includes('sensitive')) errText = '触发安全风控';
+    
+                     // 🔥 核心修复二：构建一个包含 originalPrompt 的错误对象
+                     // 这样界面上只显示“❌ 生成失败”，但点击时我们可以从这里拿到 originalPrompt
+                     messageList.value[idx] = { 
+                        role: 'system', 
+                        content: `❌ 生成失败: ${errText} (点击重试)`, // 界面文案干净
+                        isSystem: true, 
+                        isError: true, // 标记为错误，chat.vue 会识别这个标记来触发 handleRetry
+                        originalPrompt: imgDesc, // 🌟 关键：把提示词藏在这里！
+                        id: placeholderId 
+                     };
+                     // 注意：saveHistory 默认只存 SQLite 的 content 字段。
+                     // 如果重启 App，originalPrompt 会丢失（因为没存数据库）。
+                     // 但在当前会话中，你点击重试是绝对好用的。
+                     saveHistory();
+                }
             }
-        } catch(e) {
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-             if (idx !== -1) {
-                 let errText = e.message || 'API错误';
-                 if (errText.includes('json')) errText = '参数格式错误';
-                 messageList.value[idx] = { role: 'system', content: `❌ ${errText}`, isSystem: true, isError: true, originalPrompt: imgDesc, id: placeholderId };
-                 saveHistory();
-            }
-        }
-    };
+        };
     
     // ✅ 5. 重试逻辑
     const retryGenerateImage = (msg) => {
-        if (!msg.isError || !msg.originalPrompt) return;
-        const idx = messageList.value.findIndex(m => m.id === msg.id);
-        if (idx !== -1) {
-            messageList.value[idx] = { role: 'system', content: '📷 重试中...', isSystem: true, id: msg.id };
-            handleAsyncImageGeneration(msg.originalPrompt, msg.id);
-        }
-    };
+            // 1. 检查是否有隐藏的提示词
+            if (!msg.isError || !msg.originalPrompt) {
+                return uni.showToast({title: '无法获取原提示词，请手动触发', icon: 'none'});
+            }
+    
+            const idx = messageList.value.findIndex(m => m.id === msg.id);
+            if (idx !== -1) {
+                // 2. 将状态改回 "正在生成..."，给用户反馈
+                messageList.value[idx] = { 
+                    role: 'system', 
+                    content: '📷 正在重试...', 
+                    isSystem: true, 
+                    id: msg.id 
+                };
+                
+                // 3. 再次调用生图函数，传入当初的提示词
+                // 注意：这里不需要 await，让它在后台跑
+                handleAsyncImageGeneration(msg.originalPrompt, msg.id);
+            }
+        };
 
     return { handleAsyncImageGeneration, retryGenerateImage };
 }

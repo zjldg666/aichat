@@ -1,5 +1,5 @@
 <template>
-  <view class="mine-container">
+  <view class="mine-container" :class="{ 'dark-mode': isDarkMode }">
     <view class="user-section">
       <view class="avatar-wrapper" @click="goToEdit">
         <image class="avatar" :src="userInfo.avatar" mode="aspectFill"></image>
@@ -282,7 +282,13 @@
     <view class="action-area">
          <button class="save-btn" @click="saveAllConfig">保存所有配置</button>
     </view>
-
+	<view class="menu-item">
+		<view class="left">
+			<text class="icon">🌙</text>
+			<text class="label">夜间模式</text>
+		</view>
+		<switch :checked="isDarkMode" color="#007aff" @change="toggleTheme" />
+	</view>
     <CustomTabBar :current="1" />
   </view>
 </template>
@@ -291,6 +297,8 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import CustomTabBar from '@/components/CustomTabBar.vue';
+import { useTheme } from '@/composables/useTheme.js';
+const { isDarkMode, toggleTheme } = useTheme();
 
 // =========================================================================
 // 静态常量
@@ -719,125 +727,601 @@ const saveAllConfig = () => {
 };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 /* --- 基础布局 --- */
-.mine-container { min-height: 100vh; background-color: #f5f7fa; padding-bottom: 120rpx; }
-.user-section { background-color: #ffffff; padding: 60rpx 40rpx; display: flex; align-items: center; margin-bottom: 24rpx; position: relative; }
-.avatar-wrapper { margin-right: 32rpx; position: relative; width: 140rpx; height: 140rpx;}
-.avatar { width: 140rpx; height: 140rpx; border-radius: 50%; background-color: #eee; }
-.edit-badge { position: absolute; right: 0; bottom: 0; background: #007aff; color: #fff; font-size: 24rpx; width: 40rpx; height: 40rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2rpx solid #fff; }
-.info-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.label { font-size: 24rpx; color: #999; margin-bottom: 10rpx; }
-.name-display { font-size: 40rpx; font-weight: bold; color: #333; }
-.edit-hint { font-size: 24rpx; color: #bbb; font-weight: normal; margin-left: 10rpx;}
-.gallery-btn { display: flex; flex-direction: column; align-items: center; margin-left: 20rpx; padding: 10rpx; }
-.gallery-icon { font-size: 48rpx; margin-bottom: 4rpx; }
-.gallery-text { font-size: 20rpx; color: #666; }
+.mine-container { 
+  min-height: 100vh; 
+  background-color: var(--bg-color); /* Was #f5f7fa */
+  padding-bottom: 120rpx; 
+}
+
+.user-section { 
+  background-color: var(--card-bg); /* Was #ffffff */
+  padding: 60rpx 40rpx; 
+  display: flex; 
+  align-items: center; 
+  margin-bottom: 24rpx; 
+  position: relative; 
+}
+
+.avatar-wrapper { 
+  margin-right: 32rpx; 
+  position: relative; 
+  width: 140rpx; 
+  height: 140rpx;
+}
+
+.avatar { 
+  width: 140rpx; 
+  height: 140rpx; 
+  border-radius: 50%; 
+  background-color: var(--border-color); /* Was #eee */
+}
+
+.edit-badge { 
+  position: absolute; 
+  right: 0; 
+  bottom: 0; 
+  background: #007aff; 
+  color: #fff; 
+  font-size: 24rpx; 
+  width: 40rpx; 
+  height: 40rpx; 
+  border-radius: 50%; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  border: 2rpx solid var(--card-bg); /* Was #fff */
+}
+
+.info-wrapper { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  justify-content: center; 
+}
+
+.label { 
+  font-size: 24rpx; 
+  color: var(--text-sub); /* Was #999 */
+  margin-bottom: 10rpx; 
+}
+
+.name-display { 
+  font-size: 40rpx; 
+  font-weight: bold; 
+  color: var(--text-color); /* Was #333 */
+}
+
+.edit-hint { 
+  font-size: 24rpx; 
+  color: var(--text-sub); /* Was #bbb */
+  font-weight: normal; 
+  margin-left: 10rpx;
+  opacity: 0.8;
+}
+
+.gallery-btn { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  margin-left: 20rpx; 
+  padding: 10rpx; 
+}
+
+.gallery-icon { 
+  font-size: 48rpx; 
+  margin-bottom: 4rpx; 
+}
+
+.gallery-text { 
+  font-size: 20rpx; 
+  color: var(--text-sub); /* Was #666 */
+}
 
 /* --- 设置分组通用 --- */
-.setting-group { background-color: #ffffff; margin-bottom: 24rpx; overflow: hidden; }
-.group-header { padding: 30rpx; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid transparent; transition: background 0.2s;}
-.group-header:active { background-color: #f9f9f9; }
-.group-title-wrapper { display: flex; flex-direction: column; }
-.group-title { font-size: 30rpx; color: #333; font-weight: bold; }
-.group-subtitle { font-size: 22rpx; color: #999; margin-top: 6rpx; }
-.arrow-icon { color: #ccc; font-size: 24rpx; }
-.group-content { padding: 0 32rpx 20rpx; animation: fadeIn 0.3s ease; border-top: 1px solid #f0f0f0; }
+.setting-group { 
+  background-color: var(--card-bg); /* Was #ffffff */
+  margin-bottom: 24rpx; 
+  overflow: hidden; 
+}
+
+.group-header { 
+  padding: 30rpx; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  cursor: pointer; 
+  border-bottom: 1px solid transparent; 
+  transition: background 0.2s;
+}
+
+.group-header:active { 
+  background-color: var(--tool-bg); /* Was #f9f9f9 */
+}
+
+.group-title-wrapper { 
+  display: flex; 
+  flex-direction: column; 
+}
+
+.group-title { 
+  font-size: 30rpx; 
+  color: var(--text-color); /* Was #333 */
+  font-weight: bold; 
+}
+
+.group-subtitle { 
+  font-size: 22rpx; 
+  color: var(--text-sub); /* Was #999 */
+  margin-top: 6rpx; 
+}
+
+.arrow-icon { 
+  color: var(--text-sub); /* Was #ccc */
+  font-size: 24rpx; 
+  opacity: 0.5;
+}
+
+.group-content { 
+  padding: 0 32rpx 20rpx; 
+  animation: fadeIn 0.3s ease; 
+  border-top: 1px solid var(--border-color); /* Was #f0f0f0 */
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* --- 列表式方案管理样式 (重点修改) --- */
-.scheme-list { margin-bottom: 20rpx; margin-top: 10rpx;}
-.scheme-card { background: #fff; border: 1px solid #eee; border-radius: 16rpx; margin-bottom: 20rpx; overflow: hidden; transition: all 0.2s; box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.02); }
-.scheme-card.is-active { border-color: #007aff; background-color: #f0f8ff; box-shadow: 0 4rpx 12rpx rgba(0,122,255,0.1); }
+.scheme-list { 
+  margin-bottom: 20rpx; 
+  margin-top: 10rpx;
+}
+
+.scheme-card { 
+  background: var(--card-bg); /* Was #fff */
+  border: 1px solid var(--border-color); /* Was #eee */
+  border-radius: 16rpx; 
+  margin-bottom: 20rpx; 
+  overflow: hidden; 
+  transition: all 0.2s; 
+  box-shadow: var(--shadow); /* Was hardcoded shadow */
+}
+
+.scheme-card.is-active { 
+  border-color: #007aff; 
+  background-color: rgba(0, 122, 255, 0.05); /* Was #f0f8ff */
+  box-shadow: 0 4rpx 12rpx rgba(0,122,255,0.1); 
+}
 
 /* 卡片头部 */
-.scheme-card-header { padding: 24rpx; display: flex; align-items: center; cursor: pointer; }
-.radio-area { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: flex-start; }
-.radio-circle { width: 36rpx; height: 36rpx; border-radius: 50%; border: 2rpx solid #ccc; display: flex; align-items: center; justify-content: center; background: #fff; }
-.is-active .radio-circle { border-color: #007aff; }
-.radio-inner { width: 20rpx; height: 20rpx; border-radius: 50%; background-color: #007aff; }
-.scheme-info { flex: 1; display: flex; flex-direction: column; }
-.scheme-name { font-size: 28rpx; font-weight: bold; color: #333; }
-.scheme-desc { font-size: 22rpx; color: #999; margin-top: 4rpx; }
-.expand-icon { padding: 10rpx; color: #ccc; font-size: 24rpx; }
+.scheme-card-header { 
+  padding: 24rpx; 
+  display: flex; 
+  align-items: center; 
+  cursor: pointer; 
+}
+
+.radio-area { 
+  width: 60rpx; 
+  height: 60rpx; 
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-start; 
+}
+
+.radio-circle { 
+  width: 36rpx; 
+  height: 36rpx; 
+  border-radius: 50%; 
+  border: 2rpx solid var(--text-sub); /* Was #ccc */
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  background: var(--card-bg); /* Was #fff */
+  opacity: 0.6;
+}
+
+.is-active .radio-circle { 
+  border-color: #007aff; 
+  opacity: 1;
+}
+
+.radio-inner { 
+  width: 20rpx; 
+  height: 20rpx; 
+  border-radius: 50%; 
+  background-color: #007aff; 
+}
+
+.scheme-info { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+}
+
+.scheme-name { 
+  font-size: 28rpx; 
+  font-weight: bold; 
+  color: var(--text-color); /* Was #333 */
+}
+
+.scheme-desc { 
+  font-size: 22rpx; 
+  color: var(--text-sub); /* Was #999 */
+  margin-top: 4rpx; 
+}
+
+.expand-icon { 
+  padding: 10rpx; 
+  color: var(--text-sub); /* Was #ccc */
+  font-size: 24rpx; 
+  opacity: 0.5;
+}
 
 /* 卡片展开内容 */
-.scheme-card-body { padding: 0 24rpx 24rpx 24rpx; border-top: 1px solid #f0f0f0; background-color: #fafafa; }
-.card-footer { display: flex; justify-content: flex-end; margin-top: 20rpx; }
-.delete-text { color: #ff4d4f; font-size: 24rpx; padding: 10rpx 0; }
+.scheme-card-body { 
+  padding: 0 24rpx 24rpx 24rpx; 
+  border-top: 1px solid var(--border-color); /* Was #f0f0f0 */
+  background-color: var(--tool-bg); /* Was #fafafa */
+}
+
+.card-footer { 
+  display: flex; 
+  justify-content: flex-end; 
+  margin-top: 20rpx; 
+}
+
+.delete-text { 
+  color: #ff4d4f; 
+  font-size: 24rpx; 
+  padding: 10rpx 0; 
+}
 
 /* 添加按钮 */
-.add-scheme-btn { background-color: #fff; border: 1px dashed #007aff; color: #007aff; font-size: 28rpx; border-radius: 40rpx; margin-top: 20rpx; }
-.add-scheme-btn:active { background-color: #f0f8ff; }
+.add-scheme-btn { 
+  background-color: var(--card-bg); /* Was #fff */
+  border: 1px dashed #007aff; 
+  color: #007aff; 
+  font-size: 28rpx; 
+  border-radius: 40rpx; 
+  margin-top: 20rpx; 
+}
+
+.add-scheme-btn:active { 
+  background-color: rgba(0, 122, 255, 0.05); /* Was #f0f8ff */
+}
 
 /* 模型选择气泡 */
-.model-select-area { background: #fff; border: 1px solid #eee; border-radius: 12rpx; padding: 20rpx; margin-bottom: 20rpx; }
-.model-tag-title { font-size: 24rpx; color: #999; margin-bottom: 12rpx; }
-.model-tags { display: flex; flex-wrap: wrap; gap: 16rpx; }
-.model-tag { background: #e3f2fd; color: #007aff; font-size: 24rpx; padding: 8rpx 20rpx; border-radius: 30rpx; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-select-area { 
+  background: var(--card-bg); /* Was #fff */
+  border: 1px solid var(--border-color); /* Was #eee */
+  border-radius: 12rpx; 
+  padding: 20rpx; 
+  margin-bottom: 20rpx; 
+}
+
+.model-tag-title { 
+  font-size: 24rpx; 
+  color: var(--text-sub); /* Was #999 */
+  margin-bottom: 12rpx; 
+}
+
+.model-tags { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 16rpx; 
+}
+
+.model-tag { 
+  background: rgba(0, 122, 255, 0.1); /* Was #e3f2fd */
+  color: #007aff; 
+  font-size: 24rpx; 
+  padding: 8rpx 20rpx; 
+  border-radius: 30rpx; 
+  max-width: 100%; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+  white-space: nowrap; 
+}
 
 /* --- 通用 Setting Item --- */
-.setting-item { display: flex; align-items: center; justify-content: space-between; height: 100rpx; border-bottom: 1px solid #e0e0e0; }
-.item-label { font-size: 30rpx; color: #333; width: 180rpx; }
-.item-input { flex: 1; text-align: right; font-size: 30rpx; color: #333; }
-.picker-val { font-size: 30rpx; color: #007aff; font-weight: bold; }
-.setting-item-col { padding: 20rpx 0; border-bottom: 1px solid #e0e0e0; }
-.item-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }
-.item-value { font-size: 28rpx; color: #007aff; font-weight: bold; }
-.setting-tip { font-size: 24rpx; color: #999; padding: 20rpx 0; line-height: 1.5; }
+.setting-item { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  height: 100rpx; 
+  border-bottom: 1px solid var(--border-color); /* Was #e0e0e0 */
+}
+
+.item-label { 
+  font-size: 30rpx; 
+  color: var(--text-color); /* Was #333 */
+  width: 180rpx; 
+}
+
+.item-input { 
+  flex: 1; 
+  text-align: right; 
+  font-size: 30rpx; 
+  color: var(--text-color); /* Was #333 */
+}
+
+.picker-val { 
+  font-size: 30rpx; 
+  color: #007aff; 
+  font-weight: bold; 
+}
+
+.setting-item-col { 
+  padding: 20rpx 0; 
+  border-bottom: 1px solid var(--border-color); /* Was #e0e0e0 */
+}
+
+.item-header { 
+  display: flex; 
+  justify-content: space-between; 
+  margin-bottom: 10rpx; 
+}
+
+.item-value { 
+  font-size: 28rpx; 
+  color: #007aff; 
+  font-weight: bold; 
+}
+
+.setting-tip { 
+  font-size: 24rpx; 
+  color: var(--text-sub); /* Was #999 */
+  padding: 20rpx 0; 
+  line-height: 1.5; 
+}
 
 /* 模型输入+刷新 */
-.model-input-group { flex: 1; display: flex; align-items: center; justify-content: flex-end; }
-.model-manual-input { flex: 1; text-align: right; margin-right: 16rpx; }
-.icon-btn { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; background: #e6e6e6; border-radius: 50%; font-size: 30rpx; flex-shrink: 0;}
-.icon-btn:active { background: #d0d0d0; }
+.model-input-group { 
+  flex: 1; 
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-end; 
+}
+
+.model-manual-input { 
+  flex: 1; 
+  text-align: right; 
+  margin-right: 16rpx; 
+}
+
+.icon-btn { 
+  width: 60rpx; 
+  height: 60rpx; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  background: var(--border-color); /* Was #e6e6e6 */
+  border-radius: 50%; 
+  font-size: 30rpx; 
+  flex-shrink: 0;
+  color: var(--text-color);
+}
+
+.icon-btn:active { 
+  opacity: 0.7; 
+}
 
 /* --- World 样式 --- */
-.world-card { background-color: #f8f9fa; border-radius: 12rpx; margin-bottom: 20rpx; overflow: hidden; border: 1px solid #eee;}
-.world-header { padding: 20rpx; display: flex; justify-content: space-between; align-items: center; background: #fff; border-bottom: 1px solid #eee; }
-.world-name { font-weight: bold; font-size: 28rpx; color: #333; }
-.world-actions { display: flex; gap: 20rpx; align-items: center; }
-.toggle-icon { font-size: 24rpx; color: #007aff; }
-.delete-icon { font-size: 28rpx; padding: 10rpx; }
-.world-body { padding: 20rpx; }
-.sub-section { margin-top: 20rpx; }
-.sub-title { font-size: 26rpx; color: #666; margin-bottom: 12rpx; font-weight: bold;}
-.tag-container { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 12rpx; }
-.tag-item { background-color: #e3f2fd; color: #007aff; padding: 6rpx 16rpx; border-radius: 20rpx; font-size: 24rpx; display: flex; align-items: center; }
-.job-tag { background-color: #f3e5f5; color: #9c27b0; }
-.tag-close { margin-left: 8rpx; font-weight: bold; opacity: 0.6; padding: 0 4rpx;}
-.add-row { display: flex; gap: 10rpx; }
-.mini-input { flex: 1; background: #fff; height: 60rpx; border: 1px solid #ddd; border-radius: 8rpx; padding: 0 16rpx; font-size: 24rpx; }
-.mini-btn { width: 100rpx; height: 60rpx; background: #333; color: #fff; border-radius: 8rpx; font-size: 24rpx; display: flex; align-items: center; justify-content: center; }
-.add-world-btn { background-color: #fff; color: #9c27b0; border: 1px dashed #9c27b0; font-size: 28rpx; margin-top: 20rpx; }
+.world-card { 
+  background-color: var(--tool-bg); /* Was #f8f9fa */
+  border-radius: 12rpx; 
+  margin-bottom: 20rpx; 
+  overflow: hidden; 
+  border: 1px solid var(--border-color); /* Was #eee */
+}
 
-.action-area { padding: 0 32rpx; }
-.save-btn { margin: 30rpx 0; background-color: #007aff; color: #fff; border-radius: 40rpx; box-shadow: 0 8rpx 16rpx rgba(0,122,255,0.2); }
+.world-header { 
+  padding: 20rpx; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  background: var(--card-bg); /* Was #fff */
+  border-bottom: 1px solid var(--border-color); /* Was #eee */
+}
+
+.world-name { 
+  font-weight: bold; 
+  font-size: 28rpx; 
+  color: var(--text-color); /* Was #333 */
+}
+
+.world-actions { 
+  display: flex; 
+  gap: 20rpx; 
+  align-items: center; 
+}
+
+.toggle-icon { 
+  font-size: 24rpx; 
+  color: #007aff; 
+}
+
+.delete-icon { 
+  font-size: 28rpx; 
+  padding: 10rpx; 
+}
+
+.world-body { 
+  padding: 20rpx; 
+}
+
+.sub-section { 
+  margin-top: 20rpx; 
+}
+
+.sub-title { 
+  font-size: 26rpx; 
+  color: var(--text-sub); /* Was #666 */
+  margin-bottom: 12rpx; 
+  font-weight: bold;
+}
+
+.tag-container { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 12rpx; 
+  margin-bottom: 12rpx; 
+}
+
+.tag-item { 
+  background-color: rgba(0, 122, 255, 0.1); /* Was #e3f2fd */
+  color: #007aff; 
+  padding: 6rpx 16rpx; 
+  border-radius: 20rpx; 
+  font-size: 24rpx; 
+  display: flex; 
+  align-items: center; 
+}
+
+.job-tag { 
+  background-color: rgba(156, 39, 176, 0.1); /* Was #f3e5f5 */
+  color: #9c27b0; 
+}
+
+.tag-close { 
+  margin-left: 8rpx; 
+  font-weight: bold; 
+  opacity: 0.6; 
+  padding: 0 4rpx;
+}
+
+.add-row { 
+  display: flex; 
+  gap: 10rpx; 
+}
+
+.mini-input { 
+  flex: 1; 
+  background: var(--input-bg); /* Was #fff */
+  height: 60rpx; 
+  border: 1px solid var(--border-color); /* Was #ddd */
+  border-radius: 8rpx; 
+  padding: 0 16rpx; 
+  font-size: 24rpx; 
+  color: var(--text-color);
+}
+
+.mini-btn { 
+  width: 100rpx; 
+  height: 60rpx; 
+  background: var(--text-color); /* Was #333 */
+  color: var(--card-bg); /* Was #fff */
+  border-radius: 8rpx; 
+  font-size: 24rpx; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+}
+
+.add-world-btn { 
+  background-color: var(--card-bg); /* Was #fff */
+  color: #9c27b0; 
+  border: 1px dashed #9c27b0; 
+  font-size: 28rpx; 
+  margin-top: 20rpx; 
+}
+
+.action-area { 
+  padding: 0 32rpx; 
+}
+
+.save-btn { 
+  margin: 30rpx 0; 
+  background-color: #007aff; 
+  color: #fff; 
+  border-radius: 40rpx; 
+  box-shadow: 0 8rpx 16rpx rgba(0,122,255,0.2); 
+}
 
 /* --- 画风 --- */
-.sub-section-title { font-size: 28rpx; color: #666; margin: 30rpx 0 20rpx 0; font-weight: bold; }
-.style-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20rpx; }
-.style-card { background-color: #f8f9fa; border: 2rpx solid transparent; border-radius: 12rpx; padding: 20rpx; display: flex; align-items: center; transition: all 0.2s; }
-.style-card.active { background-color: #fff3e0; border-color: #ff9f43; box-shadow: 0 4rpx 8rpx rgba(255,159,67,0.2); }
-.style-emoji { font-size: 40rpx; margin-right: 16rpx; }
-.style-name { font-size: 26rpx; color: #333; font-weight: 500; }
+.sub-section-title { 
+  font-size: 28rpx; 
+  color: var(--text-sub); /* Was #666 */
+  margin: 30rpx 0 20rpx 0; 
+  font-weight: bold; 
+}
+
+.style-grid { 
+  display: grid; 
+  grid-template-columns: repeat(2, 1fr); 
+  gap: 20rpx; 
+}
+
+.style-card { 
+  background-color: var(--tool-bg); /* Was #f8f9fa */
+  border: 2rpx solid transparent; 
+  border-radius: 12rpx; 
+  padding: 20rpx; 
+  display: flex; 
+  align-items: center; 
+  transition: all 0.2s; 
+}
+
+.style-card.active { 
+  background-color: rgba(255, 159, 67, 0.1); /* Was #fff3e0 */
+  border-color: #ff9f43; 
+  box-shadow: 0 4rpx 8rpx rgba(255,159,67,0.2); 
+}
+
+.style-emoji { 
+  font-size: 40rpx; 
+  margin-right: 16rpx; 
+}
+
+.style-name { 
+  font-size: 26rpx; 
+  color: var(--text-color); /* Was #333 */
+  font-weight: 500; 
+}
 
 /* --- 新增：输入框内的右侧链接样式 --- */
 .input-suffix-link {
-    font-size: 24rpx;
-    color: #007aff;           /* 蓝色文字 */
-    background-color: #e3f2fd; /* 浅蓝背景 */
-    padding: 6rpx 16rpx;
-    border-radius: 30rpx;      /* 圆角 */
-    margin-left: 16rpx;        /* 跟输入框拉开一点距离 */
-    white-space: nowrap;       /* 防止换行 */
-    flex-shrink: 0;            /* 防止被输入框挤扁 */
-    display: flex;
-    align-items: center;
+  font-size: 24rpx;
+  color: #007aff;           
+  background-color: rgba(0, 122, 255, 0.1); /* Was #e3f2fd */
+  padding: 6rpx 16rpx;
+  border-radius: 30rpx;       
+  margin-left: 16rpx;        
+  white-space: nowrap;       
+  flex-shrink: 0;            
+  display: flex;
+  align-items: center;
 }
 
 .input-suffix-link:active {
-    opacity: 0.6;
-    background-color: #d0e4f7;
+  opacity: 0.6;
+  background-color: rgba(0, 122, 255, 0.2); /* Was #d0e4f7 */
+}
+
+/* --- 夜间模式菜单样式 --- */
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 24rpx; /* Added spacing to separate from settings list */
+}
+
+.menu-item .left {
+  display: flex;
+  align-items: center;
+}
+
+.menu-item .icon {
+  font-size: 40rpx;
+  margin-right: 20rpx;
+}
+
+.menu-item .label {
+  font-size: 30rpx;
+  color: var(--text-color);
 }
 </style>

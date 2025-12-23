@@ -1,5 +1,5 @@
 <template>
-  <view class="chat-container" :class="{ 'in-edit-mode': isEditMode }">
+  <view class="chat-container" :class="{ 'in-edit-mode': isEditMode, 'dark-mode': isDarkMode }">
     <view v-if="isArchiving" class="archiving-bar">
             <text class="archiving-text">🌙 整理中... 请勿退出</text>
         </view>
@@ -58,9 +58,12 @@
           <view v-if="msg.type === 'think'" class="system-event think-bubble">
              <text>{{ msg.content }}</text>
           </view>
-          <view v-else-if="msg.isSystem" class="system-event">
-            <text>{{ msg.content }}</text>
-          </view>
+          <view v-else-if="msg.isSystem" 
+                          class="system-event" 
+                          :class="{ 'error-system-msg': msg.isError }"
+                          @click="msg.isError ? handleRetry(msg) : null">
+                      <text>{{ msg.content }}</text>
+                    </view>
           
           <template v-else>
             <view v-if="isEditMode" class="select-check-icon">
@@ -240,7 +243,11 @@ import { useGameTime } from '@/composables/useGameTime.js';
 import { useChatGallery } from '@/composables/useChatGallery.js';
 import { useGameLocation } from '@/composables/useGameLocation.js';
 import { useAgents } from '@/composables/useAgents.js';
+// ... existing imports
+import { useTheme } from '@/composables/useTheme.js'; // 导入
 
+// ... inside script setup
+const { isDarkMode, applyNativeTheme } = useTheme();
 import { 
     CORE_INSTRUCTION_LOGIC_MODE,
     TIME_SHIFT_PROMPT // 👈 新增引入这个
@@ -731,25 +738,24 @@ const handleMoveTo = (locObj) => {
 // AiChat/pages/chat/chat.vue
 
 const handleRetry = async (msg) => {
-    // 防止重复点击
-    if (msg.isRetrying) return;
+    // 1. 防抖：防止重复点击
+    if (msg.content.includes('重试中') || msg.isRetrying) return;
     
     uni.vibrateShort();
-    uni.showToast({ title: '正在重试...', icon: 'none' });
 
-    // 🌟 分流逻辑
+    // 2. 分流处理
     if (msg.isLogicError) {
-        // 情况 A: AI 构图失败 (JSON 坏了/Prompt 没生成) -> 重新跑 LLM
-        // 调用 useAgents 里导出的重试函数
+        // 情况 A: 逻辑/Agent 重试
+        uni.showToast({ title: '正在重构思路...', icon: 'none' });
         await retryAgentGeneration(msg);
+    } else if (msg.isError || msg.originalPrompt) {
+
+        retryGenerateImage(msg);
     } else {
-        // 情况 B: 图片生成了但加载失败/网络错误 -> 重新跑 ComfyUI 下载
+        // 旧的图片加载失败重试逻辑
         try {
            await retryGenerateImage(msg);
-        } catch (e) {
-           console.error('重试触发失败', e);
-           uni.showToast({ title: '重试失败', icon: 'none' });
-        }
+        } catch (e) { console.error(e); }
     }
 };
 
@@ -1117,6 +1123,7 @@ const loadRoleData = (id) => {
 };
 
 onShow(() => {
+	applyNativeTheme();
     // 修正：不再在 onShow 里直接覆盖 worldLocations，全部逻辑交由 loadRoleData 处理
     if (chatId.value) {
         loadRoleData(chatId.value);
@@ -1185,35 +1192,39 @@ onNavigationBarButtonTap((e) => {
 </script>
 
 <style lang="scss" scoped>
-/* 1. 基础容器 */
+/* ==========================================================================
+   1. 基础容器 & 全局变量应用
+   ========================================================================== */
 .chat-container { 
     display: flex; 
     flex-direction: column; 
     height: 100vh; 
-    background-color: #f5f5f5; /* 保持你原来的背景色 */
+    background-color: var(--bg-color); /* 全局背景 */
     overflow: hidden; 
 }
 
-/* 2. 顶部状态栏 - 优化美化版 */
+/* ==========================================================================
+   2. 顶部状态栏 - 磨砂玻璃效果
+   ========================================================================== */
 .status-bar-wrapper {
-    background-color: rgba(255, 255, 255, 0.95); /* 增加一点磨砂感 */
+    background-color: var(--card-bg); /* 卡片背景 */
+    border-bottom: 1px solid var(--border-color); /* 边框 */
     backdrop-filter: blur(10px);
     padding: 20rpx 24rpx; 
-    border-bottom: 1px solid rgba(0,0,0,0.05);
     z-index: 10;
     flex-shrink: 0;
-    box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); /* 轻微投影，增加层次 */
+    box-shadow: var(--shadow); /* 阴影也变量化 */
 }
 
 .info-row {
     display: flex;
     justify-content: space-between;
     align-items: stretch;
-    height: 100rpx; /* 固定高度，确保布局稳定 */
+    height: 100rpx;
     gap: 16rpx;
 }
 
-/* --- 左侧：角色卡片 --- */
+/* --- 左侧：角色位置卡片 --- */
 .location-box {
     flex: 1.4;
     display: flex;
@@ -1223,20 +1234,20 @@ onNavigationBarButtonTap((e) => {
     border: 1px solid transparent;
     transition: all 0.3s;
     
-    /* 手机模式：简约白灰 */
+    /* 手机模式：跟随胶囊颜色 */
     &.mode-phone { 
-        background: linear-gradient(to right, #ffffff, #f7f7f7);
-        border-color: #eee;
-        .icon-circle { background: #f0f0f0; color: #666; }
-        .mode-tag { background: #eee; color: #666; }
+        background: var(--pill-bg); 
+        border-color: var(--border-color);
+        .icon-circle { background: var(--bg-color); color: var(--text-sub); }
+        .mode-tag { background: var(--bg-color); color: var(--text-sub); }
     }
     
-    /* 见面模式：淡蓝渐变 */
+    /* 见面模式：保持淡淡的蓝色，夜间模式下透明度叠加不会刺眼 */
     &.mode-face { 
-        background: linear-gradient(135deg, #e3f2fd 0%, #f0f8ff 100%);
-        border-color: #bbdefb;
-        .icon-circle { background: #fff; color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
-        .mode-tag { background: rgba(255,255,255,0.6); color: #007aff; }
+        background: linear-gradient(135deg, rgba(0,122,255,0.1) 0%, rgba(0,122,255,0.05) 100%);
+        border-color: rgba(0,122,255,0.3);
+        .icon-circle { background: var(--card-bg); color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
+        .mode-tag { background: var(--card-bg); color: #007aff; }
     }
 }
 
@@ -1262,21 +1273,23 @@ onNavigationBarButtonTap((e) => {
     margin-right: 8rpx; font-weight: bold; flex-shrink: 0;
 }
 
-.location-text {
-    font-size: 26rpx; font-weight: bold; color: #333;
+.location-text { 
+    font-size: 26rpx; font-weight: bold; 
+    color: var(--text-color); /* 适配文字 */
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.activity-text {
-    font-size: 20rpx; color: #888;
+.activity-text { 
+    font-size: 20rpx; 
+    color: var(--text-sub); /* 适配次要文字 */
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* --- 右侧：状态组 (改为上下胶囊结构) --- */
+/* --- 右侧：状态组 --- */
 .right-status-group {
     flex: 0.9;
     display: flex;
-    flex-direction: column; /* 垂直排列，上下各一个胶囊 */
+    flex-direction: column;
     justify-content: space-between;
     gap: 8rpx;
 }
@@ -1289,193 +1302,269 @@ onNavigationBarButtonTap((e) => {
     border-radius: 12rpx;
     font-size: 22rpx;
 }
-.selected-msg {
-    .bubble {
-        opacity: 0.7;
-        transform: scale(0.98);
-        border: 2rpx solid #007aff !important;
-    }
-}
 
-.edit-toolbar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 100rpx;
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 40rpx;
-    box-shadow: 0 -4rpx 20rpx rgba(0,0,0,0.1);
-    z-index: 1000;
-    padding-bottom: env(safe-area-inset-bottom);
+/* 玩家位置 & 时间胶囊 - 统一适配夜间模式 */
+.time-pill, .player-pill {
+    background: var(--pill-bg); 
+    border: 1px solid var(--border-color); 
+    color: var(--text-color);
     
-    .delete-confirm-btn { color: #ff4d4f; font-weight: bold; }
-    .cancel-btn { color: #666; }
-    .count-tip { font-size: 24rpx; color: #999; }
-}
-/* 玩家位置胶囊 (绿色) */
-.player-pill {
-    background: #f0f9eb; border: 1px solid #e1f3d8; color: #166534;
     .pill-icon { margin-right: 8rpx; font-size: 24rpx; }
     .pill-text { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-}
-
-/* 时间胶囊 (白色) */
-.time-pill {
-    background: #fff; border: 1px solid #eee; color: #333;
-    justify-content: space-between; /* 时间和星期左右分布 */
+    
     .time-clock { font-weight: bold; font-size: 26rpx; font-family: Helvetica, sans-serif; }
-    .time-week { color: #999; font-size: 20rpx; }
+    .time-week { color: var(--text-sub); font-size: 20rpx; }
+    
+    /* 覆盖 justify-content 以适配不同内容 */
+    &.time-pill { justify-content: space-between; }
 }
 
-/* 3. 聊天内容区 */
+/* ==========================================================================
+   3. 聊天内容区
+   ========================================================================== */
 .chat-scroll { flex: 1; overflow: hidden; }
 .chat-content { padding: 20rpx; padding-bottom: 240rpx; }
-.system-tip { text-align: center; color: #aaa; font-size: 24rpx; margin-bottom: 30rpx; }
-.message-item { display: flex; margin-bottom: 30rpx; &.left { flex-direction: row; .avatar { margin-right: 20rpx; } } &.right { flex-direction: row-reverse; .avatar { margin-left: 20rpx; } } }
-.avatar { width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; background-color: #eee; }
+
+.system-tip { 
+    text-align: center; 
+    color: var(--text-sub); /* 适配 */
+    font-size: 24rpx; margin-bottom: 30rpx; 
+}
+
+.message-item { 
+    display: flex; margin-bottom: 30rpx; 
+    &.left { flex-direction: row; .avatar { margin-right: 20rpx; } } 
+    &.right { flex-direction: row-reverse; .avatar { margin-left: 20rpx; } } 
+}
+
+.avatar { 
+    width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; 
+    background-color: var(--border-color); /* 占位色适配 */
+}
+
 .bubble-wrapper { max-width: 72%; }
-.bubble { padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; &.left-bubble { background-color: #fff; color: #333; border-top-left-radius: 4rpx; } &.right-bubble { background-color: #95ec69; color: #000; border-top-right-radius: 4rpx; } &.image-bubble { padding: 0; background: transparent; box-shadow: none; } }
+
+/* 聊天气泡 */
+.bubble { 
+    padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; 
+    
+    /* 左侧气泡 (AI) - 随主题变黑白 */
+    &.left-bubble { 
+        background-color: var(--card-bg); 
+        color: var(--text-color); 
+        border-top-left-radius: 4rpx; 
+        border: 1px solid var(--border-color); /* 微弱边框增加夜间层次 */
+    } 
+    
+    /* 右侧气泡 (玩家) - 保持绿色，夜间依然清晰 */
+    &.right-bubble { 
+        background-color: #95ec69; 
+        color: #000; 
+        border-top-right-radius: 4rpx; 
+    } 
+    
+    &.image-bubble { padding: 0; background: transparent; box-shadow: none; border: none; } 
+}
+
 .chat-image { width: 400rpx; border-radius: 16rpx; }
-.system-event { width: 100%; text-align: center; margin: 20rpx 0; text { background: rgba(0,0,0,0.05); color: #999; font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 20rpx; } }
-.error-system-msg { background: #ffebee; color: #ff4757; border: 1px solid #ffcdd2; }
+
+/* 系统事件 (时间流逝等) */
+.system-event { 
+    width: 100%; text-align: center; margin: 20rpx 0; 
+    text { 
+        background: var(--pill-bg); /* 适配 */
+        color: var(--text-sub); 
+        font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 20rpx; 
+    } 
+}
+
+.error-system-msg text { 
+    background: #ffebee; color: #ff4757; border: 1px solid #ffcdd2; /* 报错保持醒目红 */
+}
+
 .loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
-.loading-dots { color: #999; font-weight: bold; }
+.loading-dots { color: var(--text-sub); font-weight: bold; }
 
-/* 4. 底部工具栏 */
-.footer { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #eee; z-index: 99; padding-bottom: env(safe-area-inset-bottom); }
-.input-area { display: flex; align-items: center; padding: 16rpx 20rpx; background: #f7f7f7; }
-.action-btn { width: 70rpx; height: 70rpx; display: flex; align-items: center; justify-content: center; margin-right: 16rpx; font-size: 44rpx; color: #666; }
-.input { flex: 1; height: 76rpx; background: #fff; border-radius: 38rpx; padding: 0 30rpx; font-size: 30rpx; margin-right: 16rpx; border: 1px solid #e5e5e5; }
-.send-btn { width: 120rpx; height: 76rpx; background: #007aff; color: #fff; line-height: 76rpx; border-radius: 38rpx; text-align: center; font-size: 28rpx; font-weight: bold; }
-.toolbar-compact { background: #f9f9f9; border-bottom: 1px solid #eee; padding: 16rpx 10rpx; }
-.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
-.tool-item { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10rpx 0; border-radius: 12rpx; }
-.tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
-.tool-text { font-size: 20rpx; color: #666; }
-
-/* 5. 弹窗 */
-.time-panel-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; justify-content: center; align-items: center; }
-.time-panel { width: 600rpx; background: #fff; border-radius: 24rpx; padding: 40rpx 30rpx; animation: popCenter 0.25s; }
-@keyframes popCenter { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.panel-title { font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 40rpx; }
-.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; max-height: 60vh; overflow-y: auto; }
-.grid-btn { background: #f0f8ff; color: #007aff; text-align: center; padding: 24rpx 0; border-radius: 12rpx; font-size: 28rpx; }
-.custom-time { display: flex; align-items: center; justify-content: center; margin-top: 30rpx; gap: 10rpx; }
-.mini-input { width: 100rpx; border-bottom: 1px solid #ddd; text-align: center; }
-.mini-btn { background: #eee; padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; }
-.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
-.picker-display { border: 1px solid #ddd; padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; background: #f8f8f8; }
-.confirm-time-btn { background: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
-/* 编辑模式全局：让没选中的变淡，选中的保持清晰或加重 */
-.not-selected {
-    opacity: 0.3; /* 没选中的直接变成 30% 透明度，非常明显 */
-    filter: grayscale(80%); /* 并且变灰 */
-}
-
-.is-selected {
-    .bubble {
-        background-color: #007aff !important; /* 选中的气泡强制变深蓝色 */
-        color: #fff !important;
-        transform: scale(1.05); /* 稍微放大一点点 */
-        border: 2rpx solid #0056b3 !important;
-    }
-}
-
-/* 勾选小圆圈 */
-.select-check-icon {
-    display: flex; align-items: center; padding: 0 10rpx;
-    .circle {
-        width: 36rpx; height: 36rpx; border: 2rpx solid #999; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center; font-size: 24rpx;
-        &.checked { background: #007aff; border-color: #007aff; color: #fff; }
-    }
-}
-
-/* 底部删除条 */
-.edit-toolbar {
-    display: flex; justify-content: space-between; align-items: center;
-    height: 100rpx; padding: 0 40rpx; background: #fff; border-top: 1px solid #eee;
-}
-.ratio-input-box {
-    display: flex;
-    align-items: center;
-    background: #f0f0f0;
-    padding: 8rpx 20rpx;
-    border-radius: 10rpx;
-    .txt { font-size: 24rpx; color: #666; }
-    .mini-input { 
-        width: 80rpx; 
-        text-align: center; 
-        font-weight: bold; 
-        color: #007aff; 
-        border-bottom: 2rpx solid #007aff;
-        margin: 0 10rpx;
-    }
-}
-/* 🧠 心理活动气泡样式 */
-.think-bubble {
-    margin: 10rpx 0;
-    opacity: 0.9;
-}
-
+/* 🧠 心理活动气泡 */
+.think-bubble { margin: 10rpx 0; opacity: 0.9; }
 .think-bubble text {
     background: transparent !important;
-    color: #888 !important; /* 灰色文字 */
-    font-size: 24rpx;       /* 字号稍小 */
-    font-style: italic;     /* 斜体 */
-    font-family: serif;     /* 衬线体，更有旁白感 */
+    color: var(--text-sub) !important;
+    font-size: 24rpx; font-style: italic; font-family: serif;
     padding: 8rpx 24rpx;
-    border: 2rpx dashed #dcdcdc; /* 虚线边框 */
+    border: 2rpx dashed var(--border-color); /* 虚线适配 */
     border-radius: 20rpx;
     display: inline-block;
 }
-/* 图片失败占位符样式 */
+
+/* 图片失败占位符 */
 .image-error-box {
-    width: 400rpx;
-    height: 300rpx;
-    background-color: #f8f8f8;
+    width: 400rpx; height: 300rpx;
+    background-color: var(--tool-bg); /* 适配 */
     border: 2rpx dashed #ff4d4f;
     border-radius: 16rpx;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16rpx;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16rpx;
     
-    .error-icon {
-        font-size: 48rpx;
-    }
-    
-    .error-text {
-        font-size: 26rpx;
-        color: #ff4d4f;
-    }
+    .error-icon { font-size: 48rpx; }
+    .error-text { font-size: 26rpx; color: #ff4d4f; }
     
     .retry-btn {
-        display: flex;
-        align-items: center;
-        background-color: #fff;
-        border: 1px solid #ddd;
-        padding: 8rpx 24rpx;
-        border-radius: 30rpx;
-        font-size: 24rpx;
-        color: #333;
-        box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+        display: flex; align-items: center;
+        background-color: var(--card-bg); /* 适配 */
+        border: 1px solid var(--border-color);
+        padding: 8rpx 24rpx; border-radius: 30rpx;
+        font-size: 24rpx; color: var(--text-color);
+        box-shadow: var(--shadow);
         
-        .retry-icon {
-            font-size: 24rpx;
-            margin-right: 8rpx;
-            font-weight: bold;
-        }
-        
-        &:active {
-            background-color: #f0f0f0;
-            transform: scale(0.98);
-        }
+        .retry-icon { font-size: 24rpx; margin-right: 8rpx; font-weight: bold; }
+        &:active { background-color: var(--bg-color); transform: scale(0.98); }
+    }
+}
+
+/* ==========================================================================
+   4. 底部工具栏 & 输入区
+   ========================================================================== */
+.footer { 
+    position: fixed; bottom: 0; left: 0; right: 0; 
+    background: var(--card-bg); /* 适配 */
+    border-top: 1px solid var(--border-color); 
+    z-index: 99; padding-bottom: env(safe-area-inset-bottom); 
+}
+
+/* 多选编辑条 */
+.edit-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    height: 100rpx; padding: 0 40rpx;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border-color);
+    .delete-confirm-btn { color: #ff4d4f; font-weight: bold; }
+    .cancel-btn { color: var(--text-color); }
+    .count-tip { font-size: 24rpx; color: var(--text-sub); }
+}
+
+.input-area { 
+    display: flex; align-items: center; padding: 16rpx 20rpx; 
+    background: var(--tool-bg); /* 适配 */
+}
+
+.action-btn { 
+    width: 70rpx; height: 70rpx; display: flex; align-items: center; justify-content: center; 
+    margin-right: 16rpx; font-size: 44rpx; 
+    color: var(--text-sub); 
+}
+
+.input { 
+    flex: 1; height: 76rpx; 
+    background: var(--input-bg); /* 适配 */
+    color: var(--text-color);
+    border-radius: 38rpx; padding: 0 30rpx; font-size: 30rpx; margin-right: 16rpx; 
+    border: 1px solid var(--border-color);
+}
+
+.send-btn { 
+    width: 120rpx; height: 76rpx; background: #007aff; color: #fff; 
+    line-height: 76rpx; border-radius: 38rpx; text-align: center; 
+    font-size: 28rpx; font-weight: bold; 
+}
+
+.toolbar-compact { 
+    background: var(--tool-bg); 
+    border-bottom: 1px solid var(--border-color); 
+    padding: 16rpx 10rpx; 
+}
+
+.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
+.tool-item { 
+    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    padding: 10rpx 0; border-radius: 12rpx; 
+}
+.tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
+.tool-text { font-size: 20rpx; color: var(--text-sub); }
+
+/* ==========================================================================
+   5. 弹窗面板
+   ========================================================================== */
+.time-panel-mask { 
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+    background: rgba(0,0,0,0.5); z-index: 999; 
+    display: flex; justify-content: center; align-items: center; 
+}
+
+.time-panel { 
+    width: 600rpx; 
+    background: var(--card-bg); /* 适配 */
+    border-radius: 24rpx; padding: 40rpx 30rpx; 
+    animation: popCenter 0.25s; 
+}
+
+@keyframes popCenter { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.panel-title { 
+    font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 40rpx; 
+    color: var(--text-color); 
+}
+
+.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; max-height: 60vh; overflow-y: auto; }
+
+.grid-btn { 
+    background: var(--bg-color); /* 适配 */
+    color: #007aff; text-align: center; padding: 24rpx 0; border-radius: 12rpx; font-size: 28rpx; 
+}
+
+.custom-time { display: flex; align-items: center; justify-content: center; margin-top: 30rpx; gap: 10rpx; }
+
+.mini-input { 
+    width: 100rpx; 
+    border-bottom: 1px solid var(--border-color); 
+    text-align: center; color: var(--text-color);
+}
+
+.mini-btn { 
+    background: var(--tool-bg); /* 适配 */
+    padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; color: var(--text-color);
+}
+
+.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
+
+.picker-display { 
+    border: 1px solid var(--border-color); 
+    padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; 
+    background: var(--input-bg); 
+    color: var(--text-color);
+}
+
+.confirm-time-btn { background: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
+
+.ratio-input-box {
+    display: flex; align-items: center; 
+    background: var(--tool-bg); 
+    padding: 8rpx 20rpx; border-radius: 10rpx;
+    
+    .txt { font-size: 24rpx; color: var(--text-sub); }
+    .mini-input { 
+        width: 80rpx; text-align: center; font-weight: bold; color: #007aff; 
+        border-bottom: 2rpx solid #007aff; margin: 0 10rpx; 
+    }
+}
+
+/* 编辑模式选中状态 */
+.not-selected { opacity: 0.3; filter: grayscale(80%); }
+
+.is-selected .bubble {
+    background-color: #007aff !important; 
+    color: #fff !important;
+    transform: scale(1.05); 
+    border: 2rpx solid #0056b3 !important;
+}
+
+.select-check-icon {
+    display: flex; align-items: center; padding: 0 10rpx;
+    .circle {
+        width: 36rpx; height: 36rpx; 
+        border: 2rpx solid var(--text-sub); 
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; font-size: 24rpx;
+        &.checked { background: #007aff; border-color: #007aff; color: #fff; }
     }
 }
 </style>

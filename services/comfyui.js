@@ -29,7 +29,7 @@ export const Comfy = {
         const promptId = queueRes.data.prompt_id;
         
         // 3. 轮询等待结果 (最多等 60 秒)
-        for (let i = 0; i < 60; i++) {
+        for (let i = 0; i < 120; i++) {
             await new Promise(r => setTimeout(r, 1000));
             
             const historyRes = await uni.request({ 
