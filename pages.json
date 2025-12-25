@@ -68,6 +68,24 @@
 		"style": {
 			"navigationBarTitleText": ""
 		}
+	},
+	{
+		"path": "pages/scenario/scenario",
+		"style": {
+			"navigationBarTitleText": ""
+		}
+	},
+	{
+		"path": "pages/scenario/create",
+		"style": {
+			"navigationBarTitleText": ""
+		}
+	},
+	{
+		"path": "pages/scenario/play",
+		"style": {
+			"navigationBarTitleText": ""
+		}
 	}
   ],
   "globalStyle": {

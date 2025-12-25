@@ -3,29 +3,25 @@
     <view class="tabbar-placeholder"></view>
     
     <view class="tabbar">
-      <view class="tab-item" @click="switchTab(0, '/pages/index/index')">
+      <view 
+        v-for="(item, index) in tabList" 
+        :key="index" 
+        class="tab-item" 
+        @click="switchTab(index, item.pagePath)"
+      >
         <image 
           class="icon" 
-          :src="current === 0 ? '/static/msg-active.png' : '/static/msg.png'" 
+          :src="current === index ? item.selectedIconPath : item.iconPath" 
           mode="aspectFit"
         ></image>
-        <text class="text" :class="{ active: current === 0 }">消息</text>
-      </view>
-
-      <view class="tab-item" @click="switchTab(1, '/pages/mine/mine')">
-        <image 
-          class="icon" 
-          :src="current === 1 ? '/static/me-active.png' : '/static/me.png'" 
-          mode="aspectFit"
-        ></image>
-        <text class="text" :class="{ active: current === 1 }">我的</text>
+        <text class="text" :class="{ active: current === index }">{{ item.text }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
-import { defineProps } from 'vue';
+import { ref, defineProps } from 'vue';
 
 const props = defineProps({
   current: {
@@ -33,6 +29,29 @@ const props = defineProps({
     default: 0
   }
 });
+
+// ✨✨✨ 将配置数据提取到 script 中 ✨✨✨
+const tabList = ref([
+  {
+    pagePath: '/pages/index/index',
+    text: '消息',
+    iconPath: '/static/msg.png',
+    selectedIconPath: '/static/msg-active.png'
+  },
+  {
+    pagePath: '/pages/scenario/scenario',
+    text: '小剧场',
+    // 暂时用 logo 图标，等你有了 static/scenario.png 后可以在这里改
+    iconPath: '/static/logo.png', 
+    selectedIconPath: '/static/logo.png' 
+  },
+  {
+    pagePath: '/pages/mine/mine',
+    text: '我的',
+    iconPath: '/static/me.png',
+    selectedIconPath: '/static/me-active.png'
+  }
+]);
 
 const switchTab = (index, path) => {
   if (props.current === index) return;
@@ -52,7 +71,6 @@ const switchTab = (index, path) => {
   left: 0; 
   width: 100%; 
   height: 100rpx; 
-  /* 🔥 修改点：使用全局变量适配夜间模式 */
   background-color: var(--card-bg); 
   border-top: 1px solid var(--border-color); 
   
@@ -79,7 +97,6 @@ const switchTab = (index, path) => {
 
 .text { 
   font-size: 20rpx; 
-  /* 🔥 修改点：文字颜色也适配一下 */
   color: var(--text-sub); 
 }
 
