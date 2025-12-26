@@ -1,163 +1,72 @@
+// AiChat/core/scenario-prompts.js
+
 /**
- * core/scenario-prompts.js
- * 小剧场模式 (Scenario Mode) 专用提示词仓库
- * 职责：只负责生成发给 AI 的 Prompt 字符串，不含业务逻辑。
+ * 🎬 场景模式的核心 Prompt 构建器 (高智商版)
+ * 核心思路：虽然是导演模式，但必须把每个角色的“灵魂”(完整人设) 注入进去。
  */
 
-// =============================================================================
-// 1. 基础格式守则 (通用)
-// =============================================================================
-const SCENARIO_FORMAT_RULES = `
-【基础回复守则】
-1. **禁止指令输出**: 绝对不要输出 [System], [Logic] 等指令代码。
-2. **禁止废话**: 不要说“好的”、“明白了”，直接输出内容。
-3. **格式**: 
-   - 动作描写用全角括号（）。
-   - 心理活动用 <think> 标签（限50字内）。
-   - 对话直接写，不要带【姓名:】前缀（除非是多人混战模式，但通常由系统自动分配名字）。
-`;
+export function buildSceneSystemPrompt(sceneData) {
+    // 1. 基础舞台设定
+    let prompt = `【系统指令：沉浸式剧场导演模式】\n\n`;
+    prompt += `你现在是该场景的【最高导演】。你需要同时控制多位 NPC 与玩家(User)进行互动。\n`;
+    prompt += `不要暴露你是 AI，不要输出 "好的" 或 "明白"，直接输出剧情演绎的内容。\n\n`;
 
-// =============================================================================
-// 2. 🎬 导演/调度师 (The Director)
-// =============================================================================
-/**
- * 构建导演指令：决定下一位发言者
- * @param {Object} scenario 场景数据
- * @param {Array} recentHistory 最近的对话记录
- * @param {Array} activeNpcNames 当前场景所有 NPC 的名字列表
- */
-export function buildDirectorPrompt(scenario, recentHistory, activeNpcNames) {
-    // 将历史记录格式化为文本供导演参考
-    const historyText = recentHistory.map(m => `[${m.role}]: ${m.content}`).join('\n');
-    const npcListStr = activeNpcNames.join(', ');
+    // 2. 环境设定
+    prompt += `### 🌍 当前环境\n`;
+    if (sceneData.worldId) {
+        prompt += `- 世界观: 这里的常识、科技或魔法水平需符合该世界设定。\n`;
+    }
+    prompt += `- 地点: ${sceneData.name}\n`;
+    prompt += `- 氛围/背景: ${sceneData.background || '普通的场景'}\n`;
+    if (sceneData.playerIdentity) {
+        prompt += `- 玩家身份: ${sceneData.playerIdentity}\n`;
+    }
 
-    return `
-[System Command: SCENARIO_DIRECTOR]
-你是一个TRPG游戏的“后台逻辑导演”。
-你的任务不是写对话，而是**决策**下一轮该由谁行动，以及裁决事件结果。
+    // 3. 👥 演员表 (这是防止变傻的关键！)
+    prompt += `\n### 👥 演员名单与详细人设 (请严格扮演)\n`;
+    
+    sceneData.npcs.forEach((npc, index) => {
+        prompt += `\n[角色 ${index + 1}]: ${npc.name}\n`;
+        
+        // A. 强制注入完整人设 (从 private prompt 提取的核心)
+        const persona = npc.settings?.description || npc.persona || '普通性格';
+        const style = npc.settings?.style || '正常说话';
+        
+        prompt += `  > 核心性格: ${persona}\n`;
+        prompt += `  > 说话风格: ${style}\n`;
+        
+        // B. 身份与状态
+        if (npc.sceneRole) {
+            prompt += `  > 本场身份: ${npc.sceneRole} (请结合性格扮演此身份)\n`;
+        }
+        if (npc.initialState) {
+            prompt += `  > 当前动作: ${npc.initialState}\n`;
+        }
+        
+        // C. 关系与记忆 (如果有的话)
+        // 这里假设你在 activeNpcs 里已经加载了 currentRelation
+        if (npc.currentRelation) {
+            prompt += `  > 与玩家关系: ${npc.currentRelation}\n`;
+        }
+    });
 
-【当前场景】: ${scenario.name}
-【可用角色】: ${npcListStr} (或者 "Narrator" 旁白)
-【最近剧情流】:
-${historyText}
+    // 4. 🎮 导演调度规则 (逻辑核心)
+    prompt += `\n### 🎮 你的调度规则\n`;
+    prompt += `1. **谁该说话？**\n`;
+    prompt += `   - 如果玩家指定了跟某人说话，主要由该角色回复。\n`;
+    prompt += `   - 如果玩家是对大家说话，相关的角色都可以插话。\n`;
+    prompt += `   - **避免抢话**：不要让所有 NPC 每次都轮流回复一遍，这很机械。谁离得近、谁性格活跃、谁被提到了，谁就说话。\n`;
+    
+    prompt += `2. **格式要求 (绝对严格)**\n`;
+    prompt += `   - 你的输出必须包含角色名字前缀，以便前端解析。\n`;
+    prompt += `   - 格式：\n`;
+    prompt += `     角色名: (神态/动作) 说话内容\n`;
+    prompt += `     角色名: 说话内容\n`;
+    prompt += `     (如果有旁白): 系统: 旁白内容\n`;
+    
+    prompt += `3. **互动深度**\n`;
+    prompt += `   - 角色之间可以互相交流（例如 A 对 B 说话），不仅仅是回玩家。\n`;
+    prompt += `   - 如果玩家是去找角色 A 的，角色 B 如果在场，可能会表现出好奇、吃醋或漠不关心（根据性格决定）。\n`;
 
-【决策任务】
-1. **意图识别**: 玩家是在对谁说话？或者是对环境做动作？
-2. **物品/规则裁决**: 
-   - 如果最新一条消息是 [System Event] (如玩家使用了道具)，请根据常识判定结果（例如：给贪财的人金币->高兴；给敌人毒药->中毒）。
-   - 不需要掷骰子，直接根据“逻辑因果”判定。
-3. **指派演员**: 决定下一个由谁来回应玩家。
-
-【输出格式 (JSON)】
-请仅输出一个 JSON 对象，不要包含 Markdown 标记：
-{
-  "target": "角色名字", // 必须是【可用角色】中的一个，或是 "Narrator"
-  "context_note": "给该角色的简短导演备注" // 例如："他收到了金币，应该表现得很谄媚" 或 "玩家攻击了他，他应该反击"
-}
-`;
-}
-
-// =============================================================================
-// 3. 🎭 动态演员 (The Actor)
-// =============================================================================
-/**
- * 构建演员指令：扮演特定角色
- * @param {String} personaText NPC 的完整人设描述
- * @param {Object} scenario 场景数据
- * @param {String} sceneLog 当前的剧情日志（记忆）
- * @param {String} directorNote 导演给出的临时指示
- */
-export function buildActorPrompt(personaText, scenario, sceneLog, directorNote) {
-    return `
-[System Command: IMMERSIVE_ACTOR]
-${SCENARIO_FORMAT_RULES}
-
-【当前场景环境】
-场景: ${scenario.name}
-描述: ${scenario.description}
-
-【你的角色设定】
-${personaText}
-
-【前情提要 (你的短期记忆)】
-${sceneLog || "（刚进入场景，暂无发生特殊事件）"}
-
-【导演给你的即时指令】
-👉 **${directorNote}** 👈
-(这是当下的最高指令，比如如果导演说你“中毒了”，你必须表现出中毒的痛苦，不能无视。)
-
-【回复要求】
-1. 结合【前情提要】和【导演指令】，以你的人设做出自然反应。
-2. 如果【前情提要】里提到你刚才在做某事（如擦杯子），请保持动作的连贯性。
-3. **沉浸式**: 不要复述设定，直接表演。
-`;
-}
-
-// =============================================================================
-// 4. 📝 书记员：滚动日志更新 (Log Updater)
-// =============================================================================
-/**
- * 构建总结指令：更新剧情日志
- * @param {String} currentLog 旧的日志
- * @param {String} newDialogues 新发生的对话
- */
-export function buildLogUpdatePrompt(currentLog, newDialogues) {
-    return `
-[System Command: SCENE_RECORDER]
-任务：作为场景记录员，将“新增对话”合并进“当前剧情日志”。
-
-【当前日志】:
-${currentLog || "（剧情刚开始）"}
-
-【新增对话流】:
-${newDialogues}
-
-【合并要求】
-1. **第三人称**记叙（如“玩家进入酒馆，与老乔攀谈”）。
-2. **去粗取精**: 忽略无意义的寒暄，只记录关键信息（交易、冲突、获得道具、关键情报、好感变化）。
-3. **物品追踪**: 必须记录任何物品/金钱的转移或消耗。
-4. **输出限制**: 直接输出更新后的完整日志文本，控制在 300 字以内。
-`;
-}
-
-// =============================================================================
-// 5. 🚪 离场收尾 (Scene Exit)
-// =============================================================================
-/**
- * 构建离场指令
- */
-export function buildLeaveScenePrompt(scenario, sceneLog) {
-    return `
-[System Command: SCENE_CLOSURE]
-玩家决定离开当前场景【${scenario.name}】。
-
-【当前剧情状态】:
-${sceneLog}
-
-【指令】
-1. 请生成一段**旁白或NPC对话**来结束本次场景探索。
-2. 根据【当前剧情状态】中的NPC关系：
-   - 如果相谈甚欢，NPC应该道别或挽留。
-   - 如果发生冲突，NPC可以冷眼旁观或放狠话。
-3. 必须给出一个明确的结束感（如“看着玩家的背影消失在门外”）。
-`;
-}
-
-// =============================================================================
-// 6. 🏷️ 标题生成 (Title Generator)
-// =============================================================================
-/**
- * 构建标题生成指令
- */
-export function buildTitleGenPrompt(finalLog) {
-    return `
-[System Command: TITLE_GENERATOR]
-阅读以下剧情日志：
-"${finalLog}"
-
-【任务】
-生成一个 **10字以内** 的中文标题，概括本次经历。
-风格参考：RPG任务名、小说章节名（如《酒馆的初遇》、《深夜的交易》、《血色冲突》）。
-只输出标题文字，不要引号。
-`;
+    return prompt;
 }

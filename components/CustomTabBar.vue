@@ -1,27 +1,37 @@
 <template>
-  <view class="tabbar-container">
-    <view class="tabbar-placeholder"></view>
-    
-    <view class="tabbar">
-      <view 
-        v-for="(item, index) in tabList" 
-        :key="index" 
-        class="tab-item" 
-        @click="switchTab(index, item.pagePath)"
-      >
-        <image 
-          class="icon" 
-          :src="current === index ? item.selectedIconPath : item.iconPath" 
-          mode="aspectFit"
-        ></image>
-        <text class="text" :class="{ active: current === index }">{{ item.text }}</text>
-      </view>
+  <view class="tab-bar" :class="{ 'dark-mode': isDarkMode }">
+    <view class="tab-item" @click="switchTab(0, '/pages/index/index')">
+      <image 
+        class="icon" 
+        :src="current === 0 ? '/static/msg-active.png' : '/static/msg.png'" 
+        mode="aspectFit"
+      ></image>
+      <text class="text" :class="{ active: current === 0 }">消息</text>
+    </view>
+
+    <view class="tab-item" @click="switchTab(1, '/pages/scene/index')">
+      <image 
+        class="icon" 
+        :src="current === 1 ? '/static/scene-active.png' : '/static/scene.png'" 
+        mode="aspectFit"
+      ></image>
+      <text class="text" :class="{ active: current === 1 }">场景</text>
+    </view>
+
+    <view class="tab-item" @click="switchTab(2, '/pages/mine/mine')">
+      <image 
+        class="icon" 
+        :src="current === 2 ? '/static/me-active.png' : '/static/me.png'" 
+        mode="aspectFit"
+      ></image>
+      <text class="text" :class="{ active: current === 2 }">我的</text>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref, defineProps } from 'vue';
+import { defineProps } from 'vue';
+import { useTheme } from '@/composables/useTheme.js';
 
 const props = defineProps({
   current: {
@@ -30,75 +40,70 @@ const props = defineProps({
   }
 });
 
-// ✨✨✨ 将配置数据提取到 script 中 ✨✨✨
-const tabList = ref([
-  {
-    pagePath: '/pages/index/index',
-    text: '消息',
-    iconPath: '/static/msg.png',
-    selectedIconPath: '/static/msg-active.png'
-  },
-  {
-    pagePath: '/pages/scenario/scenario',
-    text: '小剧场',
-    // 暂时用 logo 图标，等你有了 static/scenario.png 后可以在这里改
-    iconPath: '/static/logo.png', 
-    selectedIconPath: '/static/logo.png' 
-  },
-  {
-    pagePath: '/pages/mine/mine',
-    text: '我的',
-    iconPath: '/static/me.png',
-    selectedIconPath: '/static/me-active.png'
-  }
-]);
+const { isDarkMode } = useTheme();
 
 const switchTab = (index, path) => {
   if (props.current === index) return;
+  
+  // 使用 reLaunch 关闭所有页面打开新页面，模拟 TabBar 行为
   uni.reLaunch({
-    url: path
+    url: path,
+    fail: (err) => {
+        console.error('跳转失败:', err);
+        // 如果 reLaunch 失败（有时候在某些页面栈深处），尝试 redirectTo
+        uni.redirectTo({ url: path });
+    }
   });
 };
 </script>
 
-<style scoped>
-.tabbar-container { width: 100%; }
-.tabbar-placeholder { width: 100%; height: calc(100rpx + constant(safe-area-inset-bottom)); height: calc(100rpx + env(safe-area-inset-bottom)); }
-
-.tabbar { 
-  position: fixed; 
-  bottom: 0; 
-  left: 0; 
-  width: 100%; 
-  height: 100rpx; 
-  background-color: var(--card-bg); 
-  border-top: 1px solid var(--border-color); 
+<style lang="scss" scoped>
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 110rpx; /* 稍微调高一点，适应现在的手机 */
+  background-color: #ffffff;
+  border-top: 1px solid #eeeeee;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 999;
   
-  display: flex; 
-  align-items: center; 
-  justify-content: space-around; 
-  z-index: 999; 
-  padding-bottom: constant(safe-area-inset-bottom); 
-  padding-bottom: env(safe-area-inset-bottom); 
-  box-sizing: content-box; 
-  transition: background-color 0.3s;
+  /* 暗黑模式适配 */
+  &.dark-mode {
+    background-color: #191919;
+    border-top: 1px solid #333;
+    
+    .text { color: #666; }
+    .text.active { color: #007aff; }
+  }
 }
 
-.tab-item { 
-  flex: 1; 
-  height: 100%; 
-  display: flex; 
-  flex-direction: column; 
-  align-items: center; 
-  justify-content: center; 
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 
-.icon { width: 48rpx; height: 48rpx; margin-bottom: 6rpx; }
-
-.text { 
-  font-size: 20rpx; 
-  color: var(--text-sub); 
+.icon {
+  width: 50rpx;
+  height: 50rpx;
+  margin-bottom: 6rpx;
 }
 
-.text.active { color: #007AFF; }
+.text {
+  font-size: 20rpx;
+  color: #999999;
+  
+  &.active {
+    color: #007aff;
+    font-weight: bold;
+  }
+}
 </style>

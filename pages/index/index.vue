@@ -74,10 +74,26 @@ const createNewContact = () => {
   });
 };
 
+// AiChat/pages/index/index.vue
+
 const goToChat = (item) => {
+  // 1. 清除未读
   item.unread = 0;
   uni.setStorageSync('contact_list', contactList.value);
-  // 传递 ID 和 Name
+
+  // 🔥🔥🔥 核心逻辑：路由分发 🔥🔥🔥
+  // 检查玩家是否“肉身”在这个角色所在的场景里
+  if (item.playerInSceneId) {
+      console.log(`🚀 检测到玩家还在场景 [${item.playerInSceneId}]，正在恢复现场...`);
+      
+      // 强制跳转到场景页 (带上 visitorId，告诉场景我是来找这个人的)
+      uni.navigateTo({
+          url: `/pages/scene/chat?id=${item.playerInSceneId}&visitorId=${item.id}`
+      });
+      return; // ⛔️ 阻止进入私聊页面
+  }
+
+  // 2. 默认情况：玩家不在现场，正常进入私聊 (手机/远程模式)
   uni.navigateTo({
     url: `/pages/chat/chat?id=${item.id}&name=${item.name}`
   });

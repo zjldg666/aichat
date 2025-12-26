@@ -610,15 +610,14 @@ const confirmDelete = () => {
         }
     });
 };
-// ==================================================================================
-// 3. 🧩 初始化各大逻辑模块
-// ==================================================================================
+
 const { 
     currentTime, formattedTime, 
     timeRatio, tempTimeRatio,
     showTimePanel, showTimeSettingPanel, tempDateStr, tempTimeStr, customMinutes,
     startTimeFlow, stopTimeFlow, handleTimeSkip: _handleTimeSkip, 
-    confirmManualTime: _confirmManualTime  // 👈 改这里：重命名
+    confirmManualTime: _confirmManualTime,
+    initTimeSync // 🔥🔥🔥 必须加这个
 } = useGameTime(saveCharacterState);
 // ✨ 新增：在UI层拆分时间，不改动 useGameTime.js 底层逻辑
 const timeParts = computed(() => {
@@ -704,35 +703,86 @@ const handleSleep = () => {
     handleTimeSkip('night');
 };
 
+// AiChat/pages/chat/chat.vue
+
 const handleMoveTo = (locObj) => {
     if (isLoading.value) return uni.showToast({ title: '对话进行中...', icon: 'none' });
-    if (locObj.type === 'custom' && !locObj.name) return uni.showToast({ title: '请输入地点', icon: 'none' });
-
-    const result = calculateMoveResult(locObj);
     
-    console.log('🚶 [移动监控] -------------------------------------------------');
-    console.log(`📍 玩家地点: "${result.playerLocation}"`);
-    console.log(`📍 角色地点: "${result.aiLocation}"`);
-    console.log(`🔄 模式切换: ${result.newMode === 'face' ? '🥰 当面' : '📱 手机'}`);
-    if (result.shouldNotifyAI) console.log(`🤖 触发剧情: "${result.promptAction}"`);
-    console.log('-----------------------------------------------------------');
+    // 1. 获取目标地点名称
+    const targetName = typeof locObj === 'object' 
+        ? (locObj.detail || locObj.name || '') 
+        : locObj;
+        
+    if (targetName === 'custom' && !customLocation.value) return uni.showToast({ title: '请输入地点', icon: 'none' });
+    const finalLocationName = targetName === 'custom' ? customLocation.value : targetName;
 
-    // 🌟 核心改动：更新双方地点
+    // =================================================================
+    // 🔥 核心升级：检查是否存在对应的“实体场景”
+    // =================================================================
+    const allScenes = uni.getStorageSync('app_scene_list') || [];
+    // 模糊匹配：比如场景叫“综合医院”，你输入“医院”，也能匹配上
+    const targetScene = allScenes.find(s => s.name.includes(finalLocationName) || finalLocationName.includes(s.name));
+
+    if (targetScene) {
+        // A. 找到了实体场景 -> 玩家肉身前往！
+        console.log(`🌌 [传送] 检测到实体场景 [${targetScene.name}]，准备跳转...`);
+        
+        uni.showModal({
+            title: '前往场景',
+            content: `确定前往【${targetScene.name}】吗？`,
+            success: (res) => {
+                if (res.confirm) {
+                    const contacts = uni.getStorageSync('contact_list') || [];
+                    const idx = contacts.findIndex(c => String(c.id) === String(chatId.value));
+                    
+                    if (idx !== -1) {
+                        // 1. 更新角色的物理位置 (因为她确实在这个地点上班/生活)
+                        contacts[idx].currentLocation = targetScene.name;
+                        
+                        // 2. 🔐 关键点：标记“玩家”现在处于这个场景里 (绑定到当前角色关系上)
+                        // 只有这个字段存在时，首页点击才会跳转到场景，否则进私聊
+                        contacts[idx].playerInSceneId = targetScene.id; 
+                        
+                        // 3. 既然玩家去了现场，交互模式强制设为 'face' (当面)
+                        contacts[idx].interactionMode = 'face';
+
+                        uni.setStorageSync('contact_list', contacts);
+                    }
+
+                    // 4. 跳转进场 (使用 redirectTo 关闭当前私聊，避免返回栈混乱)
+                    uni.redirectTo({
+                        url: `/pages/scene/chat?id=${targetScene.id}&visitorId=${chatId.value}`
+                    });
+                    
+                    showLocationPanel.value = false;
+                }
+            }
+        });
+        return; // ⛔️ 这里的逻辑结束，不再执行下面的普通移动逻辑
+    }
+
+    // =================================================================
+    // B. 没找到实体场景 -> 保持私聊模式 (你原有的逻辑)
+    // =================================================================
+    const result = calculateMoveResult({ name: finalLocationName, type: locObj.type });
+    
+    console.log(`📍 [私聊移动] 目标: ${result.playerLocation}`);
+
     playerLocation.value = result.playerLocation;
     currentLocation.value = result.aiLocation;
-    
     interactionMode.value = result.newMode;
+    
     showLocationPanel.value = false;
     uni.vibrateShort();
     saveCharacterState();
 
     if (result.shouldNotifyAI) {
         messageList.value.push({ role: 'system', content: `🚗 ${result.sysMsgUser}`, isSystem: true });
-        // 🌟 核心改动：在 Prompt 中明确双地点
+        // 在 Prompt 中明确双地点
         const movePrompt = `[SYSTEM EVENT: SCENE CHANGE]\n**Action**: ${result.promptAction}\n**Character Location**: ${result.aiLocation}\n**Player Location**: ${result.playerLocation}\n**New Mode**: ${result.newMode === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.\n**Time**: ${formattedTime.value}.\n**Instruction**: React naturally to this movement logic.`;
         sendMessage(false, movePrompt);
     } else {
-        uni.showToast({ title: result.sysMsgUser, icon: 'none', duration: 2500 });
+        uni.showToast({ title: result.sysMsgUser, icon: 'none' });
     }
 };
 // AiChat/pages/chat/chat.vue
@@ -1074,7 +1124,9 @@ const loadRoleData = (id) => {
         uni.setNavigationBarTitle({ title: target.name });
    
         currentLust.value = target.lust || 0;
-        currentTime.value = target.lastTimeTimestamp || Date.now();
+       
+               initTimeSync(target.lastTimeTimestamp || Date.now(), target.worldId);
+		
         currentClothing.value = target.clothing || '便服';
         charHome.value = target.location || '角色家';
         userHome.value = target.settings?.userLocation || '玩家家';

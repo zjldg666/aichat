@@ -127,7 +127,7 @@ export function useAgents(context) {
         currentActivity, playerLocation, formattedTime,
         enableSummary, summaryFrequency, currentSummary,
         saveCharacterState, saveHistory, scrollToBottom,
-        getCurrentLlmConfig
+        getCurrentLlmConfig,sceneParticipants
         // handleAsyncImageGeneration // 👈 2. 移除了这个，防止冲突
     } = context;
 
@@ -571,64 +571,98 @@ export function useAgents(context) {
         }
     };
 
-    // =========================================================================
-    // 6. 每日结算 (🌟保持 JSON 模式🌟)
-    // =========================================================================
-    // 解释：每日结算需要生成结构化数据存库 (brief, mood 等)，用 JSON 是最合适的。
-    // 而且它是后台任务，不需要实时性，我们保留了 safeJsonChat 重试机制。
-    const runDayEndSummary = async () => {
-        isArchiving.value = true;
-        console.log(`🌙 [Daily Summary] 开始归档...`);
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) {
+
+        const runDayEndSummary = async () => {
+            isArchiving.value = true;
+            console.log(`🌙 [Daily Summary] 开始归档...`);
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) {
+                isArchiving.value = false;
+                return;
+            }
+            const now = new Date();
+            const datePart = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+            const fullDateStr = `${datePart} ${formattedTime.value.split(' ')[0] || '未知'}`; 
+            const rawLog = currentSummary.value || "今日暂无重要互动记录。";
+    
+            const prompt = `
+            [System Command: MEMORY_ANALYZER]
+            Current Date: {{full_date_str}}
+            Target Character: {{role_name}}
+            【Input Logs】
+            {{raw_log}}
+            【Objective】
+            Task 1: Generate Brief (标题, 中文, 分号分隔, 忽略日常)
+            Task 2: Update Impression (长期印象)
+            【Output Format JSON】
+            { "brief": "...", "new_memory": "..." }
+            `;
+    
+            // 🔥 继续使用 safeJsonChat
+            const result = await safeJsonChat({
+                config,
+                messages: [{ role: 'user', content: prompt
+                    .replace('{{full_date_str}}', fullDateStr)
+                    .replace('{{role_name}}', chatName.value)
+                    .replace('{{raw_log}}', rawLog) 
+                }],
+                temperature: 0.1, maxTokens: 1000
+            });
+    
+            if (result) {
+                // 1. 更新当前会话的上下文 (短期记忆刷新)
+                saveCharacterState(undefined, undefined, result.new_memory);
+                
+                // 2. 准备心情字段
+                const mood = (currentAffection.value > 60) ? '开心' : '平静';
+                
+                // 🔥🔥🔥 核心修改区域 Start 🔥🔥🔥
+                // 逻辑：判断是否有 sceneParticipants。
+                // 如果有，说明是“多人场景”，需要把记忆分发给每个人。
+                // 如果没有，说明是“普通单人聊天”，照旧存一份。
+                
+                if (sceneParticipants && sceneParticipants.value && sceneParticipants.value.length > 0) {
+                    // === A. 场景模式：记忆分发 ===
+                    console.log(`📚 [Memory] 检测到多人场景，正在分发记忆给 ${sceneParticipants.value.length} 位角色...`);
+                    
+                    // 给日记内容加个前缀，方便 NPC 以后回想起这是在哪发生的
+                    const scenePrefix = `【场景: ${chatName.value}】`;
+                    const finalDetail = scenePrefix + rawLog; 
+    
+                    // 遍历在场的每一个人，给他们的日记本里都写上一笔
+                    for (const npc of sceneParticipants.value) {
+                        // 注意：这里用 npc.id 作为 roleId
+                        await DB.execute(
+                            `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
+                            [Date.now() + Math.random(), String(npc.id), fullDateStr, result.brief, finalDetail, mood]
+                        );
+                    }
+                    
+                    // (可选) 同时也给场景本身留个底，roleId = chatId(sceneId)
+                    await DB.execute(
+                        `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
+                        [Date.now(), String(chatId.value), fullDateStr, result.brief, finalDetail, mood]
+                    );
+    
+                } else {
+                    // === B. 单人模式：照旧 ===
+                    const roleId = currentRole.value.id || 'default';
+                    await DB.execute(
+                        `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
+                        [Date.now(), String(roleId), fullDateStr, result.brief, rawLog, mood]
+                    );
+                }
+                // 🔥🔥🔥 核心修改区域 End 🔥🔥🔥
+    
+                console.log('✅ [DB] 归档完成:', result.brief);
+                
+                // 3. 重置当天的流水账
+                const initialSummary = `**今日生活账本 (${fullDateStr})**:\n- [00:00]: 新的一天开始。`; 
+                saveCharacterState(undefined, undefined, initialSummary);
+                if (typeof lastSummaryIndex !== 'undefined') lastSummaryIndex.value = messageList.value.length; 
+            }
             isArchiving.value = false;
-            return;
-        }
-        const now = new Date();
-        const datePart = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
-        const fullDateStr = `${datePart} ${formattedTime.value.split(' ')[0] || '未知'}`; 
-        const rawLog = currentSummary.value || "今日暂无重要互动记录。";
-
-        const prompt = `
-        [System Command: MEMORY_ANALYZER]
-        Current Date: {{full_date_str}}
-        Target Character: {{role_name}}
-        【Input Logs】
-        {{raw_log}}
-        【Objective】
-        Task 1: Generate Brief (标题, 中文, 分号分隔, 忽略日常)
-        Task 2: Update Impression (长期印象)
-        【Output Format JSON】
-        { "brief": "...", "new_memory": "..." }
-        `;
-
-        // 🔥 继续使用 safeJsonChat，因为这里 Prompt 依然请求 JSON
-        const result = await safeJsonChat({
-            config,
-            messages: [{ role: 'user', content: prompt
-                .replace('{{full_date_str}}', fullDateStr)
-                .replace('{{role_name}}', chatName.value)
-                .replace('{{raw_log}}', rawLog) 
-            }],
-            temperature: 0.1, maxTokens: 1000
-        });
-
-        if (result) {
-            saveCharacterState(undefined, undefined, result.new_memory);
-            const roleId = currentRole.value.id || 'default';
-            const mood = (currentAffection.value > 60) ? '开心' : '平静';
-            
-            await DB.execute(
-                `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
-                [Date.now(), String(roleId), fullDateStr, result.brief, rawLog, mood]
-            );
-            console.log('✅ [DB] 归档完成:', result.brief);
-            const initialSummary = `**今日生活账本 (${fullDateStr})**:\n- [00:00]: 新的一天开始。`; 
-            saveCharacterState(undefined, undefined, initialSummary);
-            if (typeof lastSummaryIndex !== 'undefined') lastSummaryIndex.value = messageList.value.length; 
-        }
-        isArchiving.value = false;
-    };
+        };
 
     // =========================================================================
     // 7. 记忆检索 (Text Only)

@@ -69,24 +69,28 @@
 			"navigationBarTitleText": ""
 		}
 	},
-	{
-		"path": "pages/scenario/scenario",
-		"style": {
-			"navigationBarTitleText": ""
-		}
-	},
-	{
-		"path": "pages/scenario/create",
-		"style": {
-			"navigationBarTitleText": ""
-		}
-	},
-	{
-		"path": "pages/scenario/play",
-		"style": {
-			"navigationBarTitleText": ""
-		}
-	}
+    {
+      "path": "pages/scene/index",
+      "style": {
+        "navigationStyle": "custom" // 自定义导航栏，与首页保持一致
+      }
+    },
+    {
+      "path": "pages/scene/create",
+      "style": {
+        "navigationBarTitleText": "创建新场景",
+        "navigationBarBackgroundColor": "#ffffff"
+      }
+    },
+    {
+      "path": "pages/scene/chat",
+      "style": {
+        "navigationStyle": "custom", // 🔥 关键：禁用原生导航栏，使用我们写的 div
+        "app-plus": {
+          "softinputMode": "adjustResize"
+        }
+      }
+    }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",

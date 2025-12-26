@@ -1,163 +1,194 @@
 // AiChat/composables/useGameTime.js
-// 时间系统
-import { ref, computed, watch, onUnmounted } from 'vue';
 
-export function useGameTime(saveCharacterState) {
+import { ref, computed,watch } from 'vue';
+
+export function useGameTime(saveCallback) {
+    // 基础状态
     const currentTime = ref(Date.now());
-    const lastUpdateGameHour = ref(-1);
+    const timeRatio = ref(6); // 时间流速：现实1秒 = 游戏60秒 (1分钟)
     
-    // 🛠️ 修改 1：将写死的常量改为响应式变量，并尝试从本地缓存读取，默认值为 6
-    const timeRatio = ref(uni.getStorageSync('app_game_time_ratio') || 6); 
-    
-    let timeInterval = null;
-
-    // 面板控制
-    const showTimePanel = ref(false); 
+    // UI 控制状态
+    const showTimePanel = ref(false);
     const showTimeSettingPanel = ref(false);
+    const tempTimeRatio = ref(60);
     const tempDateStr = ref('');
     const tempTimeStr = ref('');
-    
-    // 🛠️ 修改 2：新增用于弹窗输入框绑定的临时流速变量
-    const tempTimeRatio = ref(6); 
-    
-    const customMinutes = ref('');
+    const customMinutes = ref(30);
 
+    // 内部定时器
+    const timer = ref(null);
+    
+    // 🔥🔥🔥 新增：当前绑定的世界 ID
+    const activeWorldId = ref(null);
+
+    // 格式化时间 (周X HH:mm)
     const formattedTime = computed(() => {
         const date = new Date(currentTime.value);
-        const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const day = weekDays[date.getDay()];
+        const weeks = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        const week = weeks[date.getDay()];
         const hour = date.getHours().toString().padStart(2, '0');
         const minute = date.getMinutes().toString().padStart(2, '0');
-        return `${day} ${hour}:${minute}`;
+        return `${week} ${hour}:${minute}`;
     });
+	// 🔥🔥🔥 核心修复：监听面板打开，同步数据 🔥🔥🔥
+	    watch(showTimeSettingPanel, (isOpen) => {
+	        if (isOpen) {
+	            const date = new Date(currentTime.value);
+	            
+	            // 1. 初始化日期 (YYYY-MM-DD)
+	            const y = date.getFullYear();
+	            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+	            const d = date.getDate().toString().padStart(2, '0');
+	            tempDateStr.value = `${y}-${m}-${d}`;
+	
+	            // 2. 初始化时间 (HH:mm)
+	            const hh = date.getHours().toString().padStart(2, '0');
+	            const mm = date.getMinutes().toString().padStart(2, '0');
+	            tempTimeStr.value = `${hh}:${mm}`;
+	
+	            // 3. 初始化流速 (同步当前的流速)
+	            tempTimeRatio.value = timeRatio.value;
+	        }
+	    });
 
+    // 🔥🔥🔥 新增：初始化并同步时间 (核心逻辑)
+    // 如果传入了 worldId，优先使用世界时间
+    const initTimeSync = (initialTime, worldId = null) => {
+        activeWorldId.value = worldId;
+        
+        if (worldId) {
+            try {
+                const worlds = uni.getStorageSync('app_world_settings') || [];
+                const world = worlds.find(w => String(w.id) === String(worldId));
+                // 如果世界有时钟记录，使用世界时间
+                if (world && world.currentTime) {
+                    currentTime.value = world.currentTime;
+                    console.log(`🌍 [WorldClock] 已同步世界时间: ${formattedTime.value}`);
+                    return;
+                }
+            } catch (e) {
+                console.error('❌ 世界时间同步失败:', e);
+            }
+        }
+        
+        // 兜底：如果没有世界时间，或者不是世界模式，使用角色存档时间
+        currentTime.value = initialTime || Date.now();
+    };
+
+    // 🔥🔥🔥 新增：内部辅助函数，保存到世界设置
+    const _saveToWorld = () => {
+        if (!activeWorldId.value) return;
+        try {
+            const worlds = uni.getStorageSync('app_world_settings') || [];
+            const index = worlds.findIndex(w => String(w.id) === String(activeWorldId.value));
+            if (index !== -1) {
+                worlds[index].currentTime = currentTime.value;
+                uni.setStorageSync('app_world_settings', worlds);
+                // console.log('🌍 世界时间已更新');
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    // 开始时间流动
     const startTimeFlow = () => {
-        if (timeInterval) clearInterval(timeInterval);
-        lastUpdateGameHour.value = new Date(currentTime.value).getHours();
-        timeInterval = setInterval(() => {
-            // 🛠️ 修改 3：使用动态流速 (现实 1s = 游戏 timeRatio.value 秒)
+        if (timer.value) return;
+        let counter = 0;
+        
+        timer.value = setInterval(() => {
+            // 增加时间
             currentTime.value += 1000 * timeRatio.value;
-            const currentHour = new Date(currentTime.value).getHours();
-            if (currentHour !== lastUpdateGameHour.value) {
-                lastUpdateGameHour.value = currentHour;
+            
+            // 每现实 10 秒保存一次
+            if (++counter % 10 === 0) {
+                // 1. 保存角色状态
+                if (saveCallback) saveCallback(undefined, currentTime.value);
+                // 2. 🔥 保存世界状态
+                _saveToWorld();
             }
         }, 1000);
     };
 
+    // 停止时间
     const stopTimeFlow = () => {
-        if (timeInterval) { clearInterval(timeInterval); timeInterval = null; }
+        if (timer.value) {
+            clearInterval(timer.value);
+            timer.value = null;
+        }
     };
 
+    // 时间跳跃
     const handleTimeSkip = (type, messageList, scrollToBottom) => {
-        const now = new Date(currentTime.value);
-        const oldDay = now.getDate(); 
-        let targetDate = new Date(currentTime.value);
-        let desc = "";
-    
-        switch (type) {
-            case 'morning':
-                targetDate.setHours(11, 30, 0, 0);
-                if (targetDate.getTime() <= currentTime.value) {
-                    targetDate.setDate(targetDate.getDate() + 1);
-                }
-                desc = "一上午过去了，快到中午了...";
-                break;
-    
-            case 'afternoon':
-                targetDate.setHours(17, 30, 0, 0);
-                if (targetDate.getTime() <= currentTime.value) {
-                    targetDate.setDate(targetDate.getDate() + 1);
-                }
-                desc = "一下午过去了，黄昏降临...";
-                break;
-    
-            case 'night':
-            case 'day':
-                targetDate.setDate(targetDate.getDate() + 1);
-                targetDate.setHours(8, 0, 0, 0);
-                desc = type === 'night' ? "一夜过去了，晨光微露..." : "整整一天过去了...";
-                break;
-    
-            case 'custom':
-                const mins = parseInt(customMinutes.value);
-                if (!mins || mins <= 0) return uni.showToast({ title: '请输入分钟', icon: 'none' });
-                targetDate.setTime(currentTime.value + mins * 60 * 1000);
-                desc = `${mins}分钟过去了...`;
-                break;
-        }
-    
-        const newTime = targetDate.getTime();
-        const isNextDay = targetDate.getDate() !== oldDay;
-    
-        currentTime.value = newTime;
-        saveCharacterState(undefined, newTime); 
-        showTimePanel.value = false;
-    
-        // 🛠️ 修改 4：补上 ID，防止你刚修好的“多选删除”功能在此处失效
-        messageList.value.push({ 
-            id: Date.now() + Math.random(),
-            role: 'system', 
-            content: `【系统】${desc} 当前时间：${formattedTime.value}`, 
-            isSystem: true 
-        });
+        const oldDate = new Date(currentTime.value).getDate();
         
-        scrollToBottom();
-    
+        let addMs = 0;
+        if (type === 'custom') {
+            addMs = (parseInt(customMinutes.value) || 0) * 60 * 1000;
+        } else {
+            // 简单跳跃逻辑
+            switch(type) {
+                case 'morning': addMs = 4 * 60 * 60 * 1000; break;
+                case 'afternoon': addMs = 4 * 60 * 60 * 1000; break;
+                case 'night': addMs = 8 * 60 * 60 * 1000; break;
+                case 'day': addMs = 24 * 60 * 60 * 1000; break;
+            }
+        }
+        
+        currentTime.value += addMs;
+        showTimePanel.value = false;
+        
+        // 🔥 立即保存变更
+        if (saveCallback) saveCallback(undefined, currentTime.value);
+        _saveToWorld();
+
+        // 检查跨天
+        const newDate = new Date(currentTime.value).getDate();
+        const isNextDay = newDate !== oldDate;
+        
         return isNextDay;
     };
-	
-    watch(showTimeSettingPanel, (val) => {
-        if (val) {
-            const now = new Date(currentTime.value);
-            const y = now.getFullYear();
-            const m = (now.getMonth() + 1).toString().padStart(2, '0');
-            const d = now.getDate().toString().padStart(2, '0');
-            tempDateStr.value = `${y}-${m}-${d}`;
-            tempTimeStr.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            
-            // 🛠️ 修改 5：打开设置面板时，将当前流速同步到输入框变量
-            tempTimeRatio.value = timeRatio.value;
-        }
-    });
-    
+
+    // 手动设定时间
     const confirmManualTime = () => {
-        const fullStr = `${tempDateStr.value} ${tempTimeStr.value}`;
-        const newTimestamp = new Date(fullStr.replace(/-/g, '/')).getTime();
-    
-        if (isNaN(newTimestamp)) {
-            uni.showToast({ title: '时间格式错误', icon: 'none' });
-            return null;
-        }
-
-        // 🛠️ 修改 6：在此处应用并保存新的流速设置
-        timeRatio.value = Number(tempTimeRatio.value) || 6;
-        uni.setStorageSync('app_game_time_ratio', timeRatio.value);
-    
-        if (newTimestamp === currentTime.value) {
-            uni.showToast({ title: '流速已更新', icon: 'none' });
-            showTimeSettingPanel.value = false;
-            startTimeFlow(); // 重启定时器以应用新速率
-            return currentTime.value;
-        }
-    
-        currentTime.value = newTimestamp;
-        saveCharacterState(undefined, newTimestamp);
-        showTimeSettingPanel.value = false;
-        uni.showToast({ title: '时间已调整', icon: 'none' });
+        if (!tempDateStr.value || !tempTimeStr.value) return null;
         
-        startTimeFlow(); // 调整后重新启动时间流
+        const dateParts = tempDateStr.value.split('-');
+        const timeParts = tempTimeStr.value.split(':');
+        
+        const newDate = new Date(
+            parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]),
+            parseInt(timeParts[0]), parseInt(timeParts[1])
+        );
+        
+        const oldTime = currentTime.value;
+        currentTime.value = newDate.getTime();
+        
+        // 更新流速
+        if (tempTimeRatio.value) timeRatio.value = parseInt(tempTimeRatio.value);
+        
+        showTimeSettingPanel.value = false;
+        
+        // 🔥 立即保存
+        if (saveCallback) saveCallback(undefined, currentTime.value);
+        _saveToWorld();
 
-        return newTimestamp;
+        return currentTime.value;
     };
 
-    onUnmounted(() => {
-        stopTimeFlow();
-    });
-
     return {
-        currentTime, formattedTime, 
-        timeRatio, tempTimeRatio, // 🛠️ 修改 7：暴露流速相关变量给页面
-        showTimePanel, showTimeSettingPanel, tempDateStr, tempTimeStr, customMinutes,
-        startTimeFlow, stopTimeFlow, handleTimeSkip, confirmManualTime
+        currentTime,
+        formattedTime,
+        timeRatio,
+        tempTimeRatio,
+        showTimePanel,
+        showTimeSettingPanel,
+        tempDateStr,
+        tempTimeStr,
+        customMinutes,
+        startTimeFlow,
+        stopTimeFlow,
+        handleTimeSkip,
+        confirmManualTime,
+        // 导出新函数
+        initTimeSync
     };
 }
