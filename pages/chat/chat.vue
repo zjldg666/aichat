@@ -245,8 +245,12 @@ import { useGameLocation } from '@/composables/useGameLocation.js';
 import { useAgents } from '@/composables/useAgents.js';
 // ... existing imports
 import { useTheme } from '@/composables/useTheme.js'; // 导入
+// 在 <script setup> 顶部引入
+import { useWorldScheduler } from '@/composables/useWorldScheduler.js';
 
-// ... inside script setup
+// 在 setup 内部初始化
+const { tickWorldState } = useWorldScheduler();
+
 const { isDarkMode, applyNativeTheme } = useTheme();
 import { 
     CORE_INSTRUCTION_LOGIC_MODE,
@@ -420,8 +424,14 @@ const onSleepTimeChange = async (e) => {
         await runDayEndSummary();
     }
 
-    // 4. 更新核心游戏时间 (这会自动更新 formattedTime)
+	// 4. 更新核心游戏时间
     currentTime.value = newTimestamp;
+
+    // 🔥🔥🔥【新增代码开始】🔥🔥🔥
+    // 睡醒了，世界变了！驱动所有 NPC 按照作息移动
+    if (currentRole.value && currentRole.value.worldId) {
+        tickWorldState(currentTime.value, currentRole.value.worldId);
+    }
     
     // 5. 界面显示系统消息
     messageList.value.push({
@@ -669,6 +679,11 @@ const handleTimeSkip = async (type) => {
     // 1. 调用底层时间逻辑修改时间
     const isNextDay = _handleTimeSkip(type, messageList, scrollToBottom);
     
+	// 🔥🔥🔥【新增代码开始】🔥🔥🔥
+	    // 时间流逝了，驱动世界运转
+	    if (currentRole.value && currentRole.value.worldId) {
+	        tickWorldState(currentTime.value, currentRole.value.worldId);
+	    }
     // 2. 构建给 AI 的提示语
     let skipDesc = "";
     switch(type) {
@@ -1214,21 +1229,44 @@ onLoad(async(options) => {
             }
         }
 });
+// [修改前]: 只删了缓存和 messageList
+// [修改后]: 增加了 resetTime 的记录到 contact_list
+
 const clearHistoryAndReset = () => {
     uni.showModal({
-        title: '彻底重置', content: '确定重置对话与位置吗？',
+        title: '彻底重置', 
+        content: '确定要重置该角色吗？\n她将遗忘所有过往记忆，变为“陌生人”。',
+        confirmColor: '#ff4d4f',
         success: (res) => {
             if (res.confirm) {
-                // 🌟 核心改动：重置为初始家宅位置
+                // 1. 物理位置重置
                 playerLocation.value = userHome.value;
                 currentLocation.value = charHome.value;
-                // 自动判定重置后的模式
                 interactionMode.value = (playerLocation.value === currentLocation.value) ? 'face' : 'phone';
 
+                // 2. 只有 UI 清空 (数据库可以选择保留或删除，这里为了彻底重置建议物理删除)
                 messageList.value = [];
+                
+                // 3. 💾 关键步骤：更新 contact_list 里的 resetTime
+                if (chatId.value) {
+                    const contacts = uni.getStorageSync('contact_list') || [];
+                    const idx = contacts.findIndex(c => String(c.id) === String(chatId.value));
+                    if (idx !== -1) {
+                        contacts[idx].resetTime = Date.now(); // ⏰ 记录重生时间戳
+                        // 清空好感度等状态
+                        contacts[idx].affection = 0;
+                        contacts[idx].summary = ""; 
+                        uni.setStorageSync('contact_list', contacts);
+                    }
+                    
+                    // 物理删除该角色的私聊记录
+                    DB.execute(`DELETE FROM messages WHERE chatId = '${chatId.value}'`);
+                    DB.execute(`DELETE FROM diaries WHERE roleId = '${chatId.value}'`);
+                }
+
                 saveCharacterState();
-                uni.removeStorageSync(`chat_history_${chatId.value}`);
-                uni.navigateBack();
+                uni.showToast({ title: '角色已重置', icon: 'none' });
+                setTimeout(() => uni.navigateBack(), 800);
             }
         }
     });

@@ -113,35 +113,93 @@
       </view>
     </view>
 
+    <view class="card">
+        <view class="section-title" style="color: #9b59b6; border-left-color: #9b59b6;">🧠 场景记忆设置</view>
+        
+        <view class="form-item">
+            <view class="label-row">
+                <text class="label">上下文深度: {{ form.historyLimit }}条</text>
+            </view>
+            <slider :value="form.historyLimit" min="5" max="50" step="1" show-value activeColor="#9b59b6" @change="(e) => form.historyLimit = e.detail.value" />
+            <text class="tip">决定了导演和演员能回看最近多少句对话（包括动作）。设得越高，AI 越不容易健忘，但消耗 Token 越多。</text>
+        </view>
+
+        <view class="form-item">
+             <view class="label-row" style="display: flex; justify-content: space-between; margin-bottom: 20rpx;">
+                <text class="label" style="margin:0;">开启剧情自动总结</text>
+                <switch :checked="form.enableSummary" @change="(e) => form.enableSummary = e.detail.value" color="#9b59b6" style="transform: scale(0.8);"/>
+             </view>
+             <text class="tip">开启后，系统会把在场景里发生的事总结成一段话。离场时，这段话会同步给在场的角色。</text>
+        </view>
+
+        <template v-if="form.enableSummary">
+            <view class="form-item">
+                 <text class="label">总结频率 (每N轮对话): {{ form.summaryFrequency }}</text>
+                 <slider :value="form.summaryFrequency" min="5" max="30" step="1" show-value activeColor="#9b59b6" @change="(e) => form.summaryFrequency = e.detail.value" />
+            </view>
+            
+            <view class="form-item no-border">
+                 <text class="label">当前场景记忆摘要 (初始背景)</text>
+                 <textarea class="textarea memory-box" v-model="form.summary" maxlength="-1" placeholder="系统会自动生成，也可以手动补充..." />
+            </view>
+        </template>
+    </view>
+
+    <view class="card danger-zone" v-if="editSceneId">
+        <view class="section-title" style="color: #ff4757; border-left-color: #ff4757;">⚠️ 危险区域</view>
+        
+        <view class="danger-content">
+            <view class="danger-desc">
+                此处操作将直接影响数据库，请谨慎操作。
+            </view>
+            
+            <button class="clear-btn" @click="handleClearHistory">
+                🗑️ 物理清空本场景聊天记录
+            </button>
+        </view>
+    </view>
+
     <view class="footer-btn-area">
-      <button class="save-btn" @click="saveScene">创建场景</button>
+        <button class="save-btn" @click="saveScene">
+            {{ editSceneId ? '保存修改' : '创建场景' }}
+        </button>
+
     </view>
   </view>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app'; 
 import { useTheme } from '@/composables/useTheme.js';
+import { DB } from '@/utils/db.js'; // 引入 DB 模块
 
 const { isDarkMode, applyNativeTheme } = useTheme();
 
-const isCustomMode = ref(false); // 默认为世界观模式
-const worldList = ref([]); // 所有世界观
-const currentWorldLocations = ref([]); // 当前选中的世界的地点列表
+const isCustomMode = ref(false); 
+const worldList = ref([]); 
+const currentWorldLocations = ref([]); 
+
+// 增加一个 ID 状态，用来判断是“新建”还是“编辑”
+const editSceneId = ref(null); 
 
 const form = ref({
   name: '',
   worldId: '',
-  worldName: '', // 存名字方便显示
+  worldName: '', 
   locationName: '',
   background: '',
-  playerIdentity: ''
+  playerIdentity: '',
+  
+  // ➕ 新增记忆配置 (默认值)
+  historyLimit: 15, 
+  enableSummary: true, 
+  summaryFrequency: 10,
+  summary: '' 
 });
 
 const contacts = ref([]);
 
-// 计算属性：当前选中世界的描述
 const selectedWorldName = computed(() => {
     const w = worldList.value.find(i => i.id === form.value.worldId);
     return w ? w.name : '';
@@ -151,28 +209,26 @@ const selectedWorldDesc = computed(() => {
     return w ? w.description : '';
 });
 
-onShow(() => {
-  applyNativeTheme();
-  loadWorlds();
-  loadContacts();
+// --- 1. 初始化逻辑 ---
+onLoad((options) => {
+    applyNativeTheme();
+    loadWorlds();
+    loadContacts(); // 先加载所有联系人（未选中状态）
+
+    if (options.id) {
+        editSceneId.value = options.id;
+        uni.setNavigationBarTitle({ title: '编辑场景' });
+        loadSceneDataForEdit(options.id); // 回显数据
+    } else {
+        uni.setNavigationBarTitle({ title: '创建新场景' });
+    }
 });
 
-const toggleMode = (val) => {
-    isCustomMode.value = val;
-    // 切换模式时清空世界选择，避免数据混淆
-    if (val) {
-        form.value.worldId = '';
-        form.value.locationName = '';
-    }
-};
-
-// 1. 加载世界观 (从 app_world_settings 读取)
 const loadWorlds = () => {
   const list = uni.getStorageSync('app_world_settings') || [];
   worldList.value = list;
 };
 
-// 2. 加载角色
 const loadContacts = () => {
   const list = uni.getStorageSync('contact_list') || [];
   contacts.value = list.map(c => ({
@@ -184,18 +240,75 @@ const loadContacts = () => {
   }));
 };
 
+// --- 2. 回显逻辑 (编辑模式专用) ---
+const loadSceneDataForEdit = (id) => {
+    const allScenes = uni.getStorageSync('app_scene_list') || [];
+    const target = allScenes.find(s => String(s.id) === String(id));
+    
+    if (target) {
+        // A. 回显基础表单
+        form.value = {
+            name: target.name,
+            worldId: target.worldId,
+            worldName: target.worldName,
+            locationName: target.locationName,
+            background: target.background,
+            playerIdentity: target.playerIdentity,
+
+            // ➕ 回显记忆配置 (兼容旧数据)
+            historyLimit: target.memorySettings?.historyLimit || 15,
+            enableSummary: target.memorySettings?.enableSummary !== false, // 默认 true
+            summaryFrequency: target.memorySettings?.summaryFrequency || 10,
+            summary: target.summary || '' 
+        };
+        
+        // 如果没有 worldId，说明是自由模式
+        if (!target.worldId) {
+            isCustomMode.value = true;
+        } else {
+            // 如果是世界观模式，需要手动触发一下联动，加载地点列表
+            const world = worldList.value.find(w => w.id === target.worldId);
+            if (world) {
+                currentWorldLocations.value = world.locations || [];
+            }
+        }
+
+        // B. 回显 NPC 选择状态
+        if (target.npcs && Array.isArray(target.npcs)) {
+            target.npcs.forEach(savedNpc => {
+                const idx = contacts.value.findIndex(c => String(c.id) === String(savedNpc.id));
+                if (idx !== -1) {
+                    contacts.value[idx].selected = true;
+                    // 回显具体的设定
+                    contacts.value[idx].sceneRole = savedNpc.sceneRole || '';
+                    contacts.value[idx].initialState = savedNpc.initialState || '';
+                    contacts.value[idx].reason = savedNpc.reason || '';
+                }
+            });
+            
+            // 把选中的排到前面去，方便查看 (可选)
+            contacts.value.sort((a, b) => (b.selected ? 1 : 0) - (a.selected ? 1 : 0));
+        }
+    }
+};
+
+// --- 3. 交互逻辑 ---
+const toggleMode = (val) => {
+    isCustomMode.value = val;
+    if (val) {
+        form.value.worldId = '';
+        form.value.locationName = '';
+    }
+};
+
 const onWorldChange = (e) => {
     const idx = e.detail.value;
     const world = worldList.value[idx];
     if (world) {
         form.value.worldId = world.id;
         form.value.worldName = world.name;
-        // 加载该世界的地点
         currentWorldLocations.value = world.locations || []; 
-        form.value.locationName = ''; // 重置地点
-        
-        // 自动填充场景名为地点名（方便用户）
-        // form.value.name = ''; 
+        form.value.locationName = ''; 
     }
 };
 
@@ -203,16 +316,14 @@ const onLocationChange = (e) => {
     const idx = e.detail.value;
     const loc = currentWorldLocations.value[idx];
     form.value.locationName = loc;
-    // 如果还没填名字，自动用地点名作为场景名
-    if (!form.value.name) {
-        form.value.name = loc;
-    }
+    if (!form.value.name) form.value.name = loc;
 };
 
 const toggleNpc = (index) => {
     contacts.value[index].selected = !contacts.value[index].selected;
 };
 
+// --- 4. 保存逻辑 (区分新建/更新) ---
 const saveScene = () => {
     if (!form.value.name) return uni.showToast({ title: '请输入场景名称', icon: 'none' });
     
@@ -220,33 +331,98 @@ const saveScene = () => {
     const selectedNpcs = contacts.value.filter(c => c.selected).map(c => ({
         id: c.id,
         name: c.name,
-        // 关键字段
         sceneRole: c.sceneRole,
         initialState: c.initialState,
         reason: c.reason,
-        // 存一下原来的 worldId 方便 Prompt 判断是不是本地人
         worldId: c.worldId, 
         occupation: c.occupation
     }));
     
     if (selectedNpcs.length === 0) return uni.showToast({ title: '请至少选择一个NPC', icon: 'none' });
 
-    const newScene = {
-        id: 'scene_' + Date.now(),
-        createTime: Date.now(),
-        ...form.value, // 包含 worldId, locationName, background 等
-        npcs: selectedNpcs,
-        // 默认配置
-        memorySettings: { enableSummary: true }
+    const list = uni.getStorageSync('app_scene_list') || [];
+
+    // 📦 构造记忆配置对象
+    const memorySettings = {
+        historyLimit: form.value.historyLimit,
+        enableSummary: form.value.enableSummary,
+        summaryFrequency: form.value.summaryFrequency
     };
 
-    // 保存
-    const list = uni.getStorageSync('app_scene_list') || [];
-    list.unshift(newScene);
-    uni.setStorageSync('app_scene_list', list);
+    if (editSceneId.value) {
+        // 🔥 编辑模式：找到旧数据并更新
+        const index = list.findIndex(s => String(s.id) === String(editSceneId.value));
+        if (index !== -1) {
+            list[index] = {
+                ...list[index], 
+                ...form.value,
+                memorySettings, // 💾 保存记忆设置
+                summary: form.value.summary, // 💾 保存摘要
+                npcs: selectedNpcs,
+                updateTime: Date.now()
+            };
+            uni.showToast({ title: '已更新设定', icon: 'success' });
+        }
+    } else {
+        // 🔥 新建模式：Push 新数据
+        const newScene = {
+            id: 'scene_' + Date.now(),
+            createTime: Date.now(),
+            ...form.value, 
+            memorySettings, // 💾 保存记忆设置
+            summary: form.value.summary, // 💾 保存摘要
+            npcs: selectedNpcs
+        };
+        list.unshift(newScene);
+        uni.showToast({ title: '场景创建成功', icon: 'success' });
+    }
 
-    uni.showToast({ title: '场景创建成功', icon: 'success' });
+    uni.setStorageSync('app_scene_list', list);
     setTimeout(() => uni.navigateBack(), 800);
+};
+
+// 5. 危险操作：物理清空
+const handleClearHistory = () => {
+    uni.showModal({
+        title: '危险操作',
+        content: '确定要永久清空本场景的所有聊天记录吗？\n此操作不可撤销，但场景设定和角色会保留。',
+        confirmColor: '#ff4d4f',
+        success: async (res) => {
+            if (res.confirm && editSceneId.value) {
+                try {
+                    // 物理删除 messages 表中 chatId 等于当前 sceneId 的记录
+                    await DB.execute(
+                        `DELETE FROM messages WHERE chatId = ?`, 
+                        [String(editSceneId.value)]
+                    );
+                    uni.showToast({ title: '记录已彻底粉碎', icon: 'success' });
+                } catch (e) {
+                    console.error(e);
+                    uni.showToast({ title: '删除失败', icon: 'none' });
+                }
+            }
+        }
+    });
+};
+
+const deleteScene = () => {
+    uni.showModal({
+        title: '删除场景',
+        content: '确定要删除这个场景吗？所有记忆将丢失。',
+        confirmColor: '#ff4d4f',
+        success: (res) => {
+            if (res.confirm) {
+                const list = uni.getStorageSync('app_scene_list') || [];
+                const newList = list.filter(s => String(s.id) !== String(editSceneId.value));
+                uni.setStorageSync('app_scene_list', newList);
+                
+                // 还要记得清空消息记录
+                 DB.execute(`DELETE FROM messages WHERE chatId = ?`, [String(editSceneId.value)]);
+                
+                uni.navigateBack({ delta: 2 }); // 回退两层，直接回列表
+            }
+        }
+    });
 };
 </script>
 
@@ -290,6 +466,15 @@ const saveScene = () => {
 .input { font-size: 30rpx; color: var(--text-color); width: 100%; }
 .textarea { width: 100%; height: 160rpx; font-size: 30rpx; color: var(--text-color); background: var(--bg-color); padding: 20rpx; border-radius: 12rpx; }
 
+/* 记忆框样式 */
+.memory-box {
+    border: 2rpx dashed #9b59b6;
+    background-color: rgba(155, 89, 182, 0.05);
+    color: var(--text-sub);
+    line-height: 1.5;
+}
+.tip { font-size: 24rpx; color: var(--text-sub); margin-top: 10rpx; display: block; }
+
 /* NPC 列表 */
 .empty-tip { text-align: center; color: var(--text-sub); padding: 20rpx; font-size: 26rpx; }
 .npc-list { display: flex; flex-direction: column; gap: 20rpx; }
@@ -318,6 +503,23 @@ const saveScene = () => {
 .detail-row { display: flex; align-items: center; }
 .sub-label { font-size: 24rpx; color: var(--text-sub); width: 130rpx; }
 .mini-input { flex: 1; font-size: 26rpx; color: var(--text-color); border-bottom: 1px solid var(--border-color); }
+
+/* 危险区域样式 */
+.danger-zone { border: 1px solid rgba(255, 71, 87, 0.3); }
+.danger-content { padding: 10rpx 0; }
+.danger-desc { font-size: 24rpx; color: var(--text-sub); margin-bottom: 24rpx; }
+
+.clear-btn {
+    background-color: rgba(255, 71, 87, 0.1); 
+    color: #ff4757; 
+    font-size: 28rpx; 
+    border: 1px solid #ff4757; 
+    width: 100%;
+    border-radius: 40rpx;
+    font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    &:active { background-color: rgba(255, 71, 87, 0.2); }
+}
 
 /* 底部按钮 */
 .footer-btn-area { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 40rpx; background: var(--card-bg); box-shadow: 0 -2rpx 10rpx rgba(0,0,0,0.05); padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); }
