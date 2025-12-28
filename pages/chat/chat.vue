@@ -739,42 +739,55 @@ const handleMoveTo = (locObj) => {
     const targetScene = allScenes.find(s => s.name.includes(finalLocationName) || finalLocationName.includes(s.name));
 
     if (targetScene) {
-        // A. 找到了实体场景 -> 玩家肉身前往！
-        console.log(`🌌 [传送] 检测到实体场景 [${targetScene.name}]，准备跳转...`);
-        
-        uni.showModal({
-            title: '前往场景',
-            content: `确定前往【${targetScene.name}】吗？`,
-            success: (res) => {
-                if (res.confirm) {
-                    const contacts = uni.getStorageSync('contact_list') || [];
-                    const idx = contacts.findIndex(c => String(c.id) === String(chatId.value));
-                    
-                    if (idx !== -1) {
-                        // 1. 更新角色的物理位置 (因为她确实在这个地点上班/生活)
-                        contacts[idx].currentLocation = targetScene.name;
+            // A. 找到了实体场景 -> 玩家肉身前往！
+            console.log(`🌌 [传送] 检测到实体场景 [${targetScene.name}]，准备跳转...`);
+            
+            uni.showModal({
+                title: '前往场景',
+                content: `确定前往【${targetScene.name}】吗？`,
+                success: (res) => {
+                    if (res.confirm) {
+                        const contacts = uni.getStorageSync('contact_list') || [];
                         
-                        // 2. 🔐 关键点：标记“玩家”现在处于这个场景里 (绑定到当前角色关系上)
-                        // 只有这个字段存在时，首页点击才会跳转到场景，否则进私聊
-                        contacts[idx].playerInSceneId = targetScene.id; 
+                        // 🔥🔥🔥【核心修改开始】🔥🔥🔥
+                        // 我们不仅要更新当前聊天的角色(Alice)，还要更新场景里所有的 NPC(Bob)
+                        // 1. 获取该场景配置的所有 NPC ID 列表
+                        const sceneNpcIds = targetScene.npcs ? targetScene.npcs.map(n => String(n.id)) : [];
                         
-                        // 3. 既然玩家去了现场，交互模式强制设为 'face' (当面)
-                        contacts[idx].interactionMode = 'face';
-
+                        // 2. 还要加上当前聊天对象的 ID (防止配置漏填)
+                        if (!sceneNpcIds.includes(String(chatId.value))) {
+                            sceneNpcIds.push(String(chatId.value));
+                        }
+    
+                        // 3. 遍历通讯录，把涉及到的所有人拉入“现场状态”
+                        contacts.forEach(contact => {
+                            // 如果这个人属于该场景名单
+                            if (sceneNpcIds.includes(String(contact.id))) {
+                                // a. 更新位置到场景
+                                contact.currentLocation = targetScene.name;
+                                // b. 标记玩家在该场景 (这会让首页点击 Bob 时也跳转场景)
+                                contact.playerInSceneId = targetScene.id;
+                                // c. 既然玩家在现场，强制改为当面模式
+                                contact.interactionMode = 'face';
+                                
+                                console.log(`🔗 [联动同步] 已将 ${contact.name} 状态同步至场景: ${targetScene.name}`);
+                            }
+                        });
+                        // 🔥🔥🔥【核心修改结束】🔥🔥🔥
+    
                         uni.setStorageSync('contact_list', contacts);
+    
+                        // 4. 跳转进场
+                        uni.redirectTo({
+                            url: `/pages/scene/chat?id=${targetScene.id}&visitorId=${chatId.value}`
+                        });
+                        
+                        showLocationPanel.value = false;
                     }
-
-                    // 4. 跳转进场 (使用 redirectTo 关闭当前私聊，避免返回栈混乱)
-                    uni.redirectTo({
-                        url: `/pages/scene/chat?id=${targetScene.id}&visitorId=${chatId.value}`
-                    });
-                    
-                    showLocationPanel.value = false;
                 }
-            }
-        });
-        return; // ⛔️ 这里的逻辑结束，不再执行下面的普通移动逻辑
-    }
+            });
+            return; 
+        }
 
     // =================================================================
     // B. 没找到实体场景 -> 保持私聊模式 (你原有的逻辑)
