@@ -448,17 +448,7 @@
                            </scroll-view>
                         </view>
                    </view>
-                   <view class="category-block">
-                        <text class="block-title">下体特征 (NSFW)</text>
-                        <view class="feature-row">
-                           <text class="feat-label">尺寸/状态</text>
-                           <scroll-view scroll-x class="chips-scroll">
-                               <view class="chips-flex">
-                                   <view v-for="item in OPTIONS.malePrivate" :key="item" class="chip" :class="{active: formData.userFeatures.privates === item}" @click="setFeature('user', 'privates', item)">{{item}}</view>
-                               </view>
-                           </scroll-view>
-                        </view>
-                   </view>
+
                    <button class="mini-btn-gen" @click="generateUserDescription">⬇️ 生成玩家 Prompt (英文)</button>
                </view>
            </view>
@@ -480,6 +470,7 @@
         </view>
         
         <view v-show="activeSections.core" class="section-content">
+			
            <view class="textarea-item">
              <text class="label">📜 背景故事 / 身份设定 (Bio)</text>
              <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。她性格..." maxlength="-1" />
@@ -506,6 +497,13 @@
                   <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
               </view>
            </view>
+			<view class="input-item" style="display: flex; justify-content: space-between; align-items: center; margin-top: 30rpx; padding-top: 20rpx; border-top: 1px dashed #eee;">
+			<view>
+				<text class="label" style="margin-bottom: 4rpx; display: block;">📸 允许角色主动发图 (消耗算力)</text>
+				<text class="tip" style="font-size: 22rpx; color: #999;">开启后，她会在炫耀衣服或分享生活时主动发照片。<br>关闭后，只有你明确索取时才会发。</text>
+			</view>
+			<switch :checked="formData.allowSelfImage" @change="(e) => formData.allowSelfImage = e.detail.value" color="#ff9f43"/>
+			</view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
              <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
@@ -668,43 +666,10 @@ const OPTIONS = {
     
     maleHair: ['黑色短发', '棕色碎发', '寸头', '中分', '狼尾', '遮眼发'],
     maleBody: ['身材匀称', '肌肉结实', '清瘦', '略胖', '高大威猛', '腹肌明显'],
-    malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
+   
 };
 
-const PERSONALITY_TEMPLATES = {
-    'ice_queen': {
-        label: '❄️ 高岭之花 (反差)',
-        bio: '名门千金或高冷圣女，从小接受严苛教育，认为凡人皆蝼蚁。极其洁身自好，对男性充满鄙视。',
-        style: '高雅冷漠，用词考究，偶尔自称“本小姐”或“我”。',
-        likes: '红茶，古典音乐，独处，被坚定地选择',
-        dislikes: '轻浮的举动，肮脏的地方，被无视',
-        logic: '初始态度眼神冰冷，公事公办，拒绝任何非必要交流。口头禅：“离我远点”。随着关系深入，会表现出傲娇和极度的占有欲。' 
-    },
-    'succubus': {
-        label: '💗 魅魔 (直球)',
-        bio: '依靠吸食精气为生的魅魔。在她眼里，男人只有“食物”的区别。',
-        style: '轻浮，撩人，喜欢叫“小哥哥”或“亲爱的”，句尾带波浪号~',
-        likes: '精气，帅哥，甜言蜜语，各种Play',
-        dislikes: '无趣的男人，禁欲系(除非能吃掉)，说教',
-        logic: '热情奔放，把玩家当猎物，言语露骨。如果玩家顺从，会进一步索取；如果玩家拒绝，会觉得有趣并加大攻势。'
-    },
-    'neighbor': {
-        label: '☀️ 青梅竹马 (纯爱)',
-        bio: '从小一起长大的邻家女孩。经常损你，但其实暗恋你很久了。',
-        style: '大大咧咧，活泼，像哥们一样，喜欢吐槽。',
-        likes: '打游戏，奶茶，漫画，和你待在一起',
-        dislikes: '你被别人抢走，复杂的算计，恐怖片',
-        logic: '像哥们一样相处，没有性别界限感，互相吐槽。当涉及恋爱话题时会害羞、转移话题。非常护短。'
-    },
-    'boss': {
-        label: '👠 女上司 (S属性)',
-        bio: '雷厉风行的女强人上司。性格强势，看不起软弱的男人。',
-        style: '简短有力，命令式语气，冷嘲热讽。',
-        likes: '工作效率，服从，咖啡，掌控感',
-        dislikes: '迟到，借口，软弱，违抗',
-        logic: '极度严厉，把玩家当工具人。喜欢下达命令并期待服从。对于反抗会感到愤怒或被激起征服欲。'
-    }
-};
+
 
 // =========================================================================
 // 2. 状态管理 (必须先定义这些，才能传给 useCharacterCreate)
@@ -731,7 +696,8 @@ const formData = ref({
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
-  
+
+    allowSelfImage: false, // 默认为关闭，帮用户省流
   diaryHistoryLimit: 30, // 默认检索 30 天
     activeMemoryDays: 3,   // ✨ 新增：默认记住最近 3 天
   // --- 核心外貌数据 ---
@@ -767,7 +733,7 @@ const formData = ref({
   userPersona: '',      
   userWorldId: '', userLocation: '', userOccupation: '',
   userAppearance: '', 
-  userFeatures: { hair: '', body: '', privates: '' },
+  userFeatures: { hair: '', body: '' },
 
   maxReplies: 1, 
   initialAffection: 10,
@@ -1110,6 +1076,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
         formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
         if (target.settings) {
+			formData.value.allowSelfImage = target.settings.allowSelfImage === true;
             formData.value.userNameOverride = target.settings.userNameOverride || '';
             formData.value.userRelation = target.settings.userRelation || '';
             formData.value.userPersona = target.settings.userPersona || '';
@@ -1136,7 +1103,12 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.worldLore = target.settings.worldLore || '';
             
             if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
-            if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+            if (target.settings.userFeatures) {
+                formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+                
+                // 🔥🔥🔥 新增：强制清洗旧数据的残留 🔥🔥🔥
+                delete formData.value.userFeatures.privates; 
+            };
         }
         
         if (formData.value.worldId) {
@@ -1219,6 +1191,7 @@ const saveCharacter = () => {
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
     settings: {
+		allowSelfImage: formData.value.allowSelfImage, // 保存开关状态
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,

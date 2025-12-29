@@ -11,66 +11,77 @@
       </view>
       
       <view v-show="activeSections.world" class="section-content">
-          <view class="mode-switch">
-            <text :class="{ active: !isCustomMode }" @click="toggleMode(false)">世界观模式</text>
-            <text :class="{ active: isCustomMode }" @click="toggleMode(true)">自由模式</text>
-          </view>
-
-          <template v-if="!isCustomMode">
-            <picker 
-              mode="selector" 
-              :range="worldList" 
-              range-key="name" 
-              @change="onWorldChange"
-            >
-              <view class="picker-item">
-                <text class="label">所属世界</text>
-                <view class="value-box">
-                    <text class="value">{{ selectedWorldName || '请选择世界' }}</text>
-                    <text class="arrow">></text>
-                </view>
-              </view>
-            </picker>
-
-            <picker 
-              mode="selector" 
-              :range="currentWorldLocations" 
-              @change="onLocationChange"
-              :disabled="!form.worldId"
-            >
-              <view class="picker-item">
-                <text class="label">发生地点</text>
-                <view class="value-box">
-                    <text class="value">{{ form.locationName || (form.worldId ? '请选择地点' : '请先选世界') }}</text>
-                    <text class="arrow">></text>
-                </view>
-              </view>
-            </picker>
-            
-            <view v-if="selectedWorldDesc" class="world-intro">
-              <text class="intro-tag">世界设定:</text>
-              {{ selectedWorldDesc }}
+        <picker 
+          mode="selector" 
+          :range="worldList" 
+          range-key="name" 
+          @change="onWorldChange"
+        >
+          <view class="picker-item">
+            <text class="label">所属世界 (可选)</text>
+            <view class="value-box">
+                <text class="value">{{ selectedWorldName || '无 (独立场景)' }}</text>
+                <text class="arrow">></text>
             </view>
-          </template>
-
-          <view class="form-item">
-            <text class="label">场景名称</text>
-            <input class="input" v-model="form.name" placeholder="例如：深夜的酒馆" />
           </view>
-
-          <view class="form-item">
-            <text class="label">玩家身份</text>
-            <input class="input" v-model="form.playerIdentity" placeholder="例如：神秘的旅人" />
+        </picker>
+      
+        <picker 
+          mode="selector" 
+          :range="currentWorldLocations" 
+          @change="onLocationChange"
+          :disabled="!form.worldId"
+        >
+          <view class="picker-item">
+            <text class="label">发生地点</text>
+            <view class="value-box">
+                <text class="value">{{ form.locationName || (form.worldId ? '请选择地点' : '请先选世界') }}</text>
+                <text class="arrow">></text>
+            </view>
           </view>
-
-          <view class="form-item no-border" style="margin-top: 20rpx;">
-            <text class="label">{{ isCustomMode ? '场景背景详情' : '当前氛围/补充描述' }}</text>
-            <textarea 
-              class="textarea" 
-              v-model="form.background" 
-              :placeholder="isCustomMode ? '描述环境...' : '例如：今天是校庆日，非常热闹...'" 
-            ></textarea>
-          </view>
+        </picker>
+        
+        <view class="form-item">
+          <text class="label">场景名称</text>
+          <input class="input" v-model="form.name" placeholder="例如：深夜的酒馆" />
+        </view>
+      
+        <view class="form-item">
+           <text class="label">📍 场景地图规划 (子场景)</text>
+           <text class="tip-text">定义场景里有哪些小房间，比如: 吧台、包厢、卫生间</text>
+           
+           <view class="sub-scene-input-box">
+               <input 
+                  class="input-small" 
+                  v-model="tempSubScene" 
+                  placeholder="输入区域名 (回车添加)" 
+                  @confirm="addSubScene"
+               />
+               <view class="add-btn-small" @click="addSubScene">添加</view>
+           </view>
+      
+           <view class="sub-scene-tags">
+               <view class="tag" v-for="(tag, idx) in form.subScenes" :key="idx">
+                   {{ tag }}
+                   <text class="close-icon" @click="removeSubScene(idx)">×</text>
+               </view>
+           </view>
+           <text class="tip-text" v-if="form.subScenes.length === 0" style="color:#ff9f43">⚠️ 必须至少添加一个区域 (如: 大厅)</text>
+        </view>
+      
+        <view class="form-item">
+          <text class="label">玩家身份</text>
+          <input class="input" v-model="form.playerIdentity" placeholder="例如：神秘的旅人" />
+        </view>
+      
+        <view class="form-item no-border" style="margin-top: 20rpx;">
+          <text class="label">场景氛围/补充描述</text>
+          <textarea 
+            class="textarea" 
+            v-model="form.background" 
+            placeholder="例如：今天是校庆日，非常热闹..." 
+          ></textarea>
+        </view>
       </view>
     </view>
 
@@ -114,57 +125,27 @@
               </view>
               
               <view v-if="npc.selected" class="npc-detail-form" @click.stop>
-                 
-                 <view class="detail-block">
-                     <view class="switch-row">
-                         <text class="sub-label-bold">同步私聊记忆</text>
-                         <switch :checked="npc.usePrivateMemory" @change="(e) => npc.usePrivateMemory = e.detail.value" color="#007aff" style="transform: scale(0.7);"/>
-                     </view>
-                     
-                     <template v-if="npc.usePrivateMemory">
-                         <text class="desc-text">
-                             将带入私聊关系、好感度及日记。
-                         </text>
-                         
-                         <view class="memory-check-panel">
-                             <view class="check-btn" @click="checkNpcMemory(npc)">
-                                 <text>👁️ 验视记忆数据</text>
-                             </view>
-                             
-                             <view v-if="npc.memoryStats" class="stats-box">
-                                 <view class="stat-row">
-                                     <text class="label">📚 往事日记:</text>
-                                     <text class="val">{{ npc.memoryStats.diaryCount }} 篇 (已存档)</text>
-                                 </view>
-                                 <view class="stat-row">
-                                     <text class="label">📝 流动摘要:</text>
-                                 </view>
-                                 <view class="summary-preview">
-                                     {{ npc.memoryStats.summaryPreview || '(暂无流动记忆，将基于空白状态开始)' }}
-                                 </view>
-                             </view>
+                  
+                  <view class="detail-row highlight-row">
+                     <text class="sub-label">初始位置:</text>
+                     <picker 
+                       mode="selector" 
+                       :range="form.subScenes" 
+                       @change="(e) => handleNpcLocationChange(npc, e)"
+                     >
+                         <view class="picker-display">
+                             {{ npc.initialSubLocation || '请选择区域 >' }}
                          </view>
-                     </template>
-                     
-                     <text class="desc-text warning" v-else>
-                         平行世界模式。不读取任何私聊记忆，场景经历也不写入日记。
-                     </text>
-                 </view>
-
-                 <view class="detail-row">
-                   <text class="sub-label">剧本身份:</text>
-                   <input class="mini-input" v-model="npc.sceneRole" placeholder="例如: 酒保 (默认原职)" />
-                 </view>
-                 
-                 <view class="detail-row" v-if="!isCustomMode && form.worldId && npc.worldId !== form.worldId">
-                   <text class="sub-label">出现理由:</text>
-                   <input class="mini-input" v-model="npc.reason" placeholder="穿越? 旅游?..." />
-                 </view>
-                 
-                 <view class="detail-row">
-                   <text class="sub-label">初始状态:</text>
-                   <input class="mini-input" v-model="npc.initialState" placeholder="正在做什么..." />
-                 </view>
+                     </picker>
+                  </view>
+                  
+                  <view class="detail-row">
+                     <text class="sub-label">剧本身份:</text>
+                     <input class="mini-input" v-model="npc.sceneRole" placeholder="例如: 酒保 (默认原职)" />
+                  </view>
+                  
+                  <view class="detail-block">
+                      </view>
               </view>
             </view>
           </view>
@@ -181,34 +162,23 @@
         </view>
         
         <view v-show="activeSections.sceneMem" class="section-content">
-            <view class="form-item">
+            <view class="form-item no-border">
                 <view class="label-row">
                     <text class="label">上下文深度: {{ form.historyLimit }}条</text>
                 </view>
-                <slider :value="form.historyLimit" min="5" max="50" step="1" show-value activeColor="#9b59b6" @change="(e) => form.historyLimit = e.detail.value" />
-                <text class="tip">决定了导演和演员能回看最近多少句对话。设得越高越聪明，但消耗 Token。</text>
+                <slider 
+                    :value="form.historyLimit" 
+                    min="5" 
+                    max="50" 
+                    step="1" 
+                    show-value 
+                    activeColor="#9b59b6" 
+                    @change="(e) => form.historyLimit = e.detail.value" 
+                />
+                <text class="tip">技术设置：决定了 AI 能回看屏幕上最近多少句对话。设得太高会消耗更多 Token，建议 15-20。</text>
             </view>
-
-            <view class="form-item">
-                 <view class="label-row" style="display: flex; justify-content: space-between; margin-bottom: 20rpx;">
-                    <text class="label" style="margin:0;">开启剧情自动总结</text>
-                    <switch :checked="form.enableSummary" @change="(e) => form.enableSummary = e.detail.value" color="#9b59b6" style="transform: scale(0.8);"/>
-                 </view>
-                 <text class="tip">开启后，系统会把在场景里发生的事总结成一段话。离场时，这段话会同步给在场的角色。</text>
+        
             </view>
-
-            <template v-if="form.enableSummary">
-                <view class="form-item">
-                     <text class="label">总结频率 (每N轮对话): {{ form.summaryFrequency }}</text>
-                     <slider :value="form.summaryFrequency" min="5" max="30" step="1" show-value activeColor="#9b59b6" @change="(e) => form.summaryFrequency = e.detail.value" />
-                </view>
-                
-                <view class="form-item no-border">
-                     <text class="label">当前场景记忆摘要 (初始背景)</text>
-                     <textarea class="textarea memory-box" v-model="form.summary" maxlength="-1" placeholder="系统会自动生成，也可以手动补充..." />
-                </view>
-            </template>
-        </view>
     </view>
 
     <view class="card danger-zone" v-if="editSceneId">
@@ -261,7 +231,8 @@ const activeSections = ref({
     sceneMem: false,
     danger: false
 });
-
+// 新增：临时输入框变量
+const tempSubScene = ref('');
 const form = ref({
   name: '',
   worldId: '',
@@ -270,9 +241,8 @@ const form = ref({
   background: '',
   playerIdentity: '',
   historyLimit: 15, 
-  enableSummary: true, 
-  summaryFrequency: 10,
-  summary: '' 
+
+  subScenes: ['大厅']
 });
 
 const contacts = ref([]);
@@ -310,12 +280,44 @@ const loadContacts = () => {
   contacts.value = list.map(c => ({
       ...c,
       selected: false,
-      initialState: '',
+      initialSubLocation: '', // 🔥 新增字段：初始位置
       sceneRole: '',
       reason: '',
       usePrivateMemory: true,
-      memoryStats: null // ✨ 初始为空，点击查看后填充
+      memoryStats: null 
   }));
+};
+// 🔥 新增函数：添加子场景
+const addSubScene = () => {
+    const val = tempSubScene.value.trim();
+    if (!val) return;
+    
+    if (form.value.subScenes.includes(val)) {
+        return uni.showToast({ title: '该区域已存在', icon: 'none' });
+    }
+    
+    form.value.subScenes.push(val);
+    tempSubScene.value = ''; // 清空输入框
+};
+
+// 🔥 新增函数：删除子场景
+const removeSubScene = (index) => {
+    const removedTag = form.value.subScenes[index];
+    form.value.subScenes.splice(index, 1);
+    
+    // 🧹 清理：如果有 NPC 选了这个被删除的区域，重置他们的位置
+    contacts.value.forEach(c => {
+        if (c.initialSubLocation === removedTag) {
+            c.initialSubLocation = ''; 
+        }
+    });
+};
+
+// 🔥 新增函数：处理 NPC 位置选择
+const handleNpcLocationChange = (npc, e) => {
+    const idx = e.detail.value;
+    // 直接把子场景的名字赋给 NPC
+    npc.initialSubLocation = form.value.subScenes[idx];
 };
 
 // 🔥 新增：验视 NPC 记忆数据的逻辑
@@ -361,29 +363,27 @@ const loadSceneDataForEdit = (id) => {
             background: target.background,
             playerIdentity: target.playerIdentity,
             historyLimit: target.memorySettings?.historyLimit || 15,
-            enableSummary: target.memorySettings?.enableSummary !== false,
-            summaryFrequency: target.memorySettings?.summaryFrequency || 10,
-            summary: target.summary || '' 
+            
+            subScenes: (target.subScenes && target.subScenes.length > 0) ? target.subScenes : ['大厅'] 
         };
         
-        if (!target.worldId) {
-            isCustomMode.value = true;
-        } else {
-            const world = worldList.value.find(w => w.id === target.worldId);
-            if (world) {
-                currentWorldLocations.value = world.locations || [];
-            }
-        }
+        
 
         if (target.npcs && Array.isArray(target.npcs)) {
             target.npcs.forEach(savedNpc => {
                 const idx = contacts.value.findIndex(c => String(c.id) === String(savedNpc.id));
                 if (idx !== -1) {
-                    contacts.value[idx].selected = true;
-                    contacts.value[idx].sceneRole = savedNpc.sceneRole || '';
-                    contacts.value[idx].initialState = savedNpc.initialState || '';
-                    contacts.value[idx].reason = savedNpc.reason || '';
-                    contacts.value[idx].usePrivateMemory = savedNpc.usePrivateMemory !== false;
+                    const c = contacts.value[idx];
+                    c.selected = true;
+                    c.sceneRole = savedNpc.sceneRole || '';
+                    c.reason = savedNpc.reason || '';
+                    c.usePrivateMemory = savedNpc.usePrivateMemory !== false;
+                    
+                    if (savedNpc.initialSubLocation && form.value.subScenes.includes(savedNpc.initialSubLocation)) {
+                        c.initialSubLocation = savedNpc.initialSubLocation;
+                    } else {
+                        c.initialSubLocation = form.value.subScenes[0] || '大厅';
+                    }
                 }
             });
             contacts.value.sort((a, b) => (b.selected ? 1 : 0) - (a.selected ? 1 : 0));
@@ -429,48 +429,54 @@ const toggleNpc = (index) => {
 const saveScene = () => {
     if (!form.value.name) return uni.showToast({ title: '请输入场景名称', icon: 'none' });
     
+    // 🔥 校验：必须有至少一个子场景
+    if (form.value.subScenes.length === 0) {
+        return uni.showToast({ title: '请至少添加一个子区域(如:大厅)', icon: 'none' });
+    }
+
     const selectedNpcs = contacts.value.filter(c => c.selected).map(c => ({
         id: c.id,
         name: c.name,
         sceneRole: c.sceneRole,
-        initialState: c.initialState,
+        // 🔥 保存初始位置，如果用户没选，默认分配到第一个房间
+        initialSubLocation: c.initialSubLocation || form.value.subScenes[0], 
         reason: c.reason,
         worldId: c.worldId, 
         occupation: c.occupation,
         usePrivateMemory: c.usePrivateMemory 
     }));
     
-    if (selectedNpcs.length === 0) return uni.showToast({ title: '请至少选择一个NPC', icon: 'none' });
+    // 允许 0 NPC 创建 (比如单人探索)
+    if (selectedNpcs.length === 0 && contacts.value.length > 0) {
+         // 可选：给个提示，或者允许单人场景
+    }
 
     const list = uni.getStorageSync('app_scene_list') || [];
 
     const memorySettings = {
         historyLimit: form.value.historyLimit,
-        enableSummary: form.value.enableSummary,
-        summaryFrequency: form.value.summaryFrequency
+    };
+
+    // 构造保存对象
+    const saveData = {
+        ...form.value, 
+        npcs: selectedNpcs,
+        memorySettings,
+        
+        updateTime: Date.now()
     };
 
     if (editSceneId.value) {
         const index = list.findIndex(s => String(s.id) === String(editSceneId.value));
         if (index !== -1) {
-            list[index] = {
-                ...list[index], 
-                ...form.value,
-                memorySettings,
-                summary: form.value.summary,
-                npcs: selectedNpcs,
-                updateTime: Date.now()
-            };
+            list[index] = { ...list[index], ...saveData };
             uni.showToast({ title: '已更新设定', icon: 'success' });
         }
     } else {
         const newScene = {
             id: 'scene_' + Date.now(),
             createTime: Date.now(),
-            ...form.value, 
-            memorySettings,
-            summary: form.value.summary,
-            npcs: selectedNpcs
+            ...saveData
         };
         list.unshift(newScene);
         uni.showToast({ title: '场景创建成功', icon: 'success' });
@@ -654,4 +660,39 @@ const handleClearHistory = () => {
 
 .footer-btn-area { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 40rpx; background: var(--card-bg); box-shadow: 0 -2rpx 10rpx rgba(0,0,0,0.05); padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); }
 .save-btn { background: #007aff; color: #fff; border-radius: 40rpx; font-weight: bold; }
+/* 子场景输入与标签 */
+.sub-scene-input-box {
+    display: flex; gap: 20rpx; margin-top: 16rpx;
+}
+.input-small {
+    flex: 1; background: var(--tool-bg); height: 68rpx; padding: 0 24rpx; 
+    border-radius: 12rpx; font-size: 28rpx; color: var(--text-color);
+}
+.add-btn-small {
+    background: #007aff; color: #fff; font-size: 26rpx; padding: 0 34rpx; 
+    border-radius: 12rpx; display: flex; align-items: center; justify-content: center;
+    &:active { opacity: 0.8; }
+}
+.sub-scene-tags {
+    display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 24rpx;
+}
+.tag {
+    background: rgba(0,122,255,0.08); color: #007aff; font-size: 26rpx; 
+    padding: 10rpx 24rpx; border-radius: 40rpx; display: flex; align-items: center;
+}
+.close-icon { 
+    margin-left: 12rpx; font-weight: bold; padding: 0 4rpx; opacity: 0.6;
+    &:active { opacity: 1; color: #ff4757; }
+}
+.tip-text { font-size: 24rpx; color: var(--text-sub); margin-top: 10rpx; display: block; }
+
+/* NPC 详情优化 */
+.highlight-row { 
+    background: var(--tool-bg); padding: 12rpx 16rpx; border-radius: 12rpx; margin-bottom: 20rpx;
+    border: 1px solid rgba(0,0,0,0.03);
+}
+.picker-display { 
+    font-size: 28rpx; color: #007aff; font-weight: bold; 
+    display: flex; align-items: center;
+}
 </style>

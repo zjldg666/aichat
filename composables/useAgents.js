@@ -267,140 +267,200 @@ export function useAgents(context) {
 
         
     const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null) => {
-        // 1. 冷却检查
-        if (!existingMsgId && Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) return;
-        
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-        
-        // 2. 文本清洗
-        const rawAiText = aiResponseText || "";
-        const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-        const promptAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
-        const promptUserMsg = lastUserMsg || "";
-        
-        // ============================
-        // A. 门卫检查 (Gatekeeper)
-        // ============================
-        let compositionType = 'SOLO'; 
-        
-        if (!existingMsgId) {
-            console.log('🕵️ [门卫] 启动检查...');
-            const currentMode = interactionMode.value === 'phone' ? 'Phone' : 'Face';
-            const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
-                .replace('{{user_msg}}', promptUserMsg)
-                .replace('{{ai_msg}}', promptAiMsg)
-                .replace('{{mode}}', currentMode);
-        
-            const gateRes = await safeTagChat({
-                config, messages: [{ role: 'user', content: gatekeeperPrompt }],
-                temperature: 0.1, maxTokens: 100
+            // 1. 冷却检查
+            if (!existingMsgId && Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) return;
+            
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) return;
+            
+            // 2. 文本清洗
+            const rawAiText = aiResponseText || "";
+            const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            const promptAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
+            const promptUserMsg = lastUserMsg || "";
+            
+            // ============================
+            // A. 门卫检查 (Gatekeeper)
+            // ============================
+            let compositionType = 'SOLO'; 
+            
+            if (!existingMsgId) {
+                console.log('🕵️ [门卫] 启动检查...');
+                const currentMode = interactionMode.value === 'phone' ? 'Phone' : 'Face';
+                
+                // 🔥 [新增] 获取主动发图开关状态
+                const s = currentRole.value?.settings || {};
+                const allowSelfImage = s.allowSelfImage === true; 
+    
+                // 🔥 [新增] 注入参数到 Prompt
+                const gatekeeperPrompt = SNAPSHOT_TRIGGER_PROMPT
+                    .replace('{{user_msg}}', promptUserMsg)
+                    .replace('{{ai_msg}}', promptAiMsg)
+                    .replace('{{mode}}', currentMode)
+                    .replace('{{allow_self_image}}', allowSelfImage ? 'TRUE' : 'FALSE'); 
+            
+                const gateRes = await safeTagChat({
+                    config, messages: [{ role: 'user', content: gatekeeperPrompt }],
+                    temperature: 0.1, maxTokens: 100
+                });
+                
+                let result = false;
+                const resultTag = parseTags(gateRes, 'RESULT');
+                const compTag = parseTags(gateRes, 'COMPOSITION');
+                if (compTag && compTag.toUpperCase().includes('DUO')) {
+                    compositionType = 'DUO';
+                }
+                const looseMatch = /\bTRUE\b/i.test(gateRes); 
+            
+                if ((resultTag && resultTag.toUpperCase().includes('TRUE')) || looseMatch) {
+                    result = true;
+                }
+                console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
+                if (!result) return;
+            }
+            
+            // ============================
+            // B. 生图逻辑 (Director)
+            // ============================
+            const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
+                currentRole, 
+                interactionMode, 
+                messageList, 
+                chatId, 
+                chatName,
+                saveHistory, 
+                scrollToBottom,
+                userAppearance: ref('') 
             });
             
-            let result = false;
-            const resultTag = parseTags(gateRes, 'RESULT');
-            const compTag = parseTags(gateRes, 'COMPOSITION');
-            if (compTag && compTag.toUpperCase().includes('DUO')) {
-                compositionType = 'DUO';
+            let placeholderId = existingMsgId;
+            if (!placeholderId) {
+                placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+                messageList.value.push({ role: 'system', content: '📷 正在构图...', isSystem: true, id: placeholderId });
             }
-            const looseMatch = /\bTRUE\b/i.test(gateRes); 
-        
-            if ((resultTag && resultTag.toUpperCase().includes('TRUE')) || looseMatch) {
-                result = true;
-            }
-            console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
-            if (!result) return;
-        }
-        
-        // ============================
-        // B. 生图逻辑 (Director)
-        // ============================
-        // 🔥 3. 这里的 useChatGallery 需要传入完整参数 (特别是 chatId)
-        const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
-            currentRole, 
-            interactionMode, 
-            messageList, 
-            chatId, // ✅ 核心修复：传入了 chatId
-            chatName,
-            saveHistory, 
-            scrollToBottom,
-            userAppearance: ref('') // 补一个默认值防止报错
-        });
-        
-        let placeholderId = existingMsgId;
-        if (!placeholderId) {
-            placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-            messageList.value.push({ role: 'system', content: '📷 正在构图...', isSystem: true, id: placeholderId });
-        }
-        scrollToBottom();
-        saveHistory();
-        
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const isOpenAI = imgConfig.provider === 'openai';
-        
-        // 🟢 1. 获取固定样貌 (积木A)
-        const settings = currentRole.value?.settings || {};
-        let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
-        if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
-        
-        // 🟢 2. 构建 Prompt 给 AI (只问动作 积木B)
-        const template = isOpenAI ? IMAGE_GENERATOR_OPENAI_PROMPT : IMAGE_GENERATOR_PROMPT;
-        
-        const directorPrompt = template
-            .replace('{{clothes}}', currentClothing.value || "Casual") 
-            .replace('{{location}}', currentLocation.value || "Indoor") 
-            .replace('{{time}}', formattedTime.value)
-            .replace('{{user_msg}}', promptUserMsg)
-            .replace('{{ai_msg}}', promptAiMsg)
-            .replace('{{current_action}}', currentAction.value || "Standing");
-        
-        try {
-            const dirRes = await safeTagChat({
-                config, messages: [{ role: 'user', content: directorPrompt }],
-                temperature: 0.7, maxTokens: 300
-            });
-        
-            console.log(`🎨 [导演] 动态部分生成:`, dirRes);
-            let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
-            if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
-        
-            if (dynamicPart) {
-                lastImageGenerationTime.value = Date.now();
-                const idx = messageList.value.findIndex(m => m.id === placeholderId);
-                if (idx !== -1) messageList.value[idx].content = '📷 显影中...';
-        
-                // 🔥🔥🔥 核心拼接 🔥🔥🔥
-                let finalPrompt = "";
-                if (isOpenAI) {
-                    // OpenAI: [动态画风] + [固定样貌] + [动态描述]
-                    const stylePrefix = getOpenAIStylePrefix(imgConfig.style); // 👈 获取画风前缀
-                    finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
-                } else {
-                    // ComfyUI: 样貌Tags + 动态Tags
-                    if (!dynamicPart.includes(fullAppearance)) {
-                        finalPrompt = `${fullAppearance}, ${dynamicPart}`;
+            scrollToBottom();
+            saveHistory();
+            
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const isOpenAI = imgConfig.provider === 'openai';
+            const settings = currentRole.value?.settings || {};
+    
+            // 🟢 1. 获取角色固定样貌
+            let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
+            if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
+            
+            // 🔥 [核心修正] 读取穿衣模式开关 (总闸)
+            const charFeat = settings.charFeatures || {};
+            const isNsfwAllowed = charFeat.wearStatus === '暴露/H';
+    
+            // 🟢 2. 分离玩家特征 (智能防火墙)
+            const rawUserApp = settings.userAppearance || "1boy, short hair, male focus";
+            const playerNsfwKeywords = ['penis', 'cock', 'erection', 'testicles', 'balls', 'pubic hair', 'cum', 'glans'];
+            let userAppSafe = [];
+            let userAppNsfw = [];
+            
+            rawUserApp.split(',').forEach(tag => {
+                const t = tag.trim();
+                if (t) {
+                    if (playerNsfwKeywords.some(k => t.toLowerCase().includes(k))) {
+                        userAppNsfw.push(t);
                     } else {
-                        finalPrompt = dynamicPart;
+                        userAppSafe.push(t);
                     }
                 }
-                
-                console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
-                handleAsyncImageGeneration(finalPrompt, placeholderId, compositionType);
-            } else {
-                throw new Error("生成内容无效");
+            });
+            const userAppSafeStr = userAppSafe.join(', ');
+            const userAppNsfwStr = userAppNsfw.join(', ');
+            
+            // 🟢 3. 构建 Prompt 给 AI (只问动作)
+            const template = isOpenAI ? IMAGE_GENERATOR_OPENAI_PROMPT : IMAGE_GENERATOR_PROMPT;
+            const directorPrompt = template
+                .replace('{{clothes}}', currentClothing.value || "Casual") 
+                .replace('{{location}}', currentLocation.value || "Indoor") 
+                .replace('{{time}}', formattedTime.value)
+                .replace('{{user_msg}}', promptUserMsg)
+                .replace('{{ai_msg}}', promptAiMsg)
+                .replace('{{current_action}}', currentAction.value || "Standing");
+            
+            try {
+                const dirRes = await safeTagChat({
+                    config, messages: [{ role: 'user', content: directorPrompt }],
+                    temperature: 0.7, maxTokens: 300
+                });
+            
+                console.log(`🎨 [导演] 动态部分生成:`, dirRes);
+                let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
+                if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
+            
+                if (dynamicPart) {
+                    lastImageGenerationTime.value = Date.now();
+                    const idx = messageList.value.findIndex(m => m.id === placeholderId);
+                    if (idx !== -1) messageList.value[idx].content = '📷 显影中...';
+            
+                    // 🔥 [逻辑闭环] 智能判断是否需要注入玩家 NSFW 特征
+                    const dynamicNsfwRegex = /\b(naked|nude|sex|fuck|fellatio|blowjob|cunnilingus|penetration|cum|orgasm|nipples?|pussy|vagina|penis|cock|erection|undressing|exposing)\b/i;
+                    const isNsfwScene = dynamicNsfwRegex.test(dynamicPart);
+                    
+                    let finalUserApp = userAppSafeStr; // 默认只给安全特征
+                    
+                    if (isNsfwAllowed && isNsfwScene && userAppNsfwStr) {
+                        finalUserApp += `, ${userAppNsfwStr}`; // 全票通过才注入
+                        console.log('🔞 [Director] 暴露模式+R18场景 -> 注入玩家敏感特征');
+                    } else if (!isNsfwAllowed && userAppNsfwStr) {
+                        console.log('🛡️ [Director] 穿衣模式(正常) -> 强制屏蔽玩家敏感特征');
+                    }
+    
+                    // 🔥🔥🔥 核心拼接 (结构化重构版) 🔥🔥🔥
+                    let finalPrompt = "";
+                    
+                    if (isOpenAI) {
+                        // OpenAI 保持自然语言逻辑
+                        const stylePrefix = getOpenAIStylePrefix(imgConfig.style);
+                        finalPrompt = `${stylePrefix} ${fullAppearance}. Scene includes ${finalUserApp}. ${dynamicPart}`;
+                    } else {
+                        // === ComfyUI 结构化组装 ===
+                        const STYLE_HEADER = "(masterpiece, best quality), anime coloring, cel shading, flat color, simple background";
+                        
+                        // 清洗基础Tag，防止 1girl/1boy 重复出现
+                        let girlBlock = fullAppearance.replace(/1girl,?/gi, '').trim();
+                        let boyBlock = (compositionType === 'DUO' ? finalUserApp : userAppSafeStr).replace(/1boy,?/gi, '').trim();
+                        
+                        let promptParts = [];
+                        // 1. 画风与构图层
+                        promptParts.push(STYLE_HEADER);
+                        
+                        if (compositionType === 'DUO') {
+                            promptParts.push("2people, couple");
+                            promptParts.push(`1girl, ${girlBlock}`); 
+                            promptParts.push(`1boy, ${boyBlock}`);   
+                        } else {
+                            promptParts.push("solo, focus on girl");
+                            promptParts.push(`1girl, ${girlBlock}`);
+                        }
+                        
+                        // 2. 动态层 (放在最后)
+                        promptParts.push(`\n${dynamicPart}`);
+                        
+                        // 3. 组合
+                        finalPrompt = promptParts.filter(p => p).join(", \n");
+                    }
+                    
+                    console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
+                    handleAsyncImageGeneration(finalPrompt, placeholderId, compositionType);
+                } else {
+                    throw new Error("生成内容无效");
+                }
+            } catch (e) {
+                console.warn('Director failed:', e);
+                const idx = messageList.value.findIndex(m => m.id === placeholderId);
+                if (idx !== -1) {
+                    messageList.value[idx].content = '❌ 构图失败';
+                    messageList.value[idx].hasError = true;
+                    messageList.value[idx].retryContext = { lastUserMsg, aiResponseText: rawAiText };
+                    saveHistory();
+                }
             }
-        } catch (e) {
-            console.warn('Director failed:', e);
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-            if (idx !== -1) {
-                messageList.value[idx].content = '❌ 构图失败';
-                messageList.value[idx].hasError = true;
-                messageList.value[idx].retryContext = { lastUserMsg, aiResponseText: rawAiText };
-                saveHistory();
-            }
-        }
-    };
-
+        };
     const retryAgentGeneration = async (msg) => {
         if (msg.isLogicError && msg.retryContext) {
             console.log('🔄 触发 AI 重新构图...');
@@ -415,124 +475,146 @@ export function useAgents(context) {
         
     // 2. 替换 runCameraManCheck 函数
     const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
-        // 🛑 1. 特权通道
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-        
-        console.log('📸 [摄影师] 启动 (拼接模式)...');
-        
-        // 2. 文本清洗
-        const rawAiText = aiResponseText || "";
-        const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-        const finalAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
-        
-        let targetAction = finalAiMsg;
-        if (targetAction.length < 5 && messageList.value.length >= 3) {
-                const prevMsg = messageList.value[messageList.value.length - 3]; 
-                if (prevMsg && prevMsg.role === 'model') {
-                    targetAction += ` (Previous context: ${prevMsg.content})`;
-                }
-        }
-        
-        // 🔥 4. 这里同样修复了 useChatGallery 的调用参数
-        const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
-            currentRole, 
-            interactionMode, 
-            messageList, 
-            chatId, // ✅ 传入 chatId
-            chatName,
-            saveHistory, 
-            scrollToBottom,
-            userAppearance: ref('') 
-        });
-        
-        // 🟢 3. 获取固定样貌 (积木A)
-        const settings = currentRole.value?.settings || {};
-        let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
-        if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
-        
-        // 构图模式
-        let compositionType = interactionMode.value === 'phone' ? 'SOLO' : 'DUO';
-        
-        // 🟢 4. 构建 Prompt 给 AI (只问动态 积木B)
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const isOpenAI = imgConfig.provider === 'openai';
-        
-        let prompt = "";
-        if (isOpenAI) {
-            // 使用新的 CAMERA_MAN_OPENAI_PROMPT (不含样貌变量)
-            prompt = CAMERA_MAN_OPENAI_PROMPT
-                .replace('{{clothes}}', currentClothing.value || "Casual") 
-                .replace('{{location}}', currentLocation.value || "Indoor") 
-                .replace('{{time}}', formattedTime.value)
-                .replace('{{current_action}}', currentAction.value || "Standing")
-                .replace('{{ai_msg}}', targetAction);
-        } else {
-            // ComfyUI 保持原样
-            prompt = CAMERA_MAN_PROMPT
-                .replace('{{current_action}}', currentAction.value || "Maintaining pose") 
-                .replace('{{ai_response}}', targetAction)
-                .replace('{{clothes}}', currentClothing.value || "Casual")
-                .replace('{{location}}', currentLocation.value || "Indoor")
-                .replace('{{time}}', formattedTime.value);
-        }
-        
-        // 5. 占位符
-        const pid = `img-loading-${Date.now()}-${Math.random()}`;
-        messageList.value.push({ role: 'system', content: '📸 快门已按下...', isSystem: true, id: pid });
-        scrollToBottom();
-        saveHistory();
-        
-        // 6. 请求与拼接
-        try {
-            const res = await safeTagChat({
-                config, messages: [{ role: 'user', content: prompt }],
-                temperature: 0.5, maxTokens: 300
-            });
-        
-            console.log(`📸 [摄影师] 动态部分:`, res);
-            let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
-            if (!dynamicPart && res.length > 5) dynamicPart = res.replace(/Here is.*?:/i, '').trim();
-        
-            if (dynamicPart) {
-                lastImageGenerationTime.value = Date.now();
-                const idx = messageList.value.findIndex(m => m.id === pid);
-                if (idx !== -1) messageList.value[idx].content = '📸 显影中...';
-                
-                // 🔥🔥🔥 核心拼接 🔥🔥🔥
-                let finalPrompt = "";
-                if (isOpenAI) {
-                    // OpenAI: [动态画风] + [固定样貌] + [动态描述]
-                    const stylePrefix = getOpenAIStylePrefix(imgConfig.style); // 👈 获取画风前缀
-                    finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
-                } else {
-                    // ComfyUI: 样貌 + 动态
-                    if (!dynamicPart.includes(fullAppearance)) {
-                        finalPrompt = `${fullAppearance}, ${dynamicPart}`;
-                    } else {
-                        finalPrompt = dynamicPart;
+            // 🛑 1. 特权通道
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) return;
+            
+            console.log('📸 [摄影师] 启动 (拼接模式)...');
+            
+            // 2. 文本清洗
+            const rawAiText = aiResponseText || "";
+            const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            const finalAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
+            
+            let targetAction = finalAiMsg;
+            if (targetAction.length < 5 && messageList.value.length >= 3) {
+                    const prevMsg = messageList.value[messageList.value.length - 3]; 
+                    if (prevMsg && prevMsg.role === 'model') {
+                        targetAction += ` (Previous context: ${prevMsg.content})`;
                     }
-                }
-                
-                console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
-                handleAsyncImageGeneration(finalPrompt, pid, compositionType);
+            }
+            
+            // 3. 准备 Gallery
+            const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
+                currentRole, 
+                interactionMode, 
+                messageList, 
+                chatId, 
+                chatName,
+                saveHistory, 
+                scrollToBottom,
+                userAppearance: ref('') 
+            });
+            
+            // 🟢 4. 获取样貌设定
+            const settings = currentRole.value?.settings || {};
+            // 角色外貌
+            let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
+            if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
+            // 🔥 [新增] 玩家外貌
+            const userApp = settings.userAppearance || "1boy, short hair, male focus"; 
+            
+            // 构图模式 (手机默认单人，当面默认双人)
+            let compositionType = interactionMode.value === 'phone' ? 'SOLO' : 'DUO';
+            
+            // 5. 构建 Prompt
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const isOpenAI = imgConfig.provider === 'openai';
+            
+            let prompt = "";
+            if (isOpenAI) {
+                // OpenAI 模板
+                prompt = CAMERA_MAN_OPENAI_PROMPT
+                    .replace('{{clothes}}', currentClothing.value || "Casual") 
+                    .replace('{{location}}', currentLocation.value || "Indoor") 
+                    .replace('{{time}}', formattedTime.value)
+                    .replace('{{current_action}}', currentAction.value || "Standing")
+                    .replace('{{ai_msg}}', targetAction);
             } else {
-                throw new Error("生成内容无效");
+                // ComfyUI 模板
+                prompt = CAMERA_MAN_PROMPT
+                    .replace('{{current_action}}', currentAction.value || "Maintaining pose") 
+                    .replace('{{ai_response}}', targetAction)
+                    .replace('{{clothes}}', currentClothing.value || "Casual")
+                    .replace('{{location}}', currentLocation.value || "Indoor")
+                    .replace('{{time}}', formattedTime.value);
             }
-        } catch (e) {
-            console.warn('CameraMan failed:', e);
-            const idx = messageList.value.findIndex(m => m.id === pid);
-            if (idx !== -1) {
-                messageList.value[idx].content = '❌ 拍照失败';
-                messageList.value[idx].hasError = true;
-                saveHistory();
+            
+            // 6. 占位符
+            const pid = `img-loading-${Date.now()}-${Math.random()}`;
+            messageList.value.push({ role: 'system', content: '📸 快门已按下...', isSystem: true, id: pid });
+            scrollToBottom();
+            saveHistory();
+            
+            // 7. 请求与拼接
+            try {
+                const res = await safeTagChat({
+                    config, messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.5, maxTokens: 300
+                });
+            
+                console.log(`📸 [摄影师] 动态部分:`, res);
+                let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
+                if (!dynamicPart && res.length > 5) dynamicPart = res.replace(/Here is.*?:/i, '').trim();
+            
+                if (dynamicPart) {
+                    lastImageGenerationTime.value = Date.now();
+                    const idx = messageList.value.findIndex(m => m.id === pid);
+                    if (idx !== -1) messageList.value[idx].content = '📸 显影中...';
+                    
+                    // 🔥🔥🔥 核心拼接 (结构化重构版) 🔥🔥🔥
+                    let finalPrompt = "";
+                    
+                    if (isOpenAI) {
+                        // OpenAI 保持原有的自然语言拼接逻辑
+                        const stylePrefix = getOpenAIStylePrefix(imgConfig.style); 
+                        finalPrompt = `${stylePrefix} ${fullAppearance}. Scene includes ${userApp}. ${dynamicPart}`;
+                    } else {
+                        // === ComfyUI 结构化组装 ===
+                        const STYLE_HEADER = "(masterpiece, best quality), anime coloring, cel shading, flat color, simple background";
+                        
+                        // 清洗基础Tag，防止 1girl/1boy 重复出现导致计数器溢出
+                        let girlBlock = fullAppearance.replace(/1girl,?/gi, '').trim();
+                        let boyBlock = userApp.replace(/1boy,?/gi, '').trim();
+                        
+                        let promptParts = [];
+                        // 1. 画风与构图层
+                        promptParts.push(STYLE_HEADER);
+                        
+                        if (compositionType === 'DUO') {
+                            // 双人模式
+                            promptParts.push("2people, couple");
+                            promptParts.push(`1girl, ${girlBlock}`); // 明确指派 1girl 特征
+                            promptParts.push(`1boy, ${boyBlock}`);   // 明确指派 1boy 特征
+                        } else {
+                            // 单人模式
+                            promptParts.push("solo, focus on girl");
+                            promptParts.push(`1girl, ${girlBlock}`);
+                        }
+                        
+                        // 2. 动态层 (放在最后，覆盖动作)
+                        promptParts.push(`\n${dynamicPart}`);
+                        
+                        // 3. 组合
+                        finalPrompt = promptParts.filter(p => p).join(", \n");
+                    }
+                    
+                    console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
+                    handleAsyncImageGeneration(finalPrompt, pid, compositionType);
+                } else {
+                    throw new Error("生成内容无效");
+                }
+            } catch (e) {
+                console.warn('CameraMan failed:', e);
+                const idx = messageList.value.findIndex(m => m.id === pid);
+                if (idx !== -1) {
+                    messageList.value[idx].content = '❌ 拍照失败';
+                    messageList.value[idx].hasError = true;
+                    saveHistory();
+                }
             }
-        }
-    };
-
-    // =========================================================================
-    // 5. 日常流水账 (Text Only - 保持原样)
-    // =========================================================================
+        };
+		
     const checkAndRunSummary = async () => {
         if (!enableSummary.value) return;
         const listLen = messageList.value.length;
@@ -584,7 +666,7 @@ export function useAgents(context) {
             const datePart = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
             const fullDateStr = `${datePart} ${formattedTime.value.split(' ')[0] || '未知'}`; 
             const rawLog = currentSummary.value || "今日暂无重要互动记录。";
-    
+        
             const prompt = `
             [System Command: MEMORY_ANALYZER]
             Current Date: {{full_date_str}}
@@ -597,7 +679,7 @@ export function useAgents(context) {
             【Output Format JSON】
             { "brief": "...", "new_memory": "..." }
             `;
-    
+        
             // 🔥 继续使用 safeJsonChat
             const result = await safeJsonChat({
                 config,
@@ -608,7 +690,7 @@ export function useAgents(context) {
                 }],
                 temperature: 0.1, maxTokens: 1000
             });
-    
+        
             if (result) {
                 // 1. 更新当前会话的上下文 (短期记忆刷新)
                 saveCharacterState(undefined, undefined, result.new_memory);
@@ -616,44 +698,42 @@ export function useAgents(context) {
                 // 2. 准备心情字段
                 const mood = (currentAffection.value > 60) ? '开心' : '平静';
                 
-                // 🔥🔥🔥 核心修改区域 Start 🔥🔥🔥
-                // 逻辑：判断是否有 sceneParticipants。
-                // 如果有，说明是“多人场景”，需要把记忆分发给每个人。
-                // 如果没有，说明是“普通单人聊天”，照旧存一份。
+                // 🔥🔥🔥 核心修改区域 Start (修复 ID 数据类型报错) 🔥🔥🔥
                 
                 if (sceneParticipants && sceneParticipants.value && sceneParticipants.value.length > 0) {
                     // === A. 场景模式：记忆分发 ===
                     console.log(`📚 [Memory] 检测到多人场景，正在分发记忆给 ${sceneParticipants.value.length} 位角色...`);
                     
-                    // 给日记内容加个前缀，方便 NPC 以后回想起这是在哪发生的
                     const scenePrefix = `【场景: ${chatName.value}】`;
                     const finalDetail = scenePrefix + rawLog; 
-    
+        
                     // 遍历在场的每一个人，给他们的日记本里都写上一笔
                     for (const npc of sceneParticipants.value) {
-                        // 注意：这里用 npc.id 作为 roleId
                         await DB.execute(
                             `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
-                            [Date.now() + Math.random(), String(npc.id), fullDateStr, result.brief, finalDetail, mood]
+                            // 👇 修复：使用 Math.floor 取整，并乘 10000 保证随机性
+                            [Math.floor(Date.now() + Math.random() * 10000), String(npc.id), fullDateStr, result.brief, finalDetail, mood]
                         );
                     }
                     
                     // (可选) 同时也给场景本身留个底，roleId = chatId(sceneId)
                     await DB.execute(
                         `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
-                        [Date.now(), String(chatId.value), fullDateStr, result.brief, finalDetail, mood]
+                        // 👇 修复：使用 Math.floor 取整
+                        [Math.floor(Date.now() + Math.random() * 10000), String(chatId.value), fullDateStr, result.brief, finalDetail, mood]
                     );
-    
+        
                 } else {
                     // === B. 单人模式：照旧 ===
                     const roleId = currentRole.value.id || 'default';
                     await DB.execute(
                         `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
-                        [Date.now(), String(roleId), fullDateStr, result.brief, rawLog, mood]
+                        // 👇 修复：使用 Math.floor 取整
+                        [Math.floor(Date.now() + Math.random() * 10000), String(roleId), fullDateStr, result.brief, rawLog, mood]
                     );
                 }
                 // 🔥🔥🔥 核心修改区域 End 🔥🔥🔥
-    
+        
                 console.log('✅ [DB] 归档完成:', result.brief);
                 
                 // 3. 重置当天的流水账

@@ -23,6 +23,7 @@ export function buildSystemPrompt({
     summary,
     formattedTime,
     location,
+	playerLocation, // 🔥 1. 新增：接收玩家位置
     mode,
     activity,
     clothes,
@@ -62,9 +63,32 @@ export function buildSystemPrompt({
     // 如果有长期记忆，注入到 Prompt 中
     const memoryBlock = summary ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${summary}` : "";
     
-    // 拼接动态逻辑块：包含人设逻辑 + 往事目录 + 记忆 + 当前心理状态
-    // 这里把 diaryIndexText 插在了 logic 和 memory 之间
-    const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${relation || '初相识，还没有具体印象'}`;
+    // =================================================================
+        // 🔥 2. 核心修改：生成物理距离/互动模式的强指令
+        // =================================================================
+        let modeInstruction = "";
+        if (mode === 'phone') {
+            // 手机模式：强行灌输“异地”概念
+            modeInstruction = `
+    \n【⚠️ 物理状态：异地通讯 (PHONE MODE)】
+    - **你的位置**: ${location}
+    - **玩家位置**: ${playerLocation || '未知远方'} (你们不在一起！)
+    - **强制约束**:
+      1. 严禁描写任何当面动作（如：抬头看、眼神接触、肢体触碰）。
+      2. 严禁描写玩家的动作（你看不见他）。
+      3. 只能通过文字/语音/自拍进行交流。`;
+        } else {
+            // 当面模式：确认在同一地点
+            modeInstruction = `
+    \n【✅ 物理状态：当面互动 (FACE-TO-FACE)】
+    - **共同位置**: ${location}
+    - **说明**: 你们在同一个空间，可以进行眼神、肢体和神态的直接交互。`;
+        }
+        // =================================================================
+    
+        // 拼接动态逻辑块
+        // 🔥 把 modeInstruction 加进去，让 AI 能够看到这段物理约束
+        const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${modeInstruction}\n\n【当前心理状态与对玩家印象】\n${relation || '初相识，还没有具体印象'}`;
 
     // 5. 模板替换 (使用正则全局替换) - 保持与您原始代码完全一致
     let prompt = CORE_INSTRUCTION_LOGIC_MODE

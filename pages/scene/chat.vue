@@ -8,10 +8,25 @@
           <text class="btn-text warning">🚪 离开</text>
         </view>
         
-        <view class="nav-title">
-          <text class="title-text">{{ sceneData.name || '未知场景' }}</text>
-          <text class="sub-text">🕒 {{ formattedTime }}</text>
-        </view>
+	<view class="nav-title" @click="handleLocationSwitch">
+	<text class="title-text">{{ sceneData.name || '未知场景' }}</text>
+	<text class="sub-text">📍 {{ currentSubLocation || '大厅' }} <text style="font-size: 20rpx; margin-left:6rpx;">▼</text></text>
+	</view>
+	
+	<view class="npc-list">
+	<image 
+		v-for="npc in activeNpcs" 
+		:key="npc.id" 
+		:src="npc.avatar || '/static/ai-avatar.png'" 
+		class="mini-avatar"
+		:class="{ 'is-visitor': npc.isVisitor }"
+		mode="aspectFill"
+	></image>
+	
+	<view class="invite-btn" @click="handleInvite">
+		<text>+</text>
+	</view>
+	</view>
         
         <view class="nav-btn right" @click="openSettings">
           <text class="btn-text">⚙️</text>
@@ -107,6 +122,8 @@ import { useGameTime } from '@/composables/useGameTime.js';
 import { useAgents } from '@/composables/useAgents.js';
 import { buildSystemPrompt } from '@/core/prompt-builder.js';
 import { useWorldScheduler } from '@/composables/useWorldScheduler.js'; // 引入世界调度器
+import { runAutonomousActor } from '@/core/director.js'; // 只需要引入这个新函数
+
 const allNpcs = ref([]); // 👥 保存该场景的所有 NPC（大名单）
 const currentSubLocation = ref(''); // 📍 当前子区域 (如: "卫生间", "包厢")
 const { isDarkMode, applyNativeTheme } = useTheme();
@@ -137,6 +154,13 @@ const enableSummary = ref(true);
 const summaryFrequency = ref(10);
 const currentSummary = ref('');
 
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
 // --- 基础工具函数 ---
 const scrollToBottom = () => {
     nextTick(() => {
@@ -145,26 +169,38 @@ const scrollToBottom = () => {
     });
 };
 
+// 🔥 修复版：保存玩家状态 (增加 lastSubLocation)
 const saveCharacterState = (mode, loc, summary) => {
-    // 1. 接收来自 useAgents 的更新 (如果有)
-    if (summary) {
-        currentSummary.value = summary; // 核心修复：更新当前内存中的摘要
-    }
+    // 1. 接收更新
+    if (summary) currentSummary.value = summary;
     
     // 2. 保存到本地存储
     if (sceneId.value) {
          const allScenes = uni.getStorageSync('app_scene_list') || [];
          const idx = allScenes.findIndex(s => String(s.id) === String(sceneId.value));
          if (idx !== -1) {
-             // 确保存入的是最新的 currentSummary.value
+             // 保存记忆摘要
              allScenes[idx].summary = currentSummary.value; 
+             
+             // 🔥 核心修复：保存玩家最后所在的子场景
+             // 这样下次进来看，你就在休息室，而不是大厅
+             allScenes[idx].lastSubLocation = currentSubLocation.value;
+             
              uni.setStorageSync('app_scene_list', allScenes);
-             console.log('💾 [Scene] 场景记忆已保存');
+             console.log(`💾 [Scene] 玩家位置已存档: ${currentSubLocation.value}`);
          }
     }
 };
 const saveHistory = async () => {}; // 占位
-
+// 🔥 新增函数：根据当前地点刷新在场 NPC
+const refreshActiveNpcs = () => {
+    if (!allNpcs.value || allNpcs.value.length === 0) {
+        activeNpcs.value = [];
+        return;
+    }
+    // 只保留：当前位置 == 玩家当前子场景 的 NPC
+    activeNpcs.value = allNpcs.value.filter(n => n.currentSubLocation === currentSubLocation.value);
+};
 // --- 初始化 Agents (用于自动总结) ---
 const { checkAndRunSummary, runDayEndSummary } = useAgents({
     chatId: sceneId, 
@@ -180,89 +216,144 @@ const { checkAndRunSummary, runDayEndSummary } = useAgents({
     sceneParticipants: activeNpcs 
 });
 
-// --- 核心交互逻辑 ---
 
-// 离开场景：触发记忆融合
-// 离开场景：触发记忆融合与状态解绑
+// 🔥 修改函数：handleLeaveScene (多视角并行记忆写入)
 const handleLeaveScene = () => {
     uni.showModal({
         title: '离开场景',
-        content: '确定要离开这里回家吗？',
+        content: '确定要离开吗？每位角色将整理这段经历并写入记忆。',
         success: async (res) => {
             if (res.confirm) {
-                // 读取最新的通讯录数据，准备统一修改
-                let contacts = uni.getStorageSync('contact_list') || [];
-                let hasChange = false;
+                // 如果场景里没人，直接走
+                if (activeNpcs.value.length === 0) {
+                    uni.navigateBack();
+                    return;
+                }
 
-                // =========================================================
-                // 1. 记忆融合协议 (将场景发生的剧情摘要同步给在场 NPC 的私聊存档)
-                // =========================================================
-                if (enableSummary.value && currentSummary.value) {
-                    uni.showLoading({ title: '正在同步记忆...' });
-                    
-                    const sceneName = sceneData.value.name || '未知场景';
-                    let syncCount = 0;
-                    // 构建记忆片段，例如：【周一 10:00 于 咖啡馆】: 聊得很开心...
-                    const memoryFragment = `\n【${formattedTime.value} 于 ${sceneName}】: ${currentSummary.value}`;
+                uni.showLoading({ title: '正在同步记忆...', mask: true });
 
-                    for (const npc of activeNpcs.value) {
-                        // 找到 NPC 在通讯录里的真身
-                        const realIndex = contacts.findIndex(c => String(c.id) === String(npc.privateChatId));
+                try {
+					// 1. 获取本次场景的完整对话记录
+					let chatLog = messageList.value
+						.filter(m => !m.isSystem)
+						.map(m => `${m.role}: ${m.content}`)
+						.join('\n');
+					
+					// 🔥🔥🔥 核心修复：手动注入“离开事件”到剧本末尾 🔥🔥🔥
+					// 这样 AI 总结时，就会知道故事已经结束了，而不是“正在进行中”
+					const playerName = sceneData.value.playerIdentity || '玩家';
+					chatLog += `\n【系统旁白】: ${playerName} 看了看时间，决定结束对话并离开这里。`;
                         
-                        if (realIndex !== -1) {
-                            const contact = contacts[realIndex];
-                            const originalSummary = contact.summary || '';
-                            
-                            // 简单查重：防止短时间内重复进出导致重复添加相同的记忆
-                            // 只要原记忆里不包含这段摘要的前15个字，就认为是一段新记忆
-                            if (!originalSummary.includes(currentSummary.value.slice(0, 15))) { 
-                                contact.summary = originalSummary + memoryFragment;
-                                hasChange = true;
-                                syncCount++;
+                    if (!chatLog || chatLog.length < 10) {
+                        uni.hideLoading();
+                        uni.navigateBack();
+                        return;
+                    }
+
+                    const config = getCurrentLlmConfig();
+                    const timeStr = formattedTime.value;
+                    const dateStr = new Date().toLocaleDateString();
+                    const sceneName = sceneData.value.name;
+                    const locationName = currentSubLocation.value;
+
+                    // 2. 🔥 核心：并行触发每个 NPC 的主观总结 (Promise.all)
+                    // 我们要为 activeNpcs 里的每一个人生成一份独特的记忆
+                    const summaryTasks = activeNpcs.value.map(async (npc) => {
+                        
+                        // 构建“主观视角” Prompt
+                        // 告诉 AI：你是 ${npc.name}，这是刚才发生的事，请你写日记。
+                        const perspectivePrompt = `
+                        [Memory Generator: Subjective Perspective]
+                        Role: You are ${npc.name}.
+                        Current Scene: ${sceneName} (${locationName})
+                        Time: ${timeStr}
+                        
+                        Transcript of events:
+                        ${chatLog}
+                        
+                        Task: Summarize what just happened from YOUR perspective (${npc.name}). 
+                        - Focus on what YOU did, heard, and felt.
+                        - Mention interactions with Player and other characters present.
+                        - Keep it concise (1-2 sentences).
+                        
+                        Output (Chinese):
+                        `;
+
+                        try {
+                            const mySummary = await LLM.chat({
+                                config,
+                                messages: [{ role: 'user', content: perspectivePrompt }],
+                                temperature: 0.3, // 稍微有点温度，让记忆带点个人色彩
+                                maxTokens: 300
+                            });
+
+                            if (mySummary) {
+                                // 构造记忆文本：【场景@时间】+ 主观内容
+                                const memoryText = `\n[${timeStr} @ ${sceneName}] ${mySummary}`;
+                                
+                                // 返回处理结果，以便后续写入数据库
+                                return {
+                                    npcId: npc.privateChatId,
+                                    npcName: npc.name,
+                                    memory: memoryText
+                                };
                             }
+                        } catch (e) {
+                            console.error(`${npc.name} 总结失败`, e);
+                        }
+                        return null;
+                    });
+
+                    // 等待所有人写完日记
+                    const results = await Promise.all(summaryTasks);
+
+                    // 3. 写入数据库与缓存
+                    const contacts = uni.getStorageSync('contact_list') || [];
+                    let hasChange = false;
+
+                    for (const res of results) {
+                        if (!res) continue;
+
+                        const contact = contacts.find(c => String(c.id) === String(res.npcId));
+                        if (contact) {
+                            // A. 写入通讯录摘要 (用于私聊上下文)
+                            contact.summary = (contact.summary || "") + res.memory;
+                            
+                            // B. 解除绑定 (玩家走了)
+                            if (String(contact.playerInSceneId) === String(sceneId.value)) {
+                                contact.playerInSceneId = null;
+                                contact.interactionMode = 'phone'; // 变回手机模式
+                            }
+                            
+                            hasChange = true;
+
+					// C. 写入日记表 (永久存储)
+					await DB.execute(
+						`INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
+						[
+							// ✅ 修复：使用 Math.floor() 强制转为整数
+							Math.floor(Date.now() + Math.random() * 10000), 
+							String(contact.id), 
+							dateStr, 
+							"场景经历", // brief
+							res.memory, // detail
+							"平静"      // mood (可扩展)
+						]
+					);
+                            console.log(`✅ [记忆写入] ${res.npcName}: ${res.memory}`);
                         }
                     }
 
-                    if (syncCount > 0) {
-                        uni.showToast({ title: `记忆已同步给${syncCount}人`, icon: 'success' });
+                    if (hasChange) {
+                        uni.setStorageSync('contact_list', contacts);
                     }
-                    
-                    // 稍微等待一下 UI 显示，提升体验
-                    await new Promise(r => setTimeout(r, 800));
+
+                } catch (err) {
+                    console.error("离场结算出错", err);
+                } finally {
                     uni.hideLoading();
+                    uni.navigateBack();
                 }
-
-                // =========================================================
-                // 2. 解除绑定 (核心修复：只解绑同场关系，不改变 NPC 物理位置)
-                // =========================================================
-                contacts.forEach(contact => {
-                    // 只要这个人的“同场标记”是当前场景 ID，说明刚才玩家和他在一起
-                    if (String(contact.playerInSceneId) === String(sceneId.value)) {
-                        
-                        // A. 解除绑定：玩家走了，不再和他在同一个场景了
-                        //    (这样你在首页点他，才会进入私聊，而不是被吸回场景)
-                        contact.playerInSceneId = null; 
-                        
-                        // B. 模式切换：变成了远程通讯
-                        contact.interactionMode = 'phone'; 
-                        
-                        // C. 【重要】不要修改 contact.currentLocation
-                        // 让 NPC 继续留在场景里（直到 WorldScheduler 调度他下班）
-                        // 这样即使玩家走了，NPC 依然在咖啡馆，保持世界真实性
-                        
-                        hasChange = true;
-                        console.log(`🔓 [解绑] 玩家离开了 ${contact.name} 所在的场景`);
-                    }
-                });
-
-                // =========================================================
-                // 3. 统一保存所有变更并退出
-                // =========================================================
-                if (hasChange) {
-                    uni.setStorageSync('contact_list', contacts);
-                }
-
-                uni.navigateBack();
             }
         }
     });
@@ -279,6 +370,12 @@ const openSettings = () => {
 // --- 加载数据逻辑 ---
 onLoad(async (options) => {
     applyNativeTheme();
+	
+	    const userInfo = uni.getStorageSync('user_info');
+	    if (userInfo && userInfo.avatar) {
+	        userAvatar.value = userInfo.avatar;
+	    }
+		
     if (options.id) {
         sceneId.value = options.id;
         loadSceneData(options.id, options.visitorId);
@@ -315,28 +412,66 @@ onLoad(async (options) => {
 
 onUnload(() => { saveCharacterState(); });
 
-// 加载场景数据 (含考勤过滤)
+
+// 🔥 修复版：loadSceneData (调整读取优先级 + 考勤机制)
+// 🔥 修复版：loadSceneData (彻底移除访客强制拉人逻辑)
 const loadSceneData = (id, visitorId) => {
+    // 1. 读取场景基础信息
     const allScenes = uni.getStorageSync('app_scene_list') || [];
     const target = allScenes.find(s => String(s.id) === String(id));
     if (!target) return;
 
     sceneData.value = target;
+    const currentSceneName = target.name; 
     
-    // 加载记忆配置
+    // 2. 确定子场景结构与玩家位置
+    const subScenes = target.subScenes && target.subScenes.length > 0 ? target.subScenes : ['大厅'];
+    
+    // 玩家位置逻辑：优先去上次退出的位置
+    currentSubLocation.value = target.lastSubLocation || subScenes[0];
+
+    // 加载记忆设置
     if (target.summary) currentSummary.value = target.summary;
     if (target.memorySettings) {
         enableSummary.value = target.memorySettings.enableSummary !== false;
         summaryFrequency.value = target.memorySettings.summaryFrequency || 10;
     }
 
+    // 初始化时间
     initTimeSync(Date.now(), target.worldId);
 
+    // 3. 读取通讯录全局状态，进行“考勤”
     const allContacts = uni.getStorageSync('contact_list') || [];
     
-    // 1. 准备候选名单
-    let potentialNpcs = target.npcs.map(simpleNpc => {
+    allNpcs.value = target.npcs.map(simpleNpc => {
         const fullProfile = allContacts.find(c => String(c.id) === String(simpleNpc.id));
+        
+        // --- 🕵️‍♂️ 考勤逻辑开始 ---
+        
+        // A. 获取 NPC 在真实世界里的位置
+        const realGlobalLoc = fullProfile?.currentLocation || '';
+        
+        // B. 判定是否就在本场景
+        const isPresentHere = realGlobalLoc && (
+            realGlobalLoc === currentSceneName || 
+            currentSceneName.includes(realGlobalLoc) || 
+            realGlobalLoc.includes(currentSceneName)
+        );
+
+        // C. 确定子房间状态
+        let rtLocation = null; 
+
+        if (isPresentHere) {
+            // 逻辑优先级：动态位置 > 初始设定 > 保底
+            rtLocation = simpleNpc.currentSubLocation || simpleNpc.initialSubLocation || subScenes[0];
+        } else {
+            // 人不在这里 (比如他在"公司")，直接标记为 null
+            // ❌❌❌ 【已删除 D 段：特殊通道】 ❌❌❌
+            // 原逻辑：if (visitorId == simpleNpc.id) 强制拉过来
+            // 新逻辑：无论是不是 visitorId，只要她物理位置不在这里，就不显示
+            rtLocation = null; 
+        }
+
         return {
             ...simpleNpc,
             name: fullProfile?.name || simpleNpc.name,
@@ -344,62 +479,32 @@ const loadSceneData = (id, visitorId) => {
             settings: fullProfile?.settings || {},
             persona: fullProfile?.settings?.description || '普通人',
             clothing: fullProfile?.clothing,
-            resetTime: fullProfile?.resetTime || 0,
             privateChatId: fullProfile?.id || simpleNpc.id,
-            realCurrentLocation: fullProfile?.currentLocation || '未知' // 读取真实位置
+            
+            // 绑定运行时位置 (null 会被过滤掉)
+            currentSubLocation: rtLocation,
+            
+            realGlobalLoc: realGlobalLoc 
         };
     });
 
-    // 2. 考勤过滤
-    const presentNpcs = potentialNpcs.filter(npc => {
-        if (visitorId && String(npc.id) === String(visitorId)) return true;
-        
-        // 模糊匹配位置
-        const isHere = npc.realCurrentLocation.includes(target.name) || 
-                       target.name.includes(npc.realCurrentLocation);
-                       
-        return isHere;
-    });
+    // ❌❌❌ 【已删除：更新通讯录逻辑】 ❌❌❌
+    // 既然我们不再强制拉人，就不需要在这里更新 contact_list 了
 
-    // 3. 强制加入访客 (如果被过滤掉了)
-    if (visitorId) {
-        const isAlreadyIn = presentNpcs.some(n => String(n.id) === String(visitorId));
-        if (!isAlreadyIn) {
-            const visitor = allContacts.find(c => String(c.id) === String(visitorId));
-            if (visitor) {
-                presentNpcs.push({
-                    id: visitor.id,
-                    name: visitor.name,
-                    avatar: visitor.avatar || '/static/ai-avatar.png',
-                    settings: visitor.settings || {},
-                    persona: visitor.settings?.description || '普通人',
-                    clothing: visitor.clothing,
-                    initialState: '刚走进来',
-                    sceneRole: '被寻找的目标',
-                    worldId: visitor.worldId,
-                    privateChatId: visitor.id,
-                    realCurrentLocation: '这里'
-                });
-            }
-        }
-    }
+    // 5. 刷新当前视野
+    refreshActiveNpcs();
 
-    // 4. 空场景提示
-    if (presentNpcs.length === 0) {
+    // 空房间提示
+    if (activeNpcs.value.length === 0) {
         messageList.value.push({
             role: 'system', isSystem: true,
-            content: `(当前时间 ${formattedTime.value}，场景里空荡荡的，大家都去忙别的事了...)`
+            content: `(你来到了 [${currentSubLocation.value}]，但大家似乎都不在...)`
         });
     }
-
-    // 🔥🔥🔥 修改这里 🔥🔥🔥
-        activeNpcs.value = presentNpcs;
-        allNpcs.value = [...presentNpcs]; // 备份全员名单，方便以后从厕所出来时把 Bob 找回来
-        currentSubLocation.value = target.name; // 初始位置就是大厅
 };
 
 const getNpcAvatar = (roleName) => {
-    const target = activeNpcs.value.find(n => roleName.includes(n.name));
+    const target = allNpcs.value?.find(n => roleName.includes(n.name));
     return target ? target.avatar : '/static/ai-avatar.png'; 
 };
 
@@ -412,253 +517,147 @@ const saveMsgToDB = async (msg) => {
     );
 };
 
-// 核心发送逻辑 (完整版：包含空间调度 + 记忆读取 + 演员演绎)
+
+// 🔥 彻底重构的 sendMessage
+// 3. 新增函数：处理 NPC 移动/离场逻辑
+const handleNpcMove = async (npc, targetLocation) => {
+    console.log(`🏃 [Move] ${npc.name} 正在前往 -> ${targetLocation}`);
+
+    // A. 找到源数据中的 NPC 对象 (allNpcs)
+    const targetInList = allNpcs.value.find(n => n.id === npc.id);
+    if (targetInList) {
+        targetInList.currentSubLocation = targetLocation;
+    }
+
+    // B. 更新本地存储 (app_scene_list) - 保证下次进来他还在那个房间
+    const allScenes = uni.getStorageSync('app_scene_list') || [];
+    const sceneIdx = allScenes.findIndex(s => String(s.id) === String(sceneId.value));
+    if (sceneIdx !== -1) {
+        const sceneNpcs = allScenes[sceneIdx].npcs || [];
+        const npcInStore = sceneNpcs.find(n => String(n.id) === String(npc.id));
+        if (npcInStore) {
+            npcInStore.currentSubLocation = targetLocation;
+            uni.setStorageSync('app_scene_list', allScenes);
+        }
+    }
+
+    // C. 更新全局通讯录 (contact_list)
+    const contacts = uni.getStorageSync('contact_list') || [];
+    const contactIdx = contacts.findIndex(c => String(c.id) === String(npc.privateChatId));
+    if (contactIdx !== -1) {
+        contacts[contactIdx].currentLocation = sceneData.value.name; 
+        uni.setStorageSync('contact_list', contacts);
+    }
+
+    // D. 插入一条系统提示
+    const sysMsg = {
+        id: Date.now(),
+        role: 'system', isSystem: true,
+        content: `👣 ${npc.name} 离开了这里，前往了 [${targetLocation}]。`
+    };
+    messageList.value.push(sysMsg);
+    await saveMsgToDB(sysMsg);
+
+    // E. 立即刷新在场名单 (将该 NPC 移除出 activeNpcs)
+    refreshActiveNpcs();
+};
+
+// 4. 🔥 彻底重构的 sendMessage (自主模式 + 移动支持)
 const sendMessage = async () => {
-    // 1. 基础校验
+    // A. 基础校验
     if (!inputText.value.trim() || loadingStatus.value) return;
     const config = getCurrentLlmConfig();
     if (!config) return uni.showToast({ title: '请先配置模型', icon: 'none' });
 
-    // 2. 用户消息上屏与存库
+    // B. 用户消息上屏
     const text = inputText.value;
     const userMsg = { id: Date.now(), role: 'user', content: text, timestamp: Date.now() };
     
-
-	    console.log(`玩家发送：${text}`, "color:#333; font-weight:bold;");
-
+    console.log(`玩家发送：${text}`);
     messageList.value.push(userMsg);
     inputText.value = '';
     await saveMsgToDB(userMsg);
     scrollToBottom();
 
     try {
-        // =================================================================
-        // 🎬 第一步：导演调度 (Director Agent) - 负责空间与发言权
-        // =================================================================
-        loadingStatus.value = 'director';
+        loadingStatus.value = 'director'; // 借用 loading 状态
         
-        // 准备名单：全员(All) vs 当前在场(Active)
-        // allNpcs 需要在 loadSceneData 时初始化，如果未定义则回退到 activeNpcs
-        const fullRoster = allNpcs.value && allNpcs.value.length > 0 ? allNpcs.value : activeNpcs.value;
-        const allNames = fullRoster.map(n => n.name).join('、');
-        const activeNames = activeNpcs.value.map(n => n.name).join('、');
+        // C. 乱序遍历：打乱在场 NPC 的顺序，防止固定顺序抢麦
+        // 复制一份数组来打乱，避免影响界面显示顺序
+        const interactionQueue = shuffleArray([...activeNpcs.value]);
         
-        // 动态读取 historyLimit (默认 15)
-        const historyLimit = sceneData.value.memorySettings?.historyLimit || 15;
-        
-        // 发给导演完整的最近记录
-        const recentHistory = messageList.value.slice(-historyLimit).map(m => { 
-            const roleName = m.role === 'user' ? 'User' : m.role;
-            return `${roleName}: "${m.content}"`; 
-        }).join('\n');
+        const allContacts = uni.getStorageSync('contact_list') || [];
+        let anyoneSpoke = false;
 
-        console.log(`\n%c========== [🔍 SCENE-DIRECTOR] ==========`, "color:#e67e22; font-weight:bold");
-        
-        // 构建超级导演 Prompt
-        const directorPrompt = `
-        [Director Mode]
-        Current Scene: ${sceneData.value.name}
-        Current Sub-Location: ${currentSubLocation.value || 'Main Area'}
-        
-        ALL Characters available in this scene: ${allNames}
-        Characters currently with User: ${activeNames}
-        
-        User Input: "${text}"
-        
-        Task: 
-        1. Detect Spatial Movement: Did the user move to a new sub-location? (e.g., "Go to restroom", "Leave the room", "Go back to hall").
-        2. Update Participants: If moved, who is with the user now? (Select from ALL Characters).
-        3. Assign Speakers: Who should reply?
-        
-        Output JSON Format ONLY:
-        {
-            "new_location": "Restroom" or null, 
-            "visible_characters": ["Alice"], 
-            "next_speakers": ["Alice"] 
-        }
-        
-        Rule: 
-        - If user goes to a private place (e.g. restroom) with someone, exclude others.
-        - If user goes back to public area, include everyone again.
-        `;
-
-        const directorResponse = await LLM.chat({
-            config,
-            messages: [{ role: 'user', content: directorPrompt }],
-            temperature: 0.2, 
-            response_format: { type: "json_object" }
-        });
-        
-
-
-        let nextSpeakers = [];
-        try {
-            let cleanJson = directorResponse.replace(/```json|```/g, '').trim();
-            // 简单容错：如果 LLM 返回了非 JSON 文本，尝试提取
-            if (cleanJson.indexOf('{') > -1) {
-                cleanJson = cleanJson.substring(cleanJson.indexOf('{'), cleanJson.lastIndexOf('}') + 1);
-            }
-            const instruction = JSON.parse(cleanJson);
+        // D. 串行遍历：逐个询问
+        for (const targetNpc of interactionQueue) {
             
-            // --- 🚀 核心：执行空间转移 ---
-            if (instruction.visible_characters && Array.isArray(instruction.visible_characters)) {
-                // 从全员名单里过滤出新的在场名单
-                const newActiveList = fullRoster.filter(npc => 
-                    instruction.visible_characters.includes(npc.name)
-                );
-                
-                // 只有当名单真的变了，才更新状态 (防止闪烁)
-                const isRosterChanged = newActiveList.length !== activeNpcs.value.length || 
-                                      !newActiveList.every((n, i) => n.id === activeNpcs.value[i].id);
-
-                if (isRosterChanged) {
-                    activeNpcs.value = newActiveList;
-                    
-                    // 如果有地点更新，发个系统提示
-                    if (instruction.new_location && instruction.new_location !== currentSubLocation.value) {
-                        currentSubLocation.value = instruction.new_location;
-                        const sysTip = {
-                            id: Date.now() + 1,
-                            role: 'system', isSystem: true,
-                            content: `📍 移动至 [${instruction.new_location}]，当前在场: ${instruction.visible_characters.join('、')}`
-                        };
-                        messageList.value.push(sysTip);
-                        await saveMsgToDB(sysTip);
-                    }
-                }
-            }
-
-            nextSpeakers = instruction.next_speakers || [];
-        } catch (e) {
-            console.error("导演解析失败，启用降级策略", e);
-            // 降级：默认让当前在场的第一个人说话
-            nextSpeakers = [activeNpcs.value[0]?.name].filter(Boolean);
-        }
-        
-        // 再次校验发言人 (确保发言人必须在当前视野内)
-        nextSpeakers = nextSpeakers.filter(name => activeNpcs.value.find(n => n.name === name));
-        if (nextSpeakers.length === 0 && activeNpcs.value.length > 0) nextSpeakers = [activeNpcs.value[0].name];
-
-        console.log(`🎤 最终发言名单: ${JSON.stringify(nextSpeakers)}`);
-
-        // =================================================================
-        // 🎭 第二步：演员轮流登场 (Actor Agent)
-        // =================================================================
-        
-        for (const speakerName of nextSpeakers) {
-            loadingStatus.value = 'actor';
-            currentSpeakerName.value = speakerName; 
+            currentSpeakerName.value = targetNpc.name; 
             
-            const targetNpc = activeNpcs.value.find(n => n.name === speakerName);
-            if (!targetNpc) continue;
+            // 获取角色自己的记忆深度
+            const realProfile = allContacts.find(c => String(c.id) === String(targetNpc.privateChatId));
+            const charContextLimit = realProfile?.historyLimit || 20;
 
-
-            
-            // --- 记忆注入逻辑 (完整保留) ---
-            let memoryContext = "";
-            let paradoxInstruction = "";
-            
-            try {
-                // 读取私聊长时记忆
-                const globalMem = await DB.select(
-                    `SELECT detail FROM diaries WHERE roleId = ? ORDER BY id DESC LIMIT 1`,
-                    [String(targetNpc.privateChatId)]
-                );
-                
-                // 读取最近一条私聊记录
-                const lastMsgObj = await DB.select(
-                    `SELECT content, timestamp, role FROM messages WHERE chatId = ? ORDER BY timestamp DESC LIMIT 1`,
-                    [String(targetNpc.privateChatId)]
-                );
-                
-                // 检查是否重置过
-                const isReset = targetNpc.resetTime && targetNpc.resetTime > (Date.now() - 1000 * 60 * 60 * 24 * 365);
-                
-                if (isReset) {
-                    console.warn(`⚠️ 触发失忆补丁`);
-                    const resetDate = new Date(targetNpc.resetTime).toLocaleString();
-                    paradoxInstruction = `\n【⚠️ 系统强制设定】注意：你在 ${resetDate} 发生过记忆重置。你不认识玩家，也不记得之前的私聊。`;
-                } else {
-                    if (globalMem && globalMem.length > 0) {
-                        memoryContext += `\n[长期记忆(私聊)]: ${globalMem[0].detail}\n`;
-                    }
-                    if (lastMsgObj && lastMsgObj.length > 0) {
-                        const timeDiff = Date.now() - lastMsgObj[0].timestamp;
-                        // 20分钟内的私聊才算“刚刚”
-                        if (timeDiff < 20 * 60 * 1000 && lastMsgObj[0].timestamp > targetNpc.resetTime) {
-                            const sender = lastMsgObj[0].role === 'user' ? '玩家' : '你';
-                            memoryContext += `\n[刚刚的手机短信]: ${sender}发了 "${lastMsgObj[0].content}"\n`;
-                        }
-                    }
-                }
-            } catch (e) { console.error("记忆读取失败", e); }
-            
-            // 构建 System Prompt
-            // 注意：这里传入 location 为动态的子场景
-            let charSystemPrompt = buildSystemPrompt({
-                role: targetNpc,
-                userName: sceneData.value.playerIdentity || 'Player',
-                summary: targetNpc.summary || '',
+            // 🔥 调用自主决策函数
+            const replyContent = await runAutonomousActor({
+                targetNpc,
+                locationName: currentSubLocation.value,
                 formattedTime: formattedTime.value,
-                location: currentSubLocation.value || sceneData.value.name, // ✨ 使用动态子场景
-                mode: 'face', 
-                activity: targetNpc.initialState || 'interactive',
-                clothes: targetNpc.clothing || 'default',
-                relation: targetNpc.currentRelation || 'acquaintance'
-            });
-
-            const otherNames = activeNpcs.value.filter(n => n.id !== targetNpc.id).map(n => n.name).join('、');
-            charSystemPrompt += `\n\n### 当前具体位置: [${currentSubLocation.value || sceneData.value.name}]\n`;
-            if (otherNames) charSystemPrompt += `在场其他人: ${otherNames}。\n`;
-            
-            if (paradoxInstruction) {
-                charSystemPrompt += paradoxInstruction;
-            } else if (memoryContext) {
-                charSystemPrompt += `\n### 📱 关联记忆\n${memoryContext}\n`;
-            }
-
-            charSystemPrompt += `\n要求: 直接输出回复内容，不要带名字前缀，不要带冒号。`;
-
-            // 构建上下文 (动态 historyLimit)
-            const context = messageList.value.slice(-historyLimit).map(m => {
-                if (m.isSystem) return { role: 'system', content: m.content };
-                if (m.role === 'user') return { role: 'user', content: m.content };
-                if (m.role === targetNpc.name) {
-                    if (targetNpc.resetTime && m.timestamp < targetNpc.resetTime) {
-                        return { role: 'user', content: `(这是重置前的${targetNpc.name}说的): "${m.content}"` };
-                    }
-                    return { role: 'assistant', content: m.content };
-                }
-                return { role: 'user', content: `(你听到 ${m.role} 说): "${m.content}"` };
-            });
-
-            console.log(`📚 上下文条数: ${context.length}`);
-
-            let reply = await LLM.chat({
+                userName: sceneData.value.playerIdentity || '玩家',
+                activeNpcs: activeNpcs.value, // 传入当前的 activeNpcs (注意：如果有人中途走了，refreshActiveNpcs 会更新这个值吗？vue的响应式是实时的，但 interactionQueue 是快照。不过这符合逻辑：这一轮对话开始时他还在)
+                history: messageList.value, // ✨ 传入实时更新的历史
+                allContacts,
                 config,
-                messages: context,
-                systemPrompt: charSystemPrompt
+                contextLimit: charContextLimit,
+                
+                // 🔥 传入合法的子场景列表，防止 AI 瞎跑
+                subScenes: sceneData.value.subScenes || ['大厅'] 
             });
 
-            if (reply) {
-                const namePrefixRegex = new RegExp(`^${targetNpc.name}[:：]\\s*`, 'i');
-                const cleanContent = reply.replace(namePrefixRegex, '').trim();
-				// 🔥🔥🔥 [新增] 控制台打印 AI 回复 🔥🔥🔥
-				             
-				                console.log(`${targetNpc.name} 回复：${cleanContent}`, "color:#333; font-weight:bold;");
-				   
-                const finalMsg = {
-                    id: Date.now() + Math.random(),
-                    role: targetNpc.name, 
-                    content: cleanContent,
-                    isSystem: false,
-                    timestamp: Date.now()
-                };
-                
-                messageList.value.push(finalMsg);
-                await saveMsgToDB(finalMsg);
-                scrollToBottom();
+            if (replyContent) {
+                 // --- 解析 [MOVE] 指令 ---
+                 let finalContent = replyContent;
+                 let moveTarget = null;
+                 
+                 const moveMatch = replyContent.match(/\[MOVE:\s*(.+?)\]/i);
+                 if (moveMatch) {
+                     moveTarget = moveMatch[1].trim();
+                     // 从显示内容中移除指令
+                     finalContent = replyContent.replace(moveMatch[0], '').trim();
+                 }
+
+                 console.log(`🗣️ ${targetNpc.name} 发言：${finalContent}`);
+                 
+                 if (finalContent) {
+                     const finalMsg = {
+                        id: Date.now() + Math.random(),
+                        role: targetNpc.name, 
+                        content: finalContent,
+                        isSystem: false,
+                        timestamp: Date.now()
+                    };
+                    
+                    messageList.value.push(finalMsg);
+                    await saveMsgToDB(finalMsg);
+                    scrollToBottom();
+                    anyoneSpoke = true;
+                 }
+
+                 // --- 执行移动 ---
+                 if (moveTarget) {
+                    await handleNpcMove(targetNpc, moveTarget);
+                 }
             }
+        }
+        
+        // E. 尴尬冷场保底
+        if (!anyoneSpoke && activeNpcs.value.length > 0) {
+            console.log("😶 全员沉默");
+            // 可选：加个系统旁白
+             messageList.value.push({
+                role: 'system', isSystem: true,
+                content: '空气中弥漫着一丝安静...' 
+            });
         }
         
         checkAndRunSummary();
@@ -671,6 +670,124 @@ const sendMessage = async () => {
         currentSpeakerName.value = '';
         scrollToBottom();
     }
+};
+
+// 🔥 新增函数：手动切换当前子场景
+const handleLocationSwitch = () => {
+    // 从 sceneData 里读取子场景列表
+    const subScenes = sceneData.value.subScenes || ['大厅'];
+    
+    uni.showActionSheet({
+        itemList: subScenes,
+        success: (res) => {
+            const targetLoc = subScenes[res.tapIndex];
+            if (targetLoc === currentSubLocation.value) return;
+
+            // 1. 切换位置
+            currentSubLocation.value = targetLoc;
+            
+            // 2. 刷新人头 (因为人不会瞬移，所以切过去后，activeNpcs 会变)
+            refreshActiveNpcs();
+            saveCharacterState(); // 🔥 立即保存玩家新位置，防止闪退丢失
+            // 3. 插入系统提示
+            const sysMsg = {
+                id: Date.now(),
+                role: 'system', isSystem: true,
+                content: `🚶 你移动到了 [${targetLoc}]。`
+            };
+            messageList.value.push(sysMsg);
+            saveMsgToDB(sysMsg);
+            
+            // 4. 如果切过去发现有人，可以让他们打个招呼 (可选)
+            if (activeNpcs.value.length > 0) {
+                const names = activeNpcs.value.map(n => n.name).join('、');
+                messageList.value.push({
+                    role: 'system', isSystem: true,
+                    content: `👀 你看到 ${names} 正待在这里。`
+                });
+            } else {
+                 messageList.value.push({
+                    role: 'system', isSystem: true,
+                    content: `💨 这里静悄悄的，一个人都没有。`
+                });
+            }
+        }
+    });
+};
+
+// 🔥 修复版：邀请功能 (同步保存 NPC 的场景内位置)
+const handleInvite = () => {
+    const absentNpcs = allNpcs.value.filter(n => n.currentSubLocation !== currentSubLocation.value);
+    
+    if (absentNpcs.length === 0) {
+        return uni.showToast({ title: '大家都已经在这里了', icon: 'none' });
+    }
+
+    const names = absentNpcs.map(n => {
+        const locInfo = n.realGlobalLoc ? `(在 ${n.realGlobalLoc})` : '(行踪不明)';
+        return `${n.name} ${locInfo}`;
+    });
+    
+    uni.showActionSheet({
+        itemList: names,
+        success: (res) => {
+            const targetNpc = absentNpcs[res.tapIndex];
+            const originName = (targetNpc.realGlobalLoc && targetNpc.realGlobalLoc !== sceneData.value.name) 
+                ? targetNpc.realGlobalLoc 
+                : (targetNpc.initialSubLocation || '别处');
+
+            uni.showLoading({ title: `正在呼叫 ${targetNpc.name}...` });
+            
+            setTimeout(() => {
+                uni.hideLoading();
+                
+                // 1. 修改内存状态
+                targetNpc.currentSubLocation = currentSubLocation.value;
+                targetNpc.realGlobalLoc = sceneData.value.name;
+                
+				
+				const oldState = targetNpc.initialState ? `，之前正在${targetNpc.initialState}` : '';
+				targetNpc.initialState = `收到邀请，刚从[${originName}]赶过来${oldState}`;
+                // 2. 同步到全局通讯录 (contact_list)
+                const contacts = uni.getStorageSync('contact_list') || [];
+                const contactIdx = contacts.findIndex(c => String(c.id) === String(targetNpc.privateChatId));
+                if (contactIdx !== -1) {
+                    contacts[contactIdx].currentLocation = sceneData.value.name;
+                    contacts[contactIdx].playerInSceneId = sceneId.value;
+                    contacts[contactIdx].interactionMode = 'face';
+                    uni.setStorageSync('contact_list', contacts);
+                }
+
+                // 3. 🔥 核心修复：同步到场景存档 (app_scene_list)
+                // 必须把 "NPC在休息室" 写入场景数据，否则重进场景他又回初始位置了
+                const allScenes = uni.getStorageSync('app_scene_list') || [];
+                const sceneIdx = allScenes.findIndex(s => String(s.id) === String(sceneId.value));
+                if (sceneIdx !== -1) {
+                    const sceneNpcs = allScenes[sceneIdx].npcs || [];
+                    const npcInScene = sceneNpcs.find(n => String(n.id) === String(targetNpc.id));
+                    if (npcInScene) {
+                        // 记录他的最新位置
+                        npcInScene.currentSubLocation = currentSubLocation.value;
+                        uni.setStorageSync('app_scene_list', allScenes);
+                        console.log(`💾 [Invite] NPC位置已固化: ${targetNpc.name} -> ${currentSubLocation.value}`);
+                    }
+                }
+
+                // 4. 刷新与提示
+                refreshActiveNpcs();
+                
+                const sysMsg = {
+                    id: Date.now(),
+                    role: 'system', isSystem: true,
+                    content: `👋 ${targetNpc.name} 接受了邀请，从 [${originName}] 赶了过来。`
+                };
+                messageList.value.push(sysMsg);
+                saveMsgToDB(sysMsg);
+                scrollToBottom();
+                
+            }, 800);
+        }
+    });
 };
 
 const handleTimeAction = () => {
@@ -765,4 +882,14 @@ const handleTimeAction = () => {
 .loading-spinner { width: 30rpx; height: 30rpx; border: 3rpx solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 15rpx; }
 .loading-text { font-size: 24rpx; color: #fff; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.invite-btn {
+  width: 60rpx; height: 60rpx; 
+  border-radius: 50%; 
+  border: 2rpx dashed #999; 
+  color: #999;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40rpx; font-weight: 300;
+  margin-left: 10rpx; /* 稍微隔开一点 */
+}
+.invite-btn:active { background: rgba(0,0,0,0.05); }
 </style>

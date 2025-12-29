@@ -63,7 +63,7 @@ export function useGameTime(saveCallback) {
                 // 如果世界有时钟记录，使用世界时间
                 if (world && world.currentTime) {
                     currentTime.value = world.currentTime;
-                    console.log(`🌍 [WorldClock] 已同步世界时间: ${formattedTime.value}`);
+                 
                     return;
                 }
             } catch (e) {

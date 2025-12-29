@@ -525,6 +525,8 @@ const getCurrentLlmConfig = () => {
     return (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
 };
 
+// AiChat/pages/chat/chat.vue
+
 const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
     if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
     if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
@@ -532,7 +534,19 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
     if (newSummary !== undefined) currentSummary.value = newSummary;
     if (newLocation !== undefined) currentLocation.value = newLocation;
     if (newClothes !== undefined) currentClothing.value = newClothes;
-    if (newMode !== undefined) interactionMode.value = newMode;
+
+    // 🔥🔥🔥 核心修复：给互动模式加“物理锁” 🔥🔥🔥
+    if (newMode !== undefined) {
+        // 逻辑校验：如果此时两人的位置不一致，绝对不许变成 face 模式
+        // 这能防止后台 Agent 因为 AI 写了句 "回头看你" 就错误地把异地改成当面
+        if (newMode === 'face' && playerLocation.value !== currentLocation.value) {
+            console.warn(`🛡️ [物理锁] 拦截非法模式变更: 异地(${playerLocation.value} vs ${currentLocation.value}) 不允许 Face 模式`);
+            interactionMode.value = 'phone'; // 强制矫正为手机
+        } else {
+            interactionMode.value = newMode;
+        }
+    }
+    // ------------------------------------------------
 
     if (chatId.value) {
         const list = uni.getStorageSync('contact_list') || [];
@@ -543,12 +557,11 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
             item.lust = currentLust.value;
             item.lastTimeTimestamp = currentTime.value;
             item.summary = currentSummary.value;
-            // 🌟 核心改动：保存玩家位置
             item.playerLocation = playerLocation.value;
             item.currentLocation = currentLocation.value;
             item.clothing = currentClothing.value;
-			item.currentAction = currentAction.value;
-            item.interactionMode = interactionMode.value;
+            item.currentAction = currentAction.value;
+            item.interactionMode = interactionMode.value; // 保存被锁修正后的值
             item.lastActivity = currentActivity.value;
             item.relation = currentRelation.value;
             uni.setStorageSync('contact_list', list);
@@ -718,7 +731,6 @@ const handleSleep = () => {
     handleTimeSkip('night');
 };
 
-// AiChat/pages/chat/chat.vue
 
 const handleMoveTo = (locObj) => {
     if (isLoading.value) return uni.showToast({ title: '对话进行中...', icon: 'none' });
@@ -732,14 +744,12 @@ const handleMoveTo = (locObj) => {
     const finalLocationName = targetName === 'custom' ? customLocation.value : targetName;
 
     // =================================================================
-    // 🔥 核心升级：检查是否存在对应的“实体场景”
+    // 🔥 A. 实体场景跳转逻辑 (保持你现在的样子，这部分是对的)
     // =================================================================
     const allScenes = uni.getStorageSync('app_scene_list') || [];
-    // 模糊匹配：比如场景叫“综合医院”，你输入“医院”，也能匹配上
     const targetScene = allScenes.find(s => s.name.includes(finalLocationName) || finalLocationName.includes(s.name));
 
     if (targetScene) {
-            // A. 找到了实体场景 -> 玩家肉身前往！
             console.log(`🌌 [传送] 检测到实体场景 [${targetScene.name}]，准备跳转...`);
             
             uni.showModal({
@@ -747,37 +757,25 @@ const handleMoveTo = (locObj) => {
                 content: `确定前往【${targetScene.name}】吗？`,
                 success: (res) => {
                     if (res.confirm) {
-                        const contacts = uni.getStorageSync('contact_list') || [];
-                        
-                        // 🔥🔥🔥【核心修改开始】🔥🔥🔥
-                        // 我们不仅要更新当前聊天的角色(Alice)，还要更新场景里所有的 NPC(Bob)
-                        // 1. 获取该场景配置的所有 NPC ID 列表
-                        const sceneNpcIds = targetScene.npcs ? targetScene.npcs.map(n => String(n.id)) : [];
-                        
-                        // 2. 还要加上当前聊天对象的 ID (防止配置漏填)
-                        if (!sceneNpcIds.includes(String(chatId.value))) {
-                            sceneNpcIds.push(String(chatId.value));
+                        // 1. 更新玩家位置
+                        playerLocation.value = targetScene.name;
+
+                        // 2. 重新计算互动模式 (Mode Recalculation)
+                        // 只有当“我去的地方”和“她在的地方”一致时，才是 face
+                        if (playerLocation.value === currentLocation.value) {
+                             interactionMode.value = 'face';
+                             console.log("📍 [模式校准] 同地 -> Face模式");
+                        } else {
+                             interactionMode.value = 'phone';
+                             console.log("📍 [模式校准] 异地 -> Phone模式");
                         }
-    
-                        // 3. 遍历通讯录，把涉及到的所有人拉入“现场状态”
-                        contacts.forEach(contact => {
-                            // 如果这个人属于该场景名单
-                            if (sceneNpcIds.includes(String(contact.id))) {
-                                // a. 更新位置到场景
-                                contact.currentLocation = targetScene.name;
-                                // b. 标记玩家在该场景 (这会让首页点击 Bob 时也跳转场景)
-                                contact.playerInSceneId = targetScene.id;
-                                // c. 既然玩家在现场，强制改为当面模式
-                                contact.interactionMode = 'face';
-                                
-                                console.log(`🔗 [联动同步] 已将 ${contact.name} 状态同步至场景: ${targetScene.name}`);
-                            }
-                        });
-                        // 🔥🔥🔥【核心修改结束】🔥🔥🔥
-    
-                        uni.setStorageSync('contact_list', contacts);
-    
-                        // 4. 跳转进场
+
+                        // 3. 保存状态
+                        saveCharacterState(); 
+
+                        console.log(`📍 [玩家移动] 玩家已更新位置至: ${targetScene.name} (NPC保持原位)`);
+
+                        // 4. 跳转
                         uni.redirectTo({
                             url: `/pages/scene/chat?id=${targetScene.id}&visitorId=${chatId.value}`
                         });
@@ -789,28 +787,58 @@ const handleMoveTo = (locObj) => {
             return; 
         }
 
-    // =================================================================
-    // B. 没找到实体场景 -> 保持私聊模式 (你原有的逻辑)
+	// =================================================================
+    // 🔥 B. 没找到实体场景 -> 保持私聊模式
     // =================================================================
     const result = calculateMoveResult({ name: finalLocationName, type: locObj.type });
     
-    console.log(`📍 [私聊移动] 目标: ${result.playerLocation}`);
+    console.log(`📍 [私聊移动] 玩家目标: ${result.playerLocation}`);
 
+    // 1. 更新玩家位置
     playerLocation.value = result.playerLocation;
-    currentLocation.value = result.aiLocation;
-    interactionMode.value = result.newMode;
+
+    // ❌ 删掉这行: currentLocation.value = result.aiLocation; 
+
+    // 2. 手动重新计算模式
+    const pLoc = playerLocation.value || "";
+    const cLoc = currentLocation.value || "";
+    // 模糊匹配判断是否在一起
+    const isTogether = pLoc === cLoc || pLoc.includes(cLoc) || cLoc.includes(pLoc);
+    
+    if (isTogether) {
+         interactionMode.value = 'face';
+         console.log("📍 [移动判定] 位置重叠 -> 切换为 Face 模式");
+    } else {
+         interactionMode.value = 'phone';
+         console.log("📍 [移动判定] 位置分离 -> 切换为 Phone 模式");
+    }
     
     showLocationPanel.value = false;
     uni.vibrateShort();
     saveCharacterState();
 
     if (result.shouldNotifyAI) {
-        messageList.value.push({ role: 'system', content: `🚗 ${result.sysMsgUser}`, isSystem: true });
-        // 在 Prompt 中明确双地点
-        const movePrompt = `[SYSTEM EVENT: SCENE CHANGE]\n**Action**: ${result.promptAction}\n**Character Location**: ${result.aiLocation}\n**Player Location**: ${result.playerLocation}\n**New Mode**: ${result.newMode === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.\n**Time**: ${formattedTime.value}.\n**Instruction**: React naturally to this movement logic.`;
+        
+        // 🔥🔥🔥 核心修复：根据真实情况生成文案，而不是用 result.sysMsgUser 🔥🔥🔥
+        let realSysMsg = "";
+        if (isTogether) {
+            // 如果在一起
+            realSysMsg = `你抵达了 ${pLoc}。${chatName.value} 也在这一带。`;
+        } else {
+            // 如果异地
+            realSysMsg = `你抵达了 ${pLoc}。${chatName.value} 目前在 ${cLoc}。`;
+        }
+
+        // 上屏系统消息
+        messageList.value.push({ role: 'system', content: `🚗 ${realSysMsg}`, isSystem: true });
+        
+        // 构建强指令
+        const movePrompt = `[SYSTEM EVENT: PLAYER MOVE]\n**Player Action**: Moved to ${playerLocation.value}.\n**Your Location**: ${currentLocation.value} (STAY WHERE YOU ARE).\n**Current Mode**: ${interactionMode.value === 'face' ? 'FACE-TO-FACE' : 'PHONE'}.\n**Instruction**: Do not hallucinate that you moved. Continue current interaction naturally.`;
+        
         sendMessage(false, movePrompt);
     } else {
-        uni.showToast({ title: result.sysMsgUser, icon: 'none' });
+        // 如果只是普通移动且不需要通知 AI（极少情况），还是弹个 Toast 吧
+        uni.showToast({ title: `已抵达 ${playerLocation.value}`, icon: 'none' });
     }
 };
 // AiChat/pages/chat/chat.vue
@@ -966,15 +994,16 @@ const processAIResponse = async (rawText) => {
             // 1. 启动场景分析 (让它自己在后台跑，更新地点/衣服)
             runSceneCheck(lastUserMsg, rawText);
         
-            // 2. 立即启动生图判定 (不再等待场景分析结束)
-            // 这样只要门卫 Agent (Visual Consent Check) 返回 true，UI 就会立刻显示“正在构图”
-            let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍');
+            const isSystemSnapshot = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('📷'); 
             
-            if (isCameraAction) {
-                runCameraManCheck(lastUserMsg, rawText);
-            } else {
-                runVisualDirectorCheck(lastUserMsg, rawText);
-            }
+            if (isSystemSnapshot) {
+                // 这是真正的“物理快门”（点击了按钮）
+                runCameraManCheck(lastUserMsg, rawText);
+            } else {
+                // 这是普通对话（可能包含"拍"字，也可能不包含）
+                // 交给导演去判断意图（它会看 allowSelfImage 开关，也会看上下文）
+                runVisualDirectorCheck(lastUserMsg, rawText);
+            }
             
         }, 500);
     }
@@ -1190,7 +1219,7 @@ const loadRoleData = (id) => {
                 name: loc,
                 icon: '📍'
             }));
-            console.log(`🌍 [Worldview] 已加载世界 "${myWorld.name}" 的 ${worldLocations.value.length} 个地点`);
+            
         } else {
             const globalLocs = uni.getStorageSync('app_world_locations');
             if (globalLocs) {
