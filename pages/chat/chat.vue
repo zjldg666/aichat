@@ -60,7 +60,18 @@
 		@clickContinue="triggerNextStep"
 		@toggleThought="toggleThought"
 		/>
+		
+    <view class="phone-fab" @click="showPhone = true">
+          <text class="fab-icon">📱</text>
+        </view>
     
+        <GamePhone 
+          :visible="showPhone"
+          :world-id="currentRole?.worldId"
+          :current-chat-id="chatId"
+          @close="showPhone = false"
+        />
+		
 	<ChatModals
 		:visibleModal="activeModal"
 		:locationList="locationList"
@@ -85,7 +96,7 @@ import { onLoad, onShow, onHide, onUnload, onNavigationBarButtonTap } from '@dcl
 import { DB } from '@/utils/db.js';
 import { LLM } from '@/services/llm.js';
 import { buildSystemPrompt } from '@/core/prompt-builder.js';
-
+import GamePhone from '@/components/GamePhone.vue';
 import { useGameTime } from '@/composables/useGameTime.js';
 import { useChatGallery } from '@/composables/useChatGallery.js';
 import { useGameLocation } from '@/composables/useGameLocation.js';
@@ -116,7 +127,7 @@ const messageList = ref([]);
 const inputText = ref('');
 const isLoading = ref(false);
 const scrollIntoView = ref('');
-
+const showPhone = ref(false);
 // 角色状态
 const currentAction = ref('站立/闲逛'); 
 const userName = ref('你');
@@ -1214,5 +1225,38 @@ onNavigationBarButtonTap((e) => {
 .loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
 .loading-dots { color: var(--text-sub); font-weight: bold; }
 
+/* 🔥🔥🔥 新增：悬浮按钮样式 🔥🔥🔥 */
+.phone-fab {
+  position: fixed;
+  right: 30rpx;
+  bottom: 260rpx; /* 放在输入框上方，高度可自己微调 */
+  width: 90rpx;
+  height: 90rpx;
+  background: rgba(255, 255, 255, 0.9); /* 浅色背景 */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900; /* 保证在 scroll-view 之上，但在弹窗之下 */
+  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.2);
+  border: 1px solid rgba(0,0,0,0.05);
+  transition: transform 0.1s;
+}
+
+.phone-fab:active {
+  transform: scale(0.9);
+  background: #f0f0f0;
+}
+
+.fab-icon {
+  font-size: 40rpx;
+}
+
+/* 夜间模式适配 */
+.dark-mode .phone-fab {
+  background: rgba(40, 40, 40, 0.9);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.5);
+}
 
 </style>

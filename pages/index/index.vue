@@ -55,7 +55,7 @@
       </view>
     </scroll-view>
 
-    <PhoneSystem />
+    
 
     <CustomTabBar :current="0" />
   </view>
@@ -68,7 +68,7 @@ import CustomTabBar from '@/components/CustomTabBar.vue';
 import { useTheme } from '@/composables/useTheme.js';
 
 // 🔥 引入手机组件
-import PhoneSystem from '@/components/PhoneSystem.vue';
+
 
 const { isDarkMode } = useTheme();
 const contactList = ref([]);
