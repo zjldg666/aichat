@@ -3,32 +3,15 @@
     <view v-if="isArchiving" class="archiving-bar">
             <text class="archiving-text">🌙 整理中... 请勿退出</text>
         </view>
-    <view class="status-bar-wrapper">
-      <view class="info-row">
-        <view class="location-box" :class="interactionMode === 'phone' ? 'mode-phone' : 'mode-face'">
-          <view class="icon-circle">
-            <text>{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
-          </view>
-          <view class="status-content">
-            <view class="loc-row">
-              <text class="mode-tag">{{ interactionMode === 'phone' ? '远程' : '当面' }}</text>
-              <text class="location-text">{{ currentLocation }}</text>
-            </view>
-            <text class="activity-text">状态: {{ currentActivity }}</text>
-          </view>
-        </view>
-        <view class="right-status-group">
-        <view class="status-pill player-pill" @click="showForceLocationPanel = true">
-            <text class="pill-icon">👤</text>
-            <text class="pill-text">{{ playerLocation }}</text>
-        </view>
-          <view class="status-pill time-pill" @click="showTimeSettingPanel = true">
-            <text class="time-clock">{{ timeParts.time }}</text>
-            <text class="time-week">{{ timeParts.week }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
+	<ChatHeader 
+      :interactionMode="interactionMode"
+      :currentLocation="currentLocation"
+      :currentActivity="currentActivity"
+      :playerLocation="playerLocation"
+      :timeParts="timeParts"
+	  @clickPlayer="activeModal = 'forceLocation'"
+	  @clickTime="activeModal = 'timeSetting'"
+    />
 
     <scroll-view 
       class="chat-scroll" 
@@ -39,195 +22,59 @@
       <view class="chat-content">
         <view class="system-tip"><text>长按对话内容可进入多选删除模式</text></view>
         
-		<view 
-		v-for="(msg, index) in messageList" 
-		:key="msg.id || index" 
-		:id="'msg-' + index" 
-		class="message-item" 
-		:class="[
-			msg.role === 'user' ? 'right' : 'left',
-			isEditMode && selectedIds.includes(msg.id) ? 'is-selected' : '',
-			isEditMode && !selectedIds.includes(msg.id) ? 'not-selected' : ''
-		]"
-		@touchstart="handleTouchStart(msg, $event)"
-		@touchmove="handleTouchMove($event)"
-		@touchend="handleTouchEnd"
-		@click="isEditMode ? toggleSelect(msg) : null"
-		>
-          
-          <view v-if="msg.type === 'think'" class="system-event think-bubble">
-             <text>{{ msg.content }}</text>
-          </view>
-          <view v-else-if="msg.isSystem" 
-                          class="system-event" 
-                          :class="{ 'error-system-msg': msg.isError }"
-                          @click="msg.isError ? handleRetry(msg) : null">
-                      <text>{{ msg.content }}</text>
-                    </view>
-          
-          <template v-else>
-            <view v-if="isEditMode" class="select-check-icon">
-                <view class="circle" :class="{ 'checked': selectedIds.includes(msg.id) }">
-                    <text v-if="selectedIds.includes(msg.id)">✓</text>
-                </view>
-            </view>
-          
-            <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
-            
-            <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
-          
-            <view class="bubble-wrapper">
-              <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
-                <text class="msg-text" user-select>{{ msg.content }}</text>
-              </view>
-              <view v-else-if="msg.type === 'image'" class="bubble image-bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
-                  <image 
-                    v-if="!msg.hasError" 
-                    :src="msg.content" 
-                    mode="widthFix" 
-                    class="chat-image" 
-                    @click="previewImage(msg.content)"
-                    @error="handleImageLoadError(msg)" 
-                  ></image>
-              
-                  <view v-else class="image-error-box" @click.stop="handleRetry(msg)">
-                      <text class="error-icon">⚠️</text>
-                      <text class="error-text">图片生成失败</text>
-                      <view class="retry-btn">
-                          <text class="retry-icon">↻</text> 点击重试
-                      </view>
-                  </view>
-              </view>
-            </view>
-            
-            </template>
-        </view>
+		<ChatMessageItem
+		          v-for="(msg, index) in messageList"
+		          :key="msg.id || index"
+		          :id="'msg-' + index"
+		          :msg="msg"
+		          :isEditMode="isEditMode"
+		          :isSelected="selectedIds.includes(msg.id)"
+		          :roleAvatar="currentRole?.avatar"
+		          :userAvatar="userAvatar"
+		          @longPress="enterEditMode"
+		          @toggleSelect="toggleSelect"
+		          @retry="handleRetry"
+		          @preview="previewImage"
+		        />
         
         <view v-if="isLoading" class="loading-wrapper"><view class="loading-dots">...</view></view>
         <view id="scroll-bottom" style="height: 20rpx;"></view>
       </view>
     </scroll-view>
 
-    <view class="footer">
-        
-        <view class="edit-toolbar" v-if="isEditMode">
-            <view class="cancel-btn" @click="cancelEdit">取消</view>
-            <view class="count-tip">已选择 <text class="num">{{ selectedIds.length }}</text> 条内容</view>
-            <view class="delete-confirm-btn" @click="confirmDelete" :class="{ 'active': selectedIds.length > 0 }">删除</view>
-        </view>
-
-        <view class="input-container" v-if="!isEditMode">
-            <view class="toolbar-compact" v-if="isToolbarOpen">
-                <view class="tool-grid">
-                    <view class="tool-item" @click="showTimePanel = true"><view class="tool-icon">⏳</view><text class="tool-text">时间</text></view>
-                    <view class="tool-item" @click="showLocationPanel = true"><view class="tool-icon">🗺️</view><text class="tool-text">移动</text></view>
-                    <picker mode="time" :value="wakeTime" start="00:00" end="23:59" @change="onSleepTimeChange" style="width: 100%;">
-                      <view class="tool-item">
-                        <view class="tool-icon">🛌</view>
-                        <text class="tool-text">睡到...</text>
-                      </view>
-                    </picker>
-                    <view class="tool-item" @click="handleCameraSend"><view class="tool-icon">📸</view><text class="tool-text">拍照</text></view>
-                    <view class="tool-item" @click="triggerNextStep"><view class="tool-icon">👉</view><text class="tool-text">继续</text></view>
-                    <view class="tool-item" @click="toggleThought">
-                        <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
-                        <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
-                    </view>
-                </view>
-            </view>
-            <view class="input-area">
-                <view class="action-btn" @click="toggleToolbar">
-                    <text>{{ isToolbarOpen ? '⬇️' : '⊕' }}</text>
-                </view>
-                <input class="input" v-model="inputText" confirm-type="send" @confirm="sendMessage(false)" placeholder="输入对话..." />
-                <view class="send-btn" @click="sendMessage(false)">发送</view>
-            </view>
-        </view>
-    </view>
+	<ChatFooter
+		v-model="inputText"
+		:isEditMode="isEditMode"
+		:selectedCount="selectedIds.length"
+		:isToolbarOpen="isToolbarOpen"
+		:wakeTime="wakeTime"
+		:showThought="showThought"
+		@cancelEdit="cancelEdit"
+		@confirmDelete="confirmDelete"
+		@toggleToolbar="toggleToolbar"
+		@send="sendMessage(false)"
+		@clickTime="activeModal = 'timeSkip'"
+		@clickLocation="activeModal = 'location'"
+		@sleepTimeChange="onSleepTimeChange"
+		@clickCamera="handleCameraSend"
+		@clickContinue="triggerNextStep"
+		@toggleThought="toggleThought"
+		/>
     
-    <view class="time-panel-mask" v-if="showTimePanel" @click="showTimePanel = false">
-      <view class="time-panel" @click.stop>
-        <view class="panel-title">时间跳跃</view>
-        <view class="grid-actions">
-          <view class="grid-btn" @click="handleTimeSkip('morning')">🌤️ 一上午过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('afternoon')">🌇 一下午过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('night')">🌙 一晚上过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('day')">📅 一整天过去</view>
-        </view>
-        <view class="custom-time">
-          <text>快进分钟：</text>
-          <input class="mini-input" type="number" v-model="customMinutes" placeholder="30"/>
-          <view class="mini-btn" @click="handleTimeSkip('custom')">确定</view>
-        </view>
-      </view>
-    </view>
-
-    <view class="time-panel-mask" v-if="showTimeSettingPanel" @click="showTimeSettingPanel = false">
-      <view class="time-panel" @click.stop>
-        <view class="panel-title">设定具体时间</view>
-        <view class="setting-row">
-            <text class="setting-label">日期：</text>
-            <picker mode="date" :value="tempDateStr" @change="onDateChange">
-                <view class="picker-display">{{ tempDateStr }}</view>
-            </picker>
-        </view>
-        <view class="setting-row">
-            <text class="setting-label">时间：</text>
-            <picker mode="time" :value="tempTimeStr" @change="onTimeChange">
-                <view class="picker-display">{{ tempTimeStr }}</view>
-            </picker>
-        </view>
-        <view class="setting-row">
-                <text class="setting-label">流速：</text>
-                <view class="ratio-input-box">
-                    <text class="txt">现实 1s = 游戏</text>
-                    <input class="mini-input" type="number" v-model="tempTimeRatio" />
-                    <text class="txt">s</text>
-                </view>
-            </view>
-        <button class="confirm-time-btn" @click="confirmManualTime">确认修改</button>
-      </view>
-    </view>
-
-    <view class="time-panel-mask" v-if="showLocationPanel" @click="showLocationPanel = false">
-        <view class="time-panel" @click.stop>
-            <view class="panel-title">前往哪里？</view>
-            <view class="grid-actions">
-                <view 
-                    class="grid-btn" 
-                    v-for="(loc, index) in locationList" 
-                    :key="index"
-                    @click="handleMoveTo(loc)"
-                    :style="loc.style || ''"
-                >
-                    <text>{{ loc.icon }} {{ loc.name }}</text>
-                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
-                </view>
-            </view>
-            <view class="custom-time">
-                <text>自定义地点：</text>
-                <input class="mini-input" v-model="customLocation" placeholder="输入地点"/>
-                <view class="mini-btn" @click="handleMoveTo({name: customLocation, type: 'custom'})">出发</view>
-            </view>
-        </view>
-    </view>
-    <view class="time-panel-mask" v-if="showForceLocationPanel" @click="showForceLocationPanel = false">
-        <view class="time-panel" @click.stop>
-            <view class="panel-title" style="color: #ff9800;">🛠️ 强制修正坐标 (不通知AI)</view>
-            <view class="grid-actions">
-                <view class="grid-btn" v-for="(loc, index) in locationList" :key="index" 
-                      @click="handleForceMove(loc)" :style="loc.style || ''">
-                    <text>{{ loc.icon }} {{ loc.name }}</text>
-                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
-                </view>
-            </view>
-            <view class="custom-time">
-                <text>自定义：</text>
-                <input class="mini-input" v-model="forceCustomLocation" placeholder="输入地点" />
-                <view class="mini-btn" @click="handleForceMove({name: forceCustomLocation})">修正</view>
-            </view>
-        </view>
-    </view>
+	<ChatModals
+		:visibleModal="activeModal"
+		:locationList="locationList"
+		
+        v-model:tempDateStr="tempDateStr"
+		v-model:tempTimeStr="tempTimeStr"
+		v-model:tempTimeRatio="tempTimeRatio"
+		
+		@close="activeModal = ''"
+		@timeSkip="onTimeSkip"
+		@confirmTime="confirmManualTime(); activeModal = ''"
+		@moveTo="(loc) => { handleMoveTo(loc); activeModal = '' }"
+		@forceMove="(loc) => { handleForceMove(loc); activeModal = '' }"
+		/>
 	
   </view>
 </template>
@@ -247,7 +94,10 @@ import { useAgents } from '@/composables/useAgents.js';
 import { useTheme } from '@/composables/useTheme.js'; // 导入
 // 在 <script setup> 顶部引入
 import { useWorldScheduler } from '@/composables/useWorldScheduler.js';
-
+import ChatHeader from '@/components/ChatHeader.vue';
+import ChatFooter from '@/components/ChatFooter.vue';
+import ChatModals from '@/components/ChatModals.vue';
+import ChatMessageItem from '@/components/ChatMessageItem.vue';
 // 在 setup 内部初始化
 const { tickWorldState } = useWorldScheduler();
 
@@ -296,10 +146,16 @@ const wakeTime = ref('08:00'); // 默认睡到早上 8 点
 
 const isToolbarOpen = ref(false); 
 const worldLocations = ref([]); 
-
+const activeModal = ref('');
+// 🔥🔥🔥 插入这段代码：联动修复时间弹窗空白问题 🔥🔥🔥
+watch(() => activeModal.value, (val) => {
+    // 当 UI 打开时间设置弹窗时，告诉 useGameTime 准备数据
+    if (val === 'timeSetting') {
+        showTimeSettingPanel.value = true;
+    }
+});
 const toggleToolbar = () => { isToolbarOpen.value = !isToolbarOpen.value; };
 
-// ... 原有的 import ...
 
 // --- 🔧 手动实现长按防误触逻辑 ---
 const touchTimer = ref(null);
@@ -351,10 +207,16 @@ const handleTouchEnd = () => {
     }
 };
 
-// ... 原有的 enterEditMode 等函数 ...
-// ==================================================================================
-// 2. 基础辅助函数
-// ==================================================================================
+const onTimeSkip = (type, customMin) => {
+    // 如果是自定义时间，更新 useGameTime 里的 customMinutes 变量
+    if (type === 'custom' && customMin) {
+        customMinutes.value = customMin; 
+    }
+    // 调用原本的逻辑
+    handleTimeSkip(type);
+    // 关闭弹窗
+    activeModal.value = ''; 
+};
 const scrollToBottom = () => {
     nextTick(() => {
         scrollIntoView.value = '';
@@ -1336,122 +1198,6 @@ onNavigationBarButtonTap((e) => {
 }
 
 /* ==========================================================================
-   2. 顶部状态栏 - 磨砂玻璃效果
-   ========================================================================== */
-.status-bar-wrapper {
-    background-color: var(--card-bg); /* 卡片背景 */
-    border-bottom: 1px solid var(--border-color); /* 边框 */
-    backdrop-filter: blur(10px);
-    padding: 20rpx 24rpx; 
-    z-index: 10;
-    flex-shrink: 0;
-    box-shadow: var(--shadow); /* 阴影也变量化 */
-}
-
-.info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    height: 100rpx;
-    gap: 16rpx;
-}
-
-/* --- 左侧：角色位置卡片 --- */
-.location-box {
-    flex: 1.4;
-    display: flex;
-    align-items: center;
-    padding: 0 20rpx;
-    border-radius: 20rpx;
-    border: 1px solid transparent;
-    transition: all 0.3s;
-    
-    /* 手机模式：跟随胶囊颜色 */
-    &.mode-phone { 
-        background: var(--pill-bg); 
-        border-color: var(--border-color);
-        .icon-circle { background: var(--bg-color); color: var(--text-sub); }
-        .mode-tag { background: var(--bg-color); color: var(--text-sub); }
-    }
-    
-    /* 见面模式：保持淡淡的蓝色，夜间模式下透明度叠加不会刺眼 */
-    &.mode-face { 
-        background: linear-gradient(135deg, rgba(0,122,255,0.1) 0%, rgba(0,122,255,0.05) 100%);
-        border-color: rgba(0,122,255,0.3);
-        .icon-circle { background: var(--card-bg); color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
-        .mode-tag { background: var(--card-bg); color: #007aff; }
-    }
-}
-
-.icon-circle {
-    width: 64rpx; height: 64rpx;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 32rpx;
-    margin-right: 16rpx;
-    flex-shrink: 0;
-}
-
-.status-content {
-    flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
-}
-
-.loc-row {
-    display: flex; align-items: center; margin-bottom: 4rpx;
-}
-
-.mode-tag {
-    font-size: 18rpx; padding: 2rpx 8rpx; border-radius: 6rpx; 
-    margin-right: 8rpx; font-weight: bold; flex-shrink: 0;
-}
-
-.location-text { 
-    font-size: 26rpx; font-weight: bold; 
-    color: var(--text-color); /* 适配文字 */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.activity-text { 
-    font-size: 20rpx; 
-    color: var(--text-sub); /* 适配次要文字 */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* --- 右侧：状态组 --- */
-.right-status-group {
-    flex: 0.9;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 8rpx;
-}
-
-.status-pill {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 0 16rpx;
-    border-radius: 12rpx;
-    font-size: 22rpx;
-}
-
-/* 玩家位置 & 时间胶囊 - 统一适配夜间模式 */
-.time-pill, .player-pill {
-    background: var(--pill-bg); 
-    border: 1px solid var(--border-color); 
-    color: var(--text-color);
-    
-    .pill-icon { margin-right: 8rpx; font-size: 24rpx; }
-    .pill-text { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    
-    .time-clock { font-weight: bold; font-size: 26rpx; font-family: Helvetica, sans-serif; }
-    .time-week { color: var(--text-sub); font-size: 20rpx; }
-    
-    /* 覆盖 justify-content 以适配不同内容 */
-    &.time-pill { justify-content: space-between; }
-}
-
-/* ==========================================================================
    3. 聊天内容区
    ========================================================================== */
 .chat-scroll { flex: 1; overflow: hidden; }
@@ -1463,240 +1209,10 @@ onNavigationBarButtonTap((e) => {
     font-size: 24rpx; margin-bottom: 30rpx; 
 }
 
-.message-item { 
-    display: flex; margin-bottom: 30rpx; 
-    &.left { flex-direction: row; .avatar { margin-right: 20rpx; } } 
-    &.right { flex-direction: row-reverse; .avatar { margin-left: 20rpx; } } 
-}
 
-.avatar { 
-    width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; 
-    background-color: var(--border-color); /* 占位色适配 */
-}
-
-.bubble-wrapper { max-width: 72%; }
-
-/* 聊天气泡 */
-.bubble { 
-    padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; 
-    
-    /* 左侧气泡 (AI) - 随主题变黑白 */
-    &.left-bubble { 
-        background-color: var(--card-bg); 
-        color: var(--text-color); 
-        border-top-left-radius: 4rpx; 
-        border: 1px solid var(--border-color); /* 微弱边框增加夜间层次 */
-    } 
-    
-    /* 右侧气泡 (玩家) - 保持绿色，夜间依然清晰 */
-    &.right-bubble { 
-        background-color: #95ec69; 
-        color: #000; 
-        border-top-right-radius: 4rpx; 
-    } 
-    
-    &.image-bubble { padding: 0; background: transparent; box-shadow: none; border: none; } 
-}
-
-.chat-image { width: 400rpx; border-radius: 16rpx; }
-
-/* 系统事件 (时间流逝等) */
-.system-event { 
-    width: 100%; text-align: center; margin: 20rpx 0; 
-    text { 
-        background: var(--pill-bg); /* 适配 */
-        color: var(--text-sub); 
-        font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 20rpx; 
-    } 
-}
-
-.error-system-msg text { 
-    background: #ffebee; color: #ff4757; border: 1px solid #ffcdd2; /* 报错保持醒目红 */
-}
 
 .loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
 .loading-dots { color: var(--text-sub); font-weight: bold; }
 
-/* 🧠 心理活动气泡 */
-.think-bubble { margin: 10rpx 0; opacity: 0.9; }
-.think-bubble text {
-    background: transparent !important;
-    color: var(--text-sub) !important;
-    font-size: 24rpx; font-style: italic; font-family: serif;
-    padding: 8rpx 24rpx;
-    border: 2rpx dashed var(--border-color); /* 虚线适配 */
-    border-radius: 20rpx;
-    display: inline-block;
-}
 
-/* 图片失败占位符 */
-.image-error-box {
-    width: 400rpx; height: 300rpx;
-    background-color: var(--tool-bg); /* 适配 */
-    border: 2rpx dashed #ff4d4f;
-    border-radius: 16rpx;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16rpx;
-    
-    .error-icon { font-size: 48rpx; }
-    .error-text { font-size: 26rpx; color: #ff4d4f; }
-    
-    .retry-btn {
-        display: flex; align-items: center;
-        background-color: var(--card-bg); /* 适配 */
-        border: 1px solid var(--border-color);
-        padding: 8rpx 24rpx; border-radius: 30rpx;
-        font-size: 24rpx; color: var(--text-color);
-        box-shadow: var(--shadow);
-        
-        .retry-icon { font-size: 24rpx; margin-right: 8rpx; font-weight: bold; }
-        &:active { background-color: var(--bg-color); transform: scale(0.98); }
-    }
-}
-
-/* ==========================================================================
-   4. 底部工具栏 & 输入区
-   ========================================================================== */
-.footer { 
-    position: fixed; bottom: 0; left: 0; right: 0; 
-    background: var(--card-bg); /* 适配 */
-    border-top: 1px solid var(--border-color); 
-    z-index: 99; padding-bottom: env(safe-area-inset-bottom); 
-}
-
-/* 多选编辑条 */
-.edit-toolbar {
-    display: flex; justify-content: space-between; align-items: center;
-    height: 100rpx; padding: 0 40rpx;
-    background: var(--card-bg);
-    border-top: 1px solid var(--border-color);
-    .delete-confirm-btn { color: #ff4d4f; font-weight: bold; }
-    .cancel-btn { color: var(--text-color); }
-    .count-tip { font-size: 24rpx; color: var(--text-sub); }
-}
-
-.input-area { 
-    display: flex; align-items: center; padding: 16rpx 20rpx; 
-    background: var(--tool-bg); /* 适配 */
-}
-
-.action-btn { 
-    width: 70rpx; height: 70rpx; display: flex; align-items: center; justify-content: center; 
-    margin-right: 16rpx; font-size: 44rpx; 
-    color: var(--text-sub); 
-}
-
-.input { 
-    flex: 1; height: 76rpx; 
-    background: var(--input-bg); /* 适配 */
-    color: var(--text-color);
-    border-radius: 38rpx; padding: 0 30rpx; font-size: 30rpx; margin-right: 16rpx; 
-    border: 1px solid var(--border-color);
-}
-
-.send-btn { 
-    width: 120rpx; height: 76rpx; background: #007aff; color: #fff; 
-    line-height: 76rpx; border-radius: 38rpx; text-align: center; 
-    font-size: 28rpx; font-weight: bold; 
-}
-
-.toolbar-compact { 
-    background: var(--tool-bg); 
-    border-bottom: 1px solid var(--border-color); 
-    padding: 16rpx 10rpx; 
-}
-
-.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
-.tool-item { 
-    display: flex; flex-direction: column; align-items: center; justify-content: center; 
-    padding: 10rpx 0; border-radius: 12rpx; 
-}
-.tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
-.tool-text { font-size: 20rpx; color: var(--text-sub); }
-
-/* ==========================================================================
-   5. 弹窗面板
-   ========================================================================== */
-.time-panel-mask { 
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-    background: rgba(0,0,0,0.5); z-index: 999; 
-    display: flex; justify-content: center; align-items: center; 
-}
-
-.time-panel { 
-    width: 600rpx; 
-    background: var(--card-bg); /* 适配 */
-    border-radius: 24rpx; padding: 40rpx 30rpx; 
-    animation: popCenter 0.25s; 
-}
-
-@keyframes popCenter { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-.panel-title { 
-    font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 40rpx; 
-    color: var(--text-color); 
-}
-
-.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; max-height: 60vh; overflow-y: auto; }
-
-.grid-btn { 
-    background: var(--bg-color); /* 适配 */
-    color: #007aff; text-align: center; padding: 24rpx 0; border-radius: 12rpx; font-size: 28rpx; 
-}
-
-.custom-time { display: flex; align-items: center; justify-content: center; margin-top: 30rpx; gap: 10rpx; }
-
-.mini-input { 
-    width: 100rpx; 
-    border-bottom: 1px solid var(--border-color); 
-    text-align: center; color: var(--text-color);
-}
-
-.mini-btn { 
-    background: var(--tool-bg); /* 适配 */
-    padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; color: var(--text-color);
-}
-
-.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
-
-.picker-display { 
-    border: 1px solid var(--border-color); 
-    padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; 
-    background: var(--input-bg); 
-    color: var(--text-color);
-}
-
-.confirm-time-btn { background: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
-
-.ratio-input-box {
-    display: flex; align-items: center; 
-    background: var(--tool-bg); 
-    padding: 8rpx 20rpx; border-radius: 10rpx;
-    
-    .txt { font-size: 24rpx; color: var(--text-sub); }
-    .mini-input { 
-        width: 80rpx; text-align: center; font-weight: bold; color: #007aff; 
-        border-bottom: 2rpx solid #007aff; margin: 0 10rpx; 
-    }
-}
-
-/* 编辑模式选中状态 */
-.not-selected { opacity: 0.3; filter: grayscale(80%); }
-
-.is-selected .bubble {
-    background-color: #007aff !important; 
-    color: #fff !important;
-    transform: scale(1.05); 
-    border: 2rpx solid #0056b3 !important;
-}
-
-.select-check-icon {
-    display: flex; align-items: center; padding: 0 10rpx;
-    .circle {
-        width: 36rpx; height: 36rpx; 
-        border: 2rpx solid var(--text-sub); 
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center; font-size: 24rpx;
-        &.checked { background: #007aff; border-color: #007aff; color: #fff; }
-    }
-}
 </style>

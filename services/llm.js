@@ -98,35 +98,50 @@ export const LLM = {
     // C. 发起请求 & 统一解析
     // ---------------------------------------------------------
     try {
-        const res = await uni.request({
-            url: targetUrl, 
-            method: 'POST', 
-            header, 
-            data: requestBody, 
-            sslVerify: false
-        });
-
-        if (res.statusCode !== 200) {
-            const errorMsg = res.data?.error?.message || `API 请求失败: ${res.statusCode}`;
-            console.error('[LLM Error Detail]', res.data);
-            throw new Error(errorMsg);
-        }
-
-        let content = '';
-        
-        // 解析 Gemini 响应
-        if (config.provider === 'gemini') {
-            content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        } 
-        // 解析 OpenAI 响应
-        else {
-            let data = res.data;
-            // 兼容某些平台返回 string 的情况
-            if (typeof data === 'string') { 
-                try { data = JSON.parse(data); } catch(e){} 
+            const res = await uni.request({
+                url: targetUrl, 
+                method: 'POST', 
+                header, 
+                data: requestBody, 
+                sslVerify: false
+            });
+    
+            if (res.statusCode !== 200) {
+                const errorMsg = res.data?.error?.message || `API 请求失败: ${res.statusCode}`;
+                console.error('[LLM Error Detail]', res.data);
+                throw new Error(errorMsg);
             }
-            content = data?.choices?.[0]?.message?.content;
-        }
+    
+            let content = '';
+            
+            // 解析 Gemini 响应
+            if (config.provider === 'gemini') {
+                content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            } 
+            // 👇👇👇 修改这里：解析 OpenAI / DeepSeek 响应 👇👇👇
+            else {
+                let data = res.data;
+                // 兼容某些平台返回 string 的情况
+                if (typeof data === 'string') { 
+                    try { data = JSON.parse(data); } catch(e){} 
+                }
+                
+                // 获取 message 对象
+                const choice = data?.choices?.[0];
+                const message = choice?.message;
+                
+                content = message?.content || '';
+    
+                // 🔥🔥🔥 [新增] 适配 DeepSeek R1 的思维链字段 🔥🔥🔥
+                // DeepSeek 会把思考过程放在 reasoning_content 里
+                // 我们手动把它包在 <think> 标签里拼接到开头，这样前端就能识别了
+                if (message?.reasoning_content) {
+                    // 防止重复拼接
+                    if (!content.includes('<think>')) {
+                        content = `<think>${message.reasoning_content}</think>\n${content}`;
+                    }
+                }
+            }
         
         return content || '';
     } catch (e) {

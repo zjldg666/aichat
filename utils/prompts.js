@@ -107,7 +107,6 @@ export const NSFW_STYLE = `
 4. **语言强制 (Vocal Requirement)**:
    - **禁止沉默**: 严禁只输出括号内的动作描写。无论角色多么羞耻、混乱或处于极端快感中，**必须**配有相应的对白。
    - **对白形式**: 可以是破碎的呻吟、羞赧的求饶、语无伦次的拒绝或失控的索取。
-   - **环境反馈**: 如果在诊室等禁忌场所，对白应包含压低声音的私语（如：“嘘...轻点...万一有人...”）。
 `;
 
 
@@ -583,6 +582,3 @@ export const PERSONALITY_TEMPLATE = `
 【生成任务】
 请根据用户关键词生成行为逻辑 (Logic)。
 `;
-export const AFFECTION_LOGIC = "";
-// 如果你还在用 SCENE_JUDGE_PROMPT，可以用 GAME_MASTER_PROMPT 替代它，这里保留个空或者指向 GM 都可以
-export const SCENE_JUDGE_PROMPT = "";

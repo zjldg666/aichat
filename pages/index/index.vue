@@ -1,10 +1,15 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
-    <!-- 自定义导航栏 -->
     <view class="custom-navbar">
       <view class="status-bar"></view>
       <view class="nav-content">
-        <text class="page-title">消息</text>
+        <view class="location-status">
+            <text class="status-icon">📍</text>
+            <view class="status-text">
+                <text class="label">当前位置</text>
+                <text class="value">{{ globalLocation === 'CORRIDOR' ? '走廊/街道' : globalLocation }}</text>
+            </view>
+        </view>
         <view class="add-btn" @click="createNewContact">
           <text class="add-icon">+</text>
         </view>
@@ -12,231 +17,194 @@
     </view>
     <view class="nav-placeholder"></view>
 
-    <!-- 消息列表 -->
-    <view class="chat-list">
-      <view v-if="contactList.length === 0" class="empty-tip">
-        点击右上角 + 创建你的第一个 AI 角色
+    <scroll-view scroll-y class="room-list">
+      <view v-if="roomGroups.length === 0" class="empty-tip">
+        这里空荡荡的... 点击右上角 + 邀请住户
       </view>
 
       <view 
-        class="chat-item" 
-        v-for="(item, index) in contactList" 
-        :key="item.id"
-        @click="goToChat(item)"
-        @longpress="showAction(item, index)"
+        class="room-card" 
+        v-for="(room, index) in roomGroups" 
+        :key="room.name"
+        @click="handleEnterRoom(room)"
       >
-        <view class="avatar-box">
-          <image :src="item.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="avatar"></image>
-          <view v-if="item.unread > 0" class="badge">{{ item.unread }}</view>
+        <view class="room-header">
+            <text class="room-name">{{ room.name }}</text>
+            <view class="room-tag" v-if="globalLocation === room.name">
+                <text>🏠 我在这里</text>
+            </view>
         </view>
-        <view class="content-box">
-          <view class="row-top">
-            <text class="name">{{ item.name }}</text>
-            <text class="time">{{ item.lastTime }}</text>
-          </view>
-          <view class="row-bottom">
-            <text class="last-msg">{{ item.lastMsg }}</text>
-          </view>
+        
+        <view class="room-residents">
+            <view 
+                class="resident-avatar-box" 
+                v-for="npc in room.npcs" 
+                :key="npc.id"
+            >
+                <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="resident-avatar"></image>
+                <view class="unread-dot" v-if="npc.unread > 0"></view>
+                <text class="resident-name">{{ npc.name }}</text>
+            </view>
+        </view>
+        
+        <view class="action-bar">
+             <text class="action-text" v-if="globalLocation === room.name">↩️ 返回房间</text>
+             <text class="action-text" v-else-if="globalLocation === 'CORRIDOR'">🔑 进门</text>
+             <text class="action-text highlight" v-else>👣 去串门</text>
         </view>
       </view>
-    </view>
+    </scroll-view>
+
+    <PhoneSystem />
 
     <CustomTabBar :current="0" />
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { onShow,onReady } from '@dcloudio/uni-app';
+import { ref, computed } from 'vue';
+import { onShow, onReady } from '@dcloudio/uni-app';
 import CustomTabBar from '@/components/CustomTabBar.vue';
-import checkUpdate from '@/uni_modules/uni-upgrade-center-app/utils/check-update'
-import { useTheme } from '@/composables/useTheme.js'; // 1. 引入
-const { isDarkMode } = useTheme(); // 2. 获取状态
-const contactList = ref([]);
+import { useTheme } from '@/composables/useTheme.js';
 
-// 每次显示页面时，刷新列表数据
+// 🔥 引入手机组件
+import PhoneSystem from '@/components/PhoneSystem.vue';
+
+const { isDarkMode } = useTheme();
+const contactList = ref([]);
+const globalLocation = ref('CORRIDOR'); // 默认在走廊
+
 onShow(() => {
-  const list = uni.getStorageSync('contact_list');
-  if (list) {
-    contactList.value = list;
+  // 1. 读取联系人
+  const list = uni.getStorageSync('contact_list') || [];
+  contactList.value = list;
+  
+  // 2. 读取玩家物理位置 (如果没有，默认为走廊)
+  const savedLoc = uni.getStorageSync('app_global_player_location');
+  if (savedLoc) {
+      globalLocation.value = savedLoc;
+  } else {
+      updateLocation('CORRIDOR');
   }
 });
 
-// 3. 在 onReady 生命周期中调用检查更新
-onReady(() => {
-  checkUpdate();
-})
+// 按地址分组逻辑
+const roomGroups = computed(() => {
+    const groups = {};
+    contactList.value.forEach(npc => {
+        const loc = npc.location || '未知区域';
+        if (!groups[loc]) {
+            groups[loc] = [];
+        }
+        groups[loc].push(npc);
+    });
+    return Object.keys(groups).sort().map(locName => ({
+        name: locName,
+        npcs: groups[locName]
+    }));
+});
 
 const createNewContact = () => {
-  // 跳转到创建页面 (新建模式)
-  uni.navigateTo({
-    url: '/pages/create/create'
-  });
+  uni.navigateTo({ url: '/pages/create/create' });
 };
 
-// AiChat/pages/index/index.vue
+// 进门逻辑
+const handleEnterRoom = (room) => {
+    const targetLoc = room.name;
+    const currentLoc = globalLocation.value;
+    
+    // 假设找房间里的第一个人
+    const targetNpc = room.npcs[0]; 
+    if (!targetNpc) return;
 
-const goToChat = (item) => {
-  // 1. 清除未读
-  item.unread = 0;
-  uni.setStorageSync('contact_list', contactList.value);
-
-  // 🔥🔥🔥 核心逻辑：路由分发 🔥🔥🔥
-  // 检查玩家是否“肉身”在这个角色所在的场景里
-  if (item.playerInSceneId) {
-      console.log(`🚀 检测到玩家还在场景 [${item.playerInSceneId}]，正在恢复现场...`);
-      
-      // 强制跳转到场景页 (带上 visitorId，告诉场景我是来找这个人的)
-      uni.navigateTo({
-          url: `/pages/scene/chat?id=${item.playerInSceneId}&visitorId=${item.id}`
-      });
-      return; // ⛔️ 阻止进入私聊页面
-  }
-
-  // 2. 默认情况：玩家不在现场，正常进入私聊 (手机/远程模式)
-  uni.navigateTo({
-    url: `/pages/chat/chat?id=${item.id}&name=${item.name}`
-  });
-};
-
-const showAction = (item, index) => {
-  uni.showActionSheet({
-    itemList: ['编辑角色', '删除角色'],
-    success: (res) => {
-      if (res.tapIndex === 0) {
-        // 编辑：跳转到 create 页面并带上 ID
-        uni.navigateTo({
-          url: `/pages/create/create?id=${item.id}`
-        });
-      } else if (res.tapIndex === 1) {
-        // 删除
-        uni.showModal({
-          title: '确认删除',
-          content: '删除后无法恢复，确定吗？',
-          success: (modalRes) => {
-            if (modalRes.confirm) {
-              contactList.value.splice(index, 1);
-              uni.setStorageSync('contact_list', contactList.value);
-            }
-          }
-        });
-      }
+    // A. 我就在这个房间 -> 直接聊 (Face模式)
+    if (currentLoc === targetLoc) {
+        enterChat(targetNpc.id);
+        return;
     }
-  });
+
+    // B. 我在别的地方 -> 询问是否移动
+    let title = '敲门进入';
+    let content = `要进入 ${targetLoc} 吗？`;
+    
+    if (currentLoc !== 'CORRIDOR') {
+        title = '串门';
+        content = `从 [${currentLoc}] 前往 [${targetLoc}] 吗？`;
+    }
+
+    uni.showModal({
+        title: title,
+        content: content,
+        confirmText: '进屋',
+        cancelText: '取消', 
+        success: (res) => {
+            if (res.confirm) {
+                updateLocation(targetLoc);
+                enterChat(targetNpc.id, true); 
+            }
+        }
+    });
+};
+
+// 更新位置并同步给角色
+const updateLocation = (newLoc) => {
+    console.log(`🦶 [移动] 玩家位置更新: ${globalLocation.value} -> ${newLoc}`);
+    globalLocation.value = newLoc;
+    uni.setStorageSync('app_global_player_location', newLoc);
+
+    // 同步给所有 NPC
+    const list = contactList.value.map(npc => {
+        return {
+            ...npc,
+            playerLocation: newLoc 
+        };
+    });
+    contactList.value = list;
+    uni.setStorageSync('contact_list', list);
+};
+
+const enterChat = (id, isNewEntry = false) => {
+    uni.navigateTo({
+        url: `/pages/chat/chat?id=${id}&isNewEntry=${isNewEntry}`
+    });
 };
 </script>
 
-<style lang="scss">
-/* --- 1. 基础容器 --- */
-.container { 
-    /* 使用全局背景色 (#f5f5f5 / #121212) */
-    background-color: var(--bg-color); 
-    min-height: 100vh; 
+<style lang="scss" scoped>
+.container { background-color: var(--bg-color); min-height: 100vh; }
+.custom-navbar { position: fixed; top: 0; width: 100%; background-color: var(--bg-color); z-index: 999; box-shadow: 0 1px 0 var(--border-color); }
+.nav-content { height: 88rpx; display: flex; justify-content: space-between; align-items: center; padding: 0 30rpx; }
+.location-status { display: flex; align-items: center; }
+.status-icon { font-size: 36rpx; margin-right: 12rpx; }
+.status-text { display: flex; flex-direction: column; }
+.label { font-size: 20rpx; color: var(--text-sub); }
+.value { font-size: 28rpx; font-weight: bold; color: var(--text-color); }
+.add-btn { width: 60rpx; height: 60rpx; background: var(--card-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
+.add-icon { font-size: 40rpx; color: var(--text-color); margin-top: -4rpx; }
+.nav-placeholder { height: calc(var(--status-bar-height) + 88rpx); }
+
+.room-list { padding: 30rpx; padding-bottom: 120rpx; height: 100vh; box-sizing: border-box; }
+.empty-tip { text-align: center; color: var(--text-sub); margin-top: 100rpx; font-size: 26rpx; }
+
+.room-card {
+    background: var(--card-bg); border-radius: 20rpx; padding: 24rpx; margin-bottom: 24rpx;
+    border: 1px solid var(--border-color); box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.02);
+    transition: transform 0.1s;
 }
+.room-card:active { transform: scale(0.98); }
 
-/* --- 2. 自定义导航栏 --- */
-.custom-navbar { 
-    position: fixed; top: 0; left: 0; width: 100%; 
-    /* 导航栏背景跟随全局背景 */
-    background-color: var(--bg-color); 
-    z-index: 999; 
-    padding-bottom: 10rpx; 
-    /* 增加阴影，让它在白色背景下也有层次感，夜间模式更明显 */
-    box-shadow: 0 1px 0 var(--border-color);
-}
+.room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+.room-name { font-size: 32rpx; font-weight: bold; color: var(--text-color); }
+.room-tag { background: rgba(0,122,255,0.1); padding: 4rpx 12rpx; border-radius: 8rpx; }
+.room-tag text { font-size: 22rpx; color: #007aff; font-weight: bold; }
 
-.status-bar { 
-    height: var(--status-bar-height); 
-    width: 100%; 
-    background-color: var(--bg-color); 
-}
+.room-residents { display: flex; flex-wrap: wrap; gap: 20rpx; margin-bottom: 20rpx; }
+.resident-avatar-box { display: flex; flex-direction: column; align-items: center; width: 100rpx; position: relative; }
+.resident-avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: #eee; border: 2rpx solid var(--border-color); }
+.unread-dot { position: absolute; top: 0; right: 10rpx; width: 16rpx; height: 16rpx; background: #ff4d4f; border-radius: 50%; border: 2rpx solid #fff; }
+.resident-name { font-size: 22rpx; color: var(--text-sub); margin-top: 8rpx; width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.nav-content { 
-    height: 88rpx; 
-    display: flex; align-items: center; justify-content: space-between; 
-    padding: 0 30rpx; 
-}
-
-.page-title { 
-    font-size: 36rpx; font-weight: bold; 
-    color: var(--text-color); /* 适配文字颜色 */
-}
-
-.add-btn { 
-    width: 60rpx; height: 60rpx; 
-    /* 按钮背景：白天用白色卡片色，夜间用深灰 */
-    background-color: var(--card-bg); 
-    border-radius: 10rpx; 
-    display: flex; align-items: center; justify-content: center; 
-    /* 加一点边框让它在浅色背景下明显 */
-    border: 1px solid var(--border-color);
-}
-
-.add-icon { 
-    font-size: 40rpx; 
-    color: var(--text-color); /* 图标变色 */
-    margin-top: -4rpx; 
-}
-
-.nav-placeholder { 
-    width: 100%; 
-    height: calc(var(--status-bar-height) + 88rpx); 
-}
-
-.empty-tip { 
-    text-align: center; 
-    color: var(--text-sub); /* 适配灰色文字 */
-    padding-top: 100rpx; 
-    font-size: 28rpx; 
-}
-
-/* --- 3. 聊天列表 --- */
-.chat-list { 
-    background-color: var(--bg-color); /* 列表底色 */
-    padding-bottom: 120rpx; 
-}
-
-.chat-item { 
-    display: flex; padding: 24rpx 30rpx; 
-    border-bottom: 1px solid var(--border-color); /* 适配分割线 */
-    background: var(--card-bg); /* 列表项背景 (白/深灰) */
-    transition: background-color 0.2s;
-}
-
-.chat-item:active { 
-    background-color: var(--tool-bg); /* 点击态变深一点 */
-}
-
-.avatar-box { position: relative; margin-right: 24rpx; }
-
-.avatar { 
-    width: 96rpx; height: 96rpx; border-radius: 10rpx; 
-    background: var(--border-color); /* 头像占位色 */
-}
-
-.badge { 
-    position: absolute; top: -6rpx; right: -6rpx; 
-    background: #fa5151; /* 红色保持不变 */
-    color: #fff; font-size: 22rpx; padding: 0 10rpx; border-radius: 16rpx; 
-}
-
-.content-box { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-
-.row-top { display: flex; justify-content: space-between; margin-bottom: 8rpx; }
-
-.name { 
-    font-size: 34rpx; font-weight: 500; 
-    color: var(--text-color); /* 名字变色 */
-}
-
-.time { 
-    font-size: 24rpx; 
-    color: var(--text-sub); /* 时间变灰 */
-}
-
-.last-msg { 
-    font-size: 28rpx; 
-    color: var(--text-sub); /* 消息预览变灰 */
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 500rpx; 
-}
+.action-bar { border-top: 1px solid var(--border-color); padding-top: 16rpx; text-align: right; }
+.action-text { font-size: 24rpx; color: var(--text-sub); }
+.action-text.highlight { color: #007aff; font-weight: bold; }
 </style>
