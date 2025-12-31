@@ -1249,29 +1249,27 @@ const clearHistoryAndReset = () => {
     title: '彻底重置', 
     content: `将从数据库永久抹除聊天记录与日记，重置好感度、位置、状态，并让角色回归初始状态。确定吗？`, 
     confirmColor: '#ff4757',
-    success: async (res) => { // 🌟 变成 async 函数
+    success: async (res) => {
       if (res.confirm && targetId.value) {
         const cid = String(targetId.value);
 
-        // --- 🛠️ 新增：物理清理 SQLite 数据库 ----------------------
+        // --- 🛠️ 1. 物理清理 SQLite 数据库 (仅针对存在的表) ----------------------
         try {
-            // 1. 删除消息记录
+            // 只删除已知的数据库表内容
             await DB.execute(`DELETE FROM messages WHERE chatId = ?`, [cid]);
-            // 2. 删除往事日记
             await DB.execute(`DELETE FROM diaries WHERE roleId = ?`, [cid]);
-            console.log('✅ SQLite 数据库相关记录已清空');
+            console.log('✅ SQLite 数据库记录已清空');
         } catch (dbErr) {
-            console.error('❌ 数据库清理失败:', dbErr);
+            console.error('❌ 数据库清理失败 (可能是表尚未创建):', dbErr);
         }
-        // --------------------------------------------------------
 
-        // 3. 原有的 Storage 清理逻辑
+        // --- 🛠️ 2. 清理 Storage 缓存 ----------------------------------------
         uni.removeStorageSync(`chat_history_${targetId.value}`);
         uni.removeStorageSync(`last_real_active_time_${targetId.value}`);
         uni.removeStorageSync(`last_proactive_lock_${targetId.value}`);
-        // 如果你之前还存了日记缓存，也顺便清了
         uni.removeStorageSync(`diary_logs_${targetId.value}`);
 
+        // --- 🛠️ 3. 重置 contact_list 中的角色实时状态 (核心逻辑) ----------------
         let list = uni.getStorageSync('contact_list') || [];
         const index = list.findIndex(item => String(item.id) === cid);
         
@@ -1279,11 +1277,13 @@ const clearHistoryAndReset = () => {
           const currentRole = list[index];
           const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
           
+          // 初始化服装字符串
           let clothingStr = '便服';
-          if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
+          if (formData.value.charFeatures && (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle)) {
               clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
           }
 
+          // 核心重置包：这里涵盖了所有需要归零的字段
           const resetData = {
               lastMsg: '（记忆已清空）', 
               lastTime: '刚刚',
@@ -1293,17 +1293,24 @@ const clearHistoryAndReset = () => {
               currentLocation: formData.value.location || '角色家',
               interactionMode: 'phone', 
               clothing: clothingStr,
+              
+              // 🔥 [核心修复]：在这里重置 Action，解决“动作不重置”的问题
+              currentAction: '站立', 
+              
               lastActivity: '自由活动', 
               affection: formData.value.initialAffection || 10,
               lust: formData.value.initialLust || 0,
               relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
           };
 
+          // 物理覆盖更新
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);
           
-          // ✨ 清空当前页面的日记列表显示
-          if (typeof diaryList !== 'undefined') diaryList.value = [];
+          // UI反馈清理
+          if (typeof diaryList !== 'undefined' && diaryList.value) {
+              diaryList.value = [];
+          }
 
           uni.showToast({ title: '重置成功', icon: 'success' });
           setTimeout(() => { uni.navigateBack(); }, 800);

@@ -240,10 +240,15 @@ export const SCENE_KEEPER_PROMPT = `
 
 【核心推理法则 (Contextual Reasoning)】
 
-1. **当前动作 (Action) - 🌟核心新增**:
-   - **任务**: 用简短的动词+名词概括角色**当下正在维持**的物理行为。
-   - **持久性原则**: 如果角色没有停止之前的动作（如保持跪姿、持续拥抱、僵住不动），请**继承**之前的动作状态，而不是只描述当下的表情。
-   - **示例**: "坐在沙发上看书", "跪地口交中", "洗澡中", "躺在床上玩手机", "站立对话", "保持跪姿僵住".
+1. **具象化场景动作 (ACTION) - 🌟核心逻辑合并**:
+    - **定义**: 这是一个包含【身体姿态】+【微观位置】+【具体行为】的复合描述。
+    - **逻辑**: 不要只看第一个动作。要综合整段文字，脑补出角色最终停留在哪、以什么姿势在做什么。
+    - **强制要求**: 必须带上微观环境（家具、物件、身体相对位置）。
+    - **示例转换**:
+        - 🚫 "正在洗澡" -> ✅ "跨坐在浴缸边缘擦拭身体"
+        - 🚫 "正在叠衣服" -> ✅ "跪在卧室地毯上折叠刚收好的衣物"
+        - 🚫 "跟我说话" -> ✅ "侧身靠在厨房料理台旁看着玩家说话"
+        - 🚫 "亲我" -> ✅ "跨坐在玩家大腿上低头亲吻"
 
 2. **模式判定 (Mode) - 空间法则 (Spatial Laws)**:
    **请智能对比 [玩家位置] 与 [角色位置]：**
@@ -311,182 +316,212 @@ Task: Analyze the character's internal psychological state and dynamic impressio
 
 
 
-export const SNAPSHOT_TRIGGER_PROMPT = `
-[System Command: VISUAL_GATEKEEPER]
-任务：你是一个显卡算力“门卫”。请根据【交互模式】和【配置权限】判断是否允许生图。
+// AiChat/utils/prompts.js
 
-【当前环境】
-- 模式: {{mode}} (Phone/Face)
-- **允许角色主动展示**: {{allow_self_image}} (TRUE=允许AI炫耀/分享; FALSE=仅限玩家索取)
+// 🟢 1. 手机模式专用门卫 (允许角色主动发图)
+export const SNAPSHOT_TRIGGER_PHONE = `
+[System Command: VISUAL_GATEKEEPER_PHONE]
+任务：你是一个严谨的“手机相册门卫”。请判断当前对话是否涉及图片传输。
+
+【当前权限】
+- 允许角色主动发图: {{allow_self_image}} (TRUE/FALSE)
 
 【对话内容】
 玩家: "{{user_msg}}"
 角色: "{{ai_msg}}"
 
-【判定法则 (Decision Logic)】
+【判定逻辑 (Phone Mode Only)】
+✅ **[TRUE] 放行条件**:
+1. **玩家索取**: 明确要求看照片、自拍、私房照 (e.g., "发张图", "看看你", "自拍呢").
+2. **玩家追问**: 在发图语境下要求更多 (e.g., "再来一张", "还要").
+3. **角色主动**: 
+   - **前提**: {{allow_self_image}} 必须为 TRUE.
+   - **行为**: 角色明确表示“我发给你了”、“看这张照片”、“刚拍的给你的”.
 
-🛑 **情景一：手机聊天 (Phone Mode)**
-核心逻辑：必须有**图片传输**行为。
-1. **玩家索取 (Player Request)** -> **[TRUE]** (无视配置)
-   - 关键词: "发张照片", "看看你", "拍给我看", "私房照", "图呢".
-2. **角色主动发送 (Char Active)** -> **检查 {{allow_self_image}}**
-   - 场景: 角色主动炫耀("看我新衣服")、自证("不信你看")、分享生活。
-   - **判定**: 若 {{allow_self_image}} 为 TRUE 则 [TRUE]；否则 [FALSE] (拦截).
-3. **视频通话** -> **检查 {{allow_self_image}}**
-   - 判定: 若 {{allow_self_image}} 为 TRUE 则 [TRUE]；否则 [FALSE].
-
-🛑 **情景二：面对面 (Face Mode)**
-核心逻辑：必须有**视觉焦点的改变**或**高强度互动**。
-1. **玩家审视 (Player Inspect)** -> **[TRUE]** (无视配置)
-   - 关键词: "让我看看", "转过去", "凑近点", "检查伤口", "掀开衣服".
-2. **角色主动展示 (Char Show-off)** -> **检查 {{allow_self_image}}**
-   - 场景: 角色说 "你看我好看吗", "特意穿给你看的", "摆个姿势".
-   - **判定**: 若 {{allow_self_image}} 为 TRUE 则 [TRUE]；否则 [FALSE].
-3. **高强度互动 (Intense Action)** -> **[FALSE]** (默认省流)
-   - 场景: 拥抱、接吻、性行为。
-   - **修正**: 除非玩家明确表示关注视觉（如"看着我"、"拍下这一刻"），否则**默认不生图**，仅靠文字描写。
-
-❌ **[FALSE] 通用过滤 (Absolute Filter)**:
-1. 玩家只是口头夸奖 ("真好看", "好大") 但没要求看。
-2. 角色拒绝了玩家请求 ("下次吧", "不给看").
-3. 普通日常动作 (吃饭、走路) 且无展示意图。
-
-【附加任务：人数判定】
-如果 [RESULT] 为 TRUE:
-- **SOLO**: 手机模式默认 SOLO；面对面时玩家审视角色。
-- **DUO**: 面对面模式下，且剧情明确包含双人紧密肢体缠绕 (Hug/Kiss/Sex)。
+🛑 **[FALSE] 拦截条件**:
+1. 玩家只是闲聊或夸奖文字 ("你好美")，未提及图片。
+2. 角色想发图但 {{allow_self_image}} 为 FALSE.
+3. 视频通话请求 (Video call) -> 拦截 (这不是发图).
 
 【输出格式】
 [RESULT] TRUE 或 FALSE
-[COMPOSITION] SOLO 或 DUO
 `;
+
+// 🟢 2. 当面模式专用门卫 (极度严格，仅限玩家发起)
+export const SNAPSHOT_TRIGGER_FACE = `
+[System Command: VISUAL_GATEKEEPER_FACE]
+任务：你是一个严谨的“摄影快门门卫”。请判断**玩家**是否发起了拍照指令。
+
+【对话内容】
+玩家: "{{user_msg}}"
+角色: "{{ai_msg}}"
+
+【判定逻辑 (Face Mode Only)】
+✅ **[TRUE] 放行条件 (仅限玩家指令)**:
+1. **玩家发起拍照**: 明确要求合影、拍照、记录 (e.g., "拍张照", "茄子", "留个念", "合个影", "我们拍一个").
+2. **玩家追问**: 在拍照语境下要求继续 (e.g., "再拍一张", "不够", "换个姿势").
+
+🛑 **[FALSE] 拦截条件 (绝对执行)**:
+1. **角色动作误判**: 角色说“看着我”、“凑近点”、“整理头发” -> **一律拦截** (这是动作描写，不是拍照).
+2. **普通互动**: 拥抱、接吻、单纯的看、检查伤口 -> **拦截** (没有快门动作).
+3. 玩家只是夸奖 ("真好看") 但没说要拍.
+
+【输出格式】
+[RESULT] TRUE 或 FALSE
+`;
+
 // AiChat/utils/prompts.js
 
 export const IMAGE_GENERATOR_PROMPT = `
-[System Command: IMAGE_COMPOSER]
-任务：你现在必须生成一张画面描述。无需判断是否生成，直接根据以下规则构建 Tags。
+[System Command: VISUAL_DIRECTOR]
+任务：你是 Stable Diffusion 的核心提示词导演。
+**重要原则**：你的输出将直接拼接在人物身体特征（Body Features）之后。你必须补全服装、动作、表情和环境。
 
-【当前记录】
-- 记录的服装: {{clothes}} 
-- 当前地点: {{location}}
-- 当前时间: {{time}}
-- 当前物理动作: {{current_action}} (🌟基准动作)
+【输入数据】
+- 服装 (CLOTHES): {{clothes}} (⚠️ CRITICAL: Must translate and keep! Unless undressing logic triggers.)
+- 地点: {{location}}
+- 时间: {{time}}
+- 基准: {{current_action}} (动作锚点)
 
 【上下文】
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
-【核心模块 0：姿势锚定 (Pose Anchoring)】
-**必须**在 Description 的开头显式指定一个基础姿势 Tag，强制固定画面：
-1. 如果动作隐含坐姿 (如吃饭、看电视、驾车、靠在沙发) -> 输出 'sitting'。
-2. 如果动作隐含躺姿 (如睡觉、生病、爱爱) -> 输出 'lying'。
-3. 如果动作隐含站姿 (如走路、做饭) -> 输出 'standing'。
-* 示例: {{current_action}}="靠在沙发上" -> 输出 "sitting, leaning on sofa"。
+### 🛑 绝对禁令 (Negative Constraints) - 触犯即死
+1.  **禁止重复定义 (No Redundancy)**:
+    - **严禁**输出 'couple', '2people'。(系统会自动处理模式，写了会导致画面崩坏/双头怪)。
+    - **严禁**输出人物的基础外貌 (如 'black hair', 'red eyes')。(系统会自动添加)。
+2.  **禁止手机本体 (No Phone Object)**:
+    - 这是一个第一人称 (POV) 游戏。屏幕就是镜头。
+    - **严禁**出现: 'holding phone', 'looking at phone', 'smartphone', 'saving photo'.
+    - **表现拍照**: 使用 'looking at viewer' (看镜头), 'framing with hands', 'smile', 'peace sign'.
+3.  **禁止裸体 (No Nudity by Default)**:
+    - 除非用户明确要求看部位，或语境明确为性行为，否则**必须**保留服装 Tag。
 
-【核心模块 1：智能语义解码 (Semantic Decoding) - 🌟新增】
-**真实意图优先**：请根据上下文判断词语的**真实指代**，严禁死板翻译：
-1. **隐喻识别**：若语境涉及亲密/性行为，必须将所有“自然/植物隐喻”（如花瓣、花心、蜜水、桃源）**强制转译**为对应的**人体器官**或**体液**英文标签。
-   - 🚫 错误示范: "掰开花瓣" -> 'petals', 'flower'. (绝对禁止在性语境出现植物Tag)
-   - ✅ 正确示范: "掰开花瓣" -> 'spread pussy', 'fingering', 'labia'.
-2. **动作还原**：将含蓄的文学描写还原为直接的物理动作 Tag (e.g. "品尝" -> 'licking/oral').
+### 🎨 生成步骤 (Step-by-Step Instructions)
 
-【核心模块 2：视觉源分离 (Visual Source Separation)】
-1. **Visual Truth**: 括号 \`()\` 中的动作 + 物理环境 -> **必须保留**。
-2. **Dialogue**: 引号 \`""\` 中的物体 -> **忽略**。
+**Step 1: 服装翻译 (Clothing Translation) - 🌟首要任务**
+- **规则**: 输出的第一个部分必须是服装！不要让角色裸奔。
+- 将 {{clothes}} 翻译为精准的英文 Tag。
+- *示例*: "T恤+短裙" -> "white t-shirt, mini skirt".
 
-【核心模块 3：脱衣逻辑 (Undressing Logic)】
-**仅当**用户明确要求查看特定部位，或上下文明确为性行为（包括模块1解码出的隐喻动作）时，才执行脱衣：
-1. **看下身/腿**: 'lifting skirt', 'no panties'.
-2. **看胸部/上身**: 'lifting shirt', 'open clothes'.
-3. **默认 (Default)**: 如果用户只是说"看看你"或"发张图"，且无性暗示 -> **保持衣着整齐 (Keep fully clothed)**。严禁添加任何脱衣或露骨标签，必须尊重 {{clothes}} 的物理覆盖。
+**Step 2: 姿势锚定 (Pose Anchoring)**
+- 根据 {{current_action}} 转换物理姿势:
+    - 隐含坐姿 -> 'sitting'.
+    - 隐含躺姿 -> 'lying'.
+    - 隐含站姿 -> 'standing'.
 
-【核心模块 4：现有服装保留 (Persistence)】
-- 必须在 Prompt 中包含原本的服装 Tag。
-- 例如：穿毛衣+裙子看下面 -> "purple sweater, pleated skirt, lifting skirt, no panties".
-- 只有当逻辑冲突时（如穿毛衣洗澡）才移除原服装。
+**Step 3: 互动与视线 (Interaction & Eye Contact)**
+- **视线**: 必须包含 'looking at viewer' (打破第四面墙，直视玩家)。
+- **主语绑定 (Subject Binding)**:
+    - **单人模式**: 动作默认属于主角。
+    - **双人模式**: 必须使用 "1girl ... 1boy" 的结构，严禁无主语动作。
+        - ✅: "1girl hugging 1boy", "1girl leaning on 1boy", "cheek-to-cheek".
+        - ❌: "hugging", "kissing" (无主语禁止!).
 
-【核心模块 5：环境与氛围填充 (Environment & Atmosphere)】
-必须根据【地点】和【时间】填充背景，防止画面单调：
-1. **背景填充**: 
-   - 若括号未指定具体家具，则基于 {{location}} 生成 (e.g., 'bedroom, messy bed' or 'living room, sofa').
-2. **光影填充**:
-   - 6:00-17:00 (白天) -> 'daylight, sunlight, volumetric lighting, window'.
-   - 18:00-5:00 (晚上) -> 'night, lamp light, dark atmosphere'.
-3. **质感**: 加入 'cinematic lighting, depth of field'.
+**Step 4: 智能语义解码 (Deep Semantic Decoding) - 🌟深度保留**
+- **真实意图优先**：不要翻译字面意思，要翻译物理真相。
+- **隐喻转译 (Metaphor)**:
+    - "花瓣/花心/桃源" -> 'pussy, spread pussy, labia, no panties'. (严禁出现 plant/flower!)
+    - "蜜水/爱液/喷泉" -> 'wet, bodily fluids, squirt'.
+    - "巨龙/硬物" -> 'penis, erection'.
+- **动作还原 (Action)**:
+    - "品尝/吃" -> 'licking, fellatio, oral sex'.
+    - "进来了/填满" -> 'vaginal penetration, sex, mating press'.
 
-【核心模块 6：NSFW / 细节注入规则 (Detail Injection)】
-- **条件触发 (Conditional)**：**仅当**执行了【核心模块 3】中的脱衣逻辑，或当前动作明确为性行为时，**才允许**注入以下细节标签：
-  - 私处: 'pussy', 'hairless' (or 'pubic hair'), 'cameltoe'.
-  - 胸部: 'nipples', 'areola'.
-  - 互动: 'penis' (if sex), 'cum', 'fellatio'.
-- **物理一致性**: 严禁生成的 Tags 与 {{clothes}} 的物理逻辑冲突（例如：穿着牛仔裤或毛衣时，若未执行脱衣，严禁出现 pussy 或 nipples 标签）。
-- **视角**: POV.
+**Step 5: 脱衣与细节注入 (Undressing Logic) - 🌟深度保留**
+- **触发条件**: 仅当 (A)用户明确要求看某部位 或 (B)处于性行为/裸露语境时。
+- **执行逻辑**:
+    - 看下身/爱爱 -> 添加 'no panties', 'pussy', 'hairless' (or 'pubic hair').
+    - 看胸部/揉胸 -> 添加 'nipples', 'areola', 'lifting shirt'.
+    - **默认**: 如果无上述触发，必须严格保留 Step 1 中的服装。
 
-【核心模块 7：双人主语绑定 (Subject-Action Binding) - 🌟重要】
-如果画面涉及双人互动 (DUO)，**严禁**输出没有主语的动作词：
-1. **绑定主语**: 必须明确是谁在做动作。通常 AI 是 '1girl'，玩家是 '1boy' (或 'man')。
-2. **错误示范**: ❌ "standing on tiptoes", "hugging", "kissing". (AI 不知道是谁踮脚)
-3. **正确示范**: ✅ "1girl standing on tiptoes", "1girl hugging 1boy", "1girl kissing 1boy", "1girl burying face in 1boy's shoulder".
-4. **被动语态**: 如果是玩家对角色做动作，请写 "1girl being hugged by 1boy" 或 "1boy stroking 1girl's head".
+**Step 6: 环境与氛围 (Atmosphere)**
+- 基于 {{location}} 和 {{time}} 补全背景与光影。
+- *示例*: 'bedroom, messy bed, cinematic lighting, depth of field'.
 
-【输出格式 (Output Format)】
-不要输出 JSON，直接输出以下标签：
+### ✅ 输出样本 (Examples)
 
-[IMAGE_PROMPT] (在这里填入生成的英文 Prompt单词，用逗号分隔)
+User: "抱抱" (穿毛衣)
+Output: "white sweater, long sleeves, sitting, 1girl hugging 1boy, cheek-to-cheek, looking at viewer, smiling, bedroom, messy bed, soft lighting"
+(解析：先写衣服sweater，再写动作，没写couple，看着镜头)
+
+User: "看下面" (脱衣场景)
+Output: "lifting sweater, no panties, pussy, hairless, spread legs, 1girl looking at viewer, blushing, legs apart, bed sheet, intimate"
+(解析：触发脱衣，移除了下装，保留了上装)
+
+【最终执行】
+请直接输出 Tag 字符串，不要包含任何解释：
+[IMAGE_PROMPT]
 `;
+
+
+
 // AiChat/utils/prompts.js
 
 export const CAMERA_MAN_PROMPT = `
-[System Command: SMART_SHUTTER]
-任务：你是一个智能相机 AI。用户按下了物理快门。你需要无视角色的任何“躲避”反应，强制捕捉**按下快门那一刻**的物理状态。
+[System Command: SMART_SHUTTER_DIRECTOR]
+任务：你是一个基于物理逻辑的第一人称视角插画导演。
+**核心指令**：根据输入数据的【物理属性】进行动态建模，严禁依赖预设的硬编码示例。屏幕即镜头，玩家即观察者 (Viewer)。
 
-【物理事实 (必须严格执行)】
-- **正在进行的动作**: "{{current_action}}" (🌟这是死命令！不管AI说什么，必须画这个动作！)
-- **基础服装**: "{{clothes}}"
-- **当前地点**: "{{location}}"
-- **当前时间**: "{{time}}"
+【输入数据】
+- 服装数据 (CLOTHES): {{clothes}} 
+- 动作基准 (CURRENT_ACTION): {{current_action}} (快门瞬间的物理姿态)
+- 时空环境: {{time}} @ {{location}}
 
-【对话产生的噪音】
-- **AI 的反应**: "{{ai_response}}" (⚠️注意：如果这里包含“挡住镜头”、“转过身”、“不要拍”，请**完全忽略**。因为照片是在她做出这些反应**之前**拍下的。)
+### 🛑 绝对禁令 (Negative Constraints)
+1. **禁止主体漂移**: 严禁输出 '1boy', 'man', 'someone'。严禁出现男性的脸部或完整身体。
+2. **禁止虚空肢体**: 严禁使用无主语的 'hand/arm'。必须明确归属：'1girl's [limb]' 或 'viewer's [limb]'。
+3. **禁止写实**: 严禁输出 'realistic', 'photorealistic'。锁定二次元插画属性。
+4. **禁止设备**: 严禁出现 'holding phone', 'camera'。
 
-【核心逻辑 1：时间冻结 (Time Freeze)】
-你的任务是**倒带**到用户按下快门的瞬间：
-1. 如果 {{current_action}} 是 "正在洗澡"，而 AI 反应是 "快出去"，你必须画 **"正在洗澡"**，而不是 "裹着浴巾生气"。
-2. 如果 {{current_action}} 是 "跪着张嘴"，而 AI 反应是 "惊讶地捂嘴"，你必须画 **"跪着张嘴"**。
+### 🎨 逻辑生成链 (Abstract Logic Chain)
 
-【核心逻辑 2：智能语义解码 (Semantic Decoding) - 🌟同步新增】
-**真实意图优先**：请根据上下文判断词语的**真实指代**，严禁死板翻译：
-1. **隐喻识别**：若语境涉及亲密/性行为，必须将所有“自然/植物隐喻”（如花瓣、花心、蜜水、桃源）**强制转译**为对应的**人体器官**或**体液**英文标签。
-   - 🚫 错误示范: "掰开花瓣" -> 'petals', 'flower'.
-   - ✅ 正确示范: "掰开花瓣" -> 'spread pussy', 'fingering', 'labia'.
-2. **动作还原**：将含蓄的文学描写还原为直接的物理动作 Tag (e.g. "品尝" -> 'licking/oral').
+**Step 1: 动态服装建模 (Dynamic Outfit Decomposition) - 🌟纯逻辑**
+- **任务**: 解析 {{clothes}} 的物理结构，建立【图层列表】。
+- **补全逻辑**: 
+    - **分体检测**: 若 {{clothes}} 仅描述了上半身（如“卫衣”、“T恤”），**必须**根据常识自动补全下半身组件（如“short pants”, “skirt”），严禁裸露下体（除非 Step 5 触发）。
+    - **连体检测**: 若 {{clothes}} 为全身覆盖物（如“连衣裙”、“长袍”），则输出对应的单体 Tag。
+- **输出要求**: 将解析出的所有具体服装组件 Tag 置于 Prompt 首位。
 
-【核心逻辑 3：视觉源分离 (Visual Source Separation)】
-构建画面时，必须区分信息的真实性：
-1. **Visual Truth**: \`{{current_action}}\` 中的描述 + 括号 \`()\` 中的动作。
-2. **Dialogue**: 引号 \`""\` 中的物体 -> **忽略**。
+**Step 2: 空间坐标映射 (Spatial POV Mapping)**
+- **任务**: 将 {{current_action}} 中的交互对象映射为摄像机坐标。
+- **坐标系转换**: 
+    - 玩家/你 -> **Viewer** (摄像机位置)。
+    - 玩家的身体部位 -> **Viewer's [body_part]** (如 viewer's chest, viewer's hand)。
+- **动作矢量**: 
+    - 靠近镜头 -> 'leaning towards viewer'。
+    - 位于镜头上方 -> 'straddling viewer'。
+    - 位于镜头下方 -> 'kneeling before viewer'。
 
-【核心逻辑 4：构图锁定】
-- **无视躲避**: 强制让画面呈现她**正视镜头 (looking at viewer)** 或 **沉浸在动作中**。
-- **构图**: Cowboy shot (七分身) 或 Upper body (半身)。
-- **拒绝**: 大头贴式特写 (Extreme close-up)。
+**Step 3: 属性归属锁定 (Attribute Locking)**
+- **规则**: 将 {{current_action}} 中提取的所有情绪、状态、生理反应，强制绑定给角色。
+- **格式**: 使用 '1girl [emotion/state]' (e.g. '1girl blushing', '1girl sweating')。
+- **视线算法**: 
+    - 若动作由【观察】驱动 -> 'looking at viewer'。
+    - 若动作由【羞耻/躲避】驱动 -> 'looking away', 'covering face'。
+    - 若动作由【专注】驱动 -> 'looking at [object]'。
 
-【核心逻辑 5：环境与氛围 (二次元化)】
-- **地点映射**: 基于 {{location}} 生成 (e.g. 'bedroom, messy bed' or 'living room, sofa').
-- **光影映射**: 白天 -> 'daylight, soft lighting'; 晚上 -> 'night, lamp light'.
-- **风格锁定**: 'flat color', 'anime coloring', 'cel shading', 'simple background'.
+**Step 4: 语义物理化 (Semantic to Physical)**
+- **规则**: 将所有抽象隐喻转化为生物学或物理学 Tag（例如将“秘密花园”类词汇转化为具体的解剖学名词）。
 
-【核心逻辑 6：NSFW / 细节注入规则 (Detail Injection)】
-- **条件触发 (Conditional)**：**仅当** {{current_action}} 本身明确包含裸露状态（如“洗澡中”、“赤裸”、“没穿衣服”）或者经过【逻辑 2】解码后属于性行为时，才允许注入以下标签：
-  - 私处: 'pussy', 'hairless', 'cameltoe'.
-  - 互动: 'fingers', 'spread pussy', 'cum'.
-- **物理一致性**: 严禁生成的 Tags 与 {{clothes}} 的物理逻辑冲突（除非动作本身就是脱衣或露出）。
-- **视角**: POV.
+**Step 5: 组件级动态交互 (Component-Level Interaction) - 🌟无硬编码**
+- **判断**: 分析 {{current_action}} 是否包含【移除】或【位移】服装的意图。
+- **执行**: 
+    - **位移操作**: 若动作为“掀起/拉开”，使用 "lifting [Step 1 解析出的具体上装名]" 或 "pulling aside [Step 1 解析出的具体下装名]"。
+    - **移除操作**: 若动作为“脱掉”，则从 Step 1 中移除对应组件，并注入相应的身体部位 Tag ('no panties', 'nipples' 等)。
+- **禁止**: 严禁使用与 Step 1 建模结果不符的通用词（如穿着连衣裙却输出 lifting shirt）。
 
-【输出格式 (Output Format)】
-不要输出 JSON，直接输出以下标签：
+**Step 6: 环境氛围渲染 (Atmosphere)**
+- **逻辑**: 根据 {{location}} 的物理属性和 {{time}} 的光照属性，生成对应的环境 Tag（光影、景深、构图角度）。
 
-[IMAGE_PROMPT] (在这里填入生成的英文 Prompt单词，用逗号分隔)
+### ✅ 输出样本 (Examples)
+Action: "跨坐在{{user_name}}腿上抢手机，整个人扑过来"
+Output: "pajama top, pajama bottoms, POV, first-person view, 1girl straddling viewer, 1girl leaning forward towards viewer, 1girl's hand grabbing viewer's wrist, 1girl blushing, eyes looking at camera, living room, cinematic lighting"
+
+【最终执行】
+请直接输出 Tag 字符串，不要包含任何解释：
+[IMAGE_PROMPT]
 `;
 
 // =============================================================================
