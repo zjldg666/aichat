@@ -65,12 +65,13 @@
           <text class="fab-icon">📱</text>
         </view>
     
-        <GamePhone 
-          :visible="showPhone"
-          :world-id="currentRole?.worldId"
-          :current-chat-id="chatId"
-          @close="showPhone = false"
-        />
+		<GamePhone 
+		:visible="showPhone"
+		:world-id="currentRole?.worldId"
+		:current-chat-id="chatId"
+		:time="formattedTime"    
+		@close="showPhone = false"
+		/>
 		
 	<ChatModals
 		:visibleModal="activeModal"

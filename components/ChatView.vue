@@ -1,17 +1,22 @@
 <template>
-  <view class="chat-container" :class="{ 'in-edit-mode': isEditMode, 'dark-mode': isDarkMode }">
+  <view 
+      class="chat-container" 
+      :class="{ 'in-edit-mode': isEditMode, 'dark-mode': isDarkMode, 'embedded-view': isEmbedded }"
+      :style="isEmbedded ? 'height: 100%; overflow: hidden;' : ''"
+    >
     <view v-if="isArchiving" class="archiving-bar">
       <text class="archiving-text">🌙 整理中... 请勿退出</text>
     </view>
     <ChatHeader 
-      :interactionMode="interactionMode"
-      :currentLocation="currentLocation"
-      :currentActivity="currentActivity"
-      :playerLocation="playerLocation"
-      :timeParts="timeParts"
-      @clickPlayer="activeModal = 'forceLocation'"
-      @clickTime="activeModal = 'timeSetting'"
-    />
+          :interactionMode="interactionMode"
+          :currentLocation="currentLocation"
+          :currentActivity="currentActivity"
+          :playerLocation="playerLocation"
+          :timeParts="timeParts"
+          
+          :isEmbedded="isEmbedded"  @clickPlayer="activeModal = 'forceLocation'"
+          @clickTime="activeModal = 'timeSetting'"
+        />
 
     <scroll-view 
       class="chat-scroll" 
@@ -43,25 +48,28 @@
     </scroll-view>
 
     <ChatFooter
-      v-model="inputText"
-      :isEditMode="isEditMode"
-      :selectedCount="selectedIds.length"
-      :isToolbarOpen="isToolbarOpen"
-      :wakeTime="wakeTime"
-      :showThought="showThought"
-      @cancelEdit="cancelEdit"
-      @confirmDelete="confirmDelete"
-      @toggleToolbar="toggleToolbar"
-      @send="sendMessage(false)"
-      @clickTime="activeModal = 'timeSkip'"
-      @clickLocation="activeModal = 'location'"
-      @sleepTimeChange="onSleepTimeChange"
-      @clickCamera="handleCameraSend"
-      @clickContinue="triggerNextStep"
-      @toggleThought="toggleThought"
-    />
+          v-model="inputText"
+          :isEditMode="isEditMode"
+          :selectedCount="selectedIds.length"
+          :isToolbarOpen="isToolbarOpen"
+          :wakeTime="wakeTime"
+          :showThought="showThought"
+          
+          :isEmbedded="isEmbedded" 
+          
+          @cancelEdit="cancelEdit"
+          @confirmDelete="confirmDelete"
+          @toggleToolbar="toggleToolbar"
+          @send="sendMessage(false)"
+          @clickTime="activeModal = 'timeSkip'"
+          @clickLocation="activeModal = 'location'"
+          @sleepTimeChange="onSleepTimeChange"
+          @clickCamera="handleCameraSend"
+          @clickContinue="triggerNextStep"
+          @toggleThought="toggleThought"
+        />
     
-    <view class="phone-fab" @click="showPhone = true">
+<!--    <view class="phone-fab" @click="showPhone = true">
       <text class="fab-icon">📱</text>
     </view>
     
@@ -71,7 +79,7 @@
       :current-chat-id="chatId"
       @close="showPhone = false"
     />
-		
+		 -->
     <ChatModals
       :visibleModal="activeModal"
       :locationList="locationList"
@@ -113,7 +121,12 @@ const props = defineProps({
   id: {
     type: [String, Number],
     default: null
-  }
+  },
+  // ✨ 新增：标记是否嵌入在手机里
+    isEmbedded: {
+      type: Boolean,
+      default: false
+    }
 });
 
 const { tickWorldState } = useWorldScheduler();
@@ -326,12 +339,13 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
     if (newLocation !== undefined) currentLocation.value = newLocation;
     if (newClothes !== undefined) currentClothing.value = newClothes;
     if (newMode !== undefined) {
-        if (newMode === 'face' && playerLocation.value !== currentLocation.value) {
-            console.warn(`🛡️ [物理锁] 拦截非法模式变更: 异地(${playerLocation.value} vs ${currentLocation.value}) 不允许 Face 模式`);
-            interactionMode.value = 'phone'; 
-        } else {
-            interactionMode.value = newMode;
-        }
+        if (props.isEmbedded) {
+                    interactionMode.value = 'phone';
+                } else if (newMode === 'face' && playerLocation.value !== currentLocation.value) {
+                     interactionMode.value = 'phone'; 
+                } else {
+                     interactionMode.value = newMode;
+                }
     }
     if (chatId.value) {
         const list = uni.getStorageSync('contact_list') || [];
@@ -784,11 +798,16 @@ const loadRoleData = (id) => {
         userAppearance.value = target.settings?.userAppearance || '';
         playerLocation.value = target.playerLocation || userHome.value;
         currentLocation.value = target.currentLocation || charHome.value;
-        if (!target.interactionMode || playerLocation.value === currentLocation.value) {
-            interactionMode.value = (playerLocation.value === currentLocation.value) ? 'face' : 'phone';
-        } else {
-            interactionMode.value = target.interactionMode;
-        }
+        if (props.isEmbedded) {
+                    interactionMode.value = 'phone';
+                } else {
+                    // 原有位置判断逻辑
+                    if (!target.interactionMode || playerLocation.value === currentLocation.value) {
+                        interactionMode.value = (playerLocation.value === currentLocation.value) ? 'face' : 'phone';
+                    } else {
+                        interactionMode.value = target.interactionMode;
+                    }
+                }
         currentAction.value = target.currentAction || '站立/闲逛';
         currentActivity.value = target.lastActivity || '自由活动';
         currentRelation.value = target.relation || '初相识';
@@ -910,7 +929,13 @@ defineExpose({
 /* ==========================================================================
    3. 聊天内容区
    ========================================================================== */
-.chat-scroll { flex: 1; overflow: hidden; }
+/* components/ChatView.vue */
+.chat-scroll { 
+    flex: 1; 
+    overflow: hidden; 
+    height: 0; /* 👈 这行代码必须存在！这是滑动的核心 */
+    /* min-height: 0; 如果 height: 0 不行，试试加这个，但通常 height: 0 就够了 */
+}
 .chat-content { padding: 20rpx; padding-bottom: 240rpx; }
 
 .system-tip { 
@@ -954,5 +979,10 @@ defineExpose({
   background: rgba(40, 40, 40, 0.9);
   border-color: rgba(255,255,255,0.1);
   box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.5);
+}
+/* 在最后添加 */
+.chat-container.embedded-view {
+    height: 100% !important; /* 强制填满手机组件的高度，而不是 100vh */
+    background-color: #f2f2f7; /* 配合手机背景色 */
 }
 </style>

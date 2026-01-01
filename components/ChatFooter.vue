@@ -14,47 +14,48 @@
     <view class="input-container" v-else>
       
       <view class="toolbar-compact" v-if="isToolbarOpen">
-        <view class="tool-grid">
-          <view class="tool-item" @click="$emit('clickTime')">
-            <view class="tool-icon">⏳</view>
-            <text class="tool-text">时间</text>
-          </view>
-          
-          <view class="tool-item" @click="$emit('clickLocation')">
-            <view class="tool-icon">🗺️</view>
-            <text class="tool-text">移动</text>
-          </view>
-          
-          <picker 
-            mode="time" 
-            :value="wakeTime" 
-            start="00:00" 
-            end="23:59" 
-            @change="onPickerChange" 
-            style="width: 100%;"
-          >
-            <view class="tool-item">
-              <view class="tool-icon">🛌</view>
-              <text class="tool-text">睡到...</text>
+              <view class="tool-grid">
+                <view class="tool-item" @click="$emit('clickTime')" v-if="!isEmbedded">
+                  <view class="tool-icon">⏳</view>
+                  <text class="tool-text">时间</text>
+                </view>
+                
+                <view class="tool-item" @click="$emit('clickLocation')" v-if="!isEmbedded">
+                  <view class="tool-icon">🗺️</view>
+                  <text class="tool-text">移动</text>
+                </view>
+                
+                <picker 
+                  v-if="!isEmbedded"  
+                  mode="time" 
+                  :value="wakeTime" 
+                  start="00:00" 
+                  end="23:59" 
+                  @change="onPickerChange" 
+                  style="width: 100%;" 
+                >
+                  <view class="tool-item">
+                    <view class="tool-icon">🛌</view>
+                    <text class="tool-text">睡到...</text>
+                  </view>
+                </picker>
+                
+                <view class="tool-item" @click="$emit('clickCamera')" v-if="!isEmbedded">
+                  <view class="tool-icon">📸</view>
+                  <text class="tool-text">拍照</text>
+                </view>
+                
+                <view class="tool-item" @click="$emit('clickContinue')">
+                  <view class="tool-icon">👉</view>
+                  <text class="tool-text">继续</text>
+                </view>
+                
+                <view class="tool-item" @click="$emit('toggleThought')">
+                  <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
+                  <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
+                </view>
+              </view>
             </view>
-          </picker>
-          
-          <view class="tool-item" @click="$emit('clickCamera')">
-            <view class="tool-icon">📸</view>
-            <text class="tool-text">拍照</text>
-          </view>
-          
-          <view class="tool-item" @click="$emit('clickContinue')">
-            <view class="tool-icon">👉</view>
-            <text class="tool-text">继续</text>
-          </view>
-          
-          <view class="tool-item" @click="$emit('toggleThought')">
-            <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
-            <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
-          </view>
-        </view>
-      </view>
 
       <view class="input-area">
         <view class="action-btn" @click="$emit('toggleToolbar')">
@@ -83,7 +84,8 @@ defineProps({
   isToolbarOpen: { type: Boolean, default: false },
   modelValue: { type: String, default: '' }, // 对应 v-model
   wakeTime: { type: String, default: '08:00' },
-  showThought: { type: Boolean, default: false }
+  showThought: { type: Boolean, default: false },
+  isEmbedded: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([

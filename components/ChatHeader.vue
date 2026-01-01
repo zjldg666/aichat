@@ -15,15 +15,16 @@
       </view>
 
       <view class="right-status-group">
-        <view class="status-pill player-pill" @click="$emit('clickPlayer')">
-          <text class="pill-icon">👤</text>
-          <text class="pill-text">{{ playerLocation }}</text>
-        </view>
-        <view class="status-pill time-pill" @click="$emit('clickTime')">
-          <text class="time-clock">{{ timeParts.time }}</text>
-          <text class="time-week">{{ timeParts.week }}</text>
-        </view>
-      </view>
+            <view class="status-pill player-pill" @click="$emit('clickPlayer')">
+              <text class="pill-icon">👤</text>
+              <text class="pill-text">{{ playerLocation }}</text>
+            </view>
+      
+            <view class="status-pill time-pill" @click="$emit('clickTime')" v-if="!isEmbedded">
+              <text class="time-clock">{{ timeParts.time }}</text>
+              <text class="time-week">{{ timeParts.week }}</text>
+            </view>
+          </view>
     </view>
   </view>
 </template>
@@ -49,7 +50,8 @@ defineProps({
   timeParts: {
     type: Object,
     default: () => ({ time: '--:--', week: '--' })
-  }
+  },
+  isEmbedded: { type: Boolean, default: false }
 });
 
 defineEmits(['clickPlayer', 'clickTime']);
