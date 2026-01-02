@@ -90,12 +90,6 @@
           "softinputMode": "adjustResize"
         }
       }
-	},
-	{
-		"path": "pages/chat/phone-chat",
-		"style": {
-			"navigationBarTitleText": ""
-		}
 	}
   ],
   "globalStyle": {

@@ -16,7 +16,7 @@
             <view class="glass-btn phone-btn" @click="showPhone = true">
               <image class="btn-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwMDdhZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cmVjdCB4PSI1IiB5PSIyIiB3aWR0aD0iMTQiIGhlaWdodD0iMjAiIHJ4PSIyIiByeT0iMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE4IiB4Mj0iMTIuMDEiIHkyPSIxOCIvPjwvc3ZnPg==" mode="aspectFit"></image>
             </view>
-            <view class="glass-btn add-btn" @click="createNewContact">
+            <view class="glass-btn add-btn" @click="handlePlusClick">
               <image class="btn-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMzMzMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iMTIiIHkxPSI1IiB4Mj0iMTIiIHkyPSIxOSIvPjxsaW5lIHgxPSI1IiB5MT0iMTIiIHgyPSIxOSIgeTI9IjEyIi8+PC9zdmc+" mode="aspectFit"></image>
             </view>
         </view>
@@ -28,52 +28,63 @@
     <scroll-view scroll-y class="room-list">
       <view class="list-header">
         <text class="list-title">探索社区</text>
-        <text class="list-subtitle">发现 {{ roomGroups.length }} 个活跃区域</text>
+        <text class="list-subtitle">发现 {{ displayScenes.length }} 个活跃区域</text>
       </view>
 
-      <view v-if="roomGroups.length === 0" class="empty-state">
+      <view v-if="displayScenes.length === 0" class="empty-state">
         <image class="empty-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMCAwaDI0djI0SDB6IiBmaWxsPSJub25lIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOSIgLz48bGluZSB4MT0iOSIgeTE9IjEwIiB4Mj0iOS4wMSIgeTI9IjEwIiAvPjxsaW5lIHgxPSIxNSIgeTE9IjEwIiB4Mj0iMTUuMDEiIHkyPSIxOCIgLz48cGF0aCBkPSJNOS41IDE1LjI1YTMuNSAzLjUgMCAwIDEgNSAwIiAvPjwvc3ZnPg==" mode="aspectFit"></image>
-        <text>这里静悄悄的...</text>
-        <text class="empty-sub">点击右上角 + 邀请新住户入住</text>
+        <text>暂无场景</text>
+        <text class="empty-sub">点击右上角 + 创建新场景或角色</text>
       </view>
 
-      <view 
-        class="room-card" 
-        v-for="(room, index) in roomGroups" 
-        :key="room.name"
-        @click="handleEnterRoom(room)"
-        :class="{ 'active-location': globalLocation === room.name }"
-      >
+	   <view 
+	   class="room-card" 
+	   v-for="(scene, index) in displayScenes" 
+	   :key="scene.id || scene.name"
+	   @click="handleEnterRoom(scene)"
+	   @longpress="handleLongPressScene(scene)" 
+	   :class="{ 'active-location': globalLocation === scene.name, 'is-temporary': scene.isTemporary }"
+	   >
         <view class="card-content">
             <view class="room-info">
                 <view class="room-title-row">
-                    <text class="room-name">{{ room.name }}</text>
-                    <view class="my-location-badge" v-if="globalLocation === room.name">
+                    <text class="room-name">{{ scene.name }}</text>
+                    <view class="tag-world" v-if="scene.worldName">{{ scene.worldName }}</view>
+                    <view class="tag-temp" v-if="scene.isTemporary">未登记区域</view>
+                    
+                    <view class="my-location-badge" v-if="globalLocation === scene.name">
                         <view class="pulse-dot"></view>
                         <text>当前位置</text>
                     </view>
+
+                </view>
+
+                <view class="subscene-tags" v-if="!scene.isTemporary && scene.subScenes && scene.subScenes.length > 0">
+                    <text v-for="(sub, sIdx) in scene.subScenes.slice(0, 3)" :key="sIdx" class="sub-tag">📍 {{ sub }}</text>
+                    <text v-if="scene.subScenes.length > 3" class="sub-tag">...</text>
                 </view>
                 
                 <view class="resident-pile">
                     <view 
                         class="avatar-circle" 
-                        v-for="(npc, i) in room.npcs.slice(0, 5)" 
+                        v-for="(npc, i) in scene.npcs.slice(0, 5)" 
                         :key="npc.id"
                         :style="{ zIndex: 10 - i }"
+                        @longpress.stop="handleDeleteNpc(npc)"
                     >
                         <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="pile-img"></image>
                         <view class="status-indicator" v-if="npc.unread > 0"></view>
                     </view>
-                    <view class="more-count" v-if="room.npcs.length > 5">
-                        <text>+{{ room.npcs.length - 5 }}</text>
+                    <view class="more-count" v-if="scene.npcs.length > 5">
+                        <text>+{{ scene.npcs.length - 5 }}</text>
                     </view>
-                    <text class="resident-count-text" v-if="room.npcs.length > 0">{{ room.npcs.length }} 人在场</text>
+                    <text class="resident-count-text" v-if="scene.npcs.length > 0">{{ scene.npcs.length }} 人在场</text>
                     <text class="resident-count-text empty" v-else>暂无人在场</text>
                 </view>
             </view>
             
             <view class="card-action">
-                 <button class="action-btn-pill enter" v-if="globalLocation === room.name">
+                 <button class="action-btn-pill enter" v-if="globalLocation === scene.name">
                     <text>↩️ 返回</text>
                  </button>
                  <button class="action-btn-pill visit" v-else-if="globalLocation === 'CORRIDOR'">
@@ -94,6 +105,55 @@
       :time="formattedTime"
       @close="showPhone = false"
     />
+    
+    <view class="modal-mask" v-if="showCreateSceneModal" @click="closeCreateModal">
+        <view class="modal-content" @click.stop>
+            <view class="modal-header">
+                <text class="modal-title">创建新场景</text>
+                <view class="close-btn" @click="closeCreateModal">×</view>
+            </view>
+            <scroll-view scroll-y class="modal-body">
+                <view class="form-item">
+                    <text class="form-label">所属世界观</text>
+                    <picker 
+                        mode="selector" 
+                        :range="worldList" 
+                        range-key="name" 
+                        @change="handleWorldChange"
+                    >
+                        <view class="picker-box">
+                            <text v-if="newScene.worldId">🌍 {{ getSelectedWorldName() }}</text>
+                            <text v-else class="placeholder">请选择世界...</text>
+                            <text class="arrow">▼</text>
+                        </view>
+                    </picker>
+                    <text class="form-tip" v-if="worldList.length === 0">⚠️ 请先去[我的-世界观]创建世界</text>
+                </view>
+
+                <view class="form-item">
+                    <text class="form-label">场景名称</text>
+                    <input class="form-input" v-model="newScene.name" placeholder="例如：月光酒吧、侦探事务所..." />
+                </view>
+
+                <view class="form-item">
+                    <text class="form-label">子场景 / 区域 (可选)</text>
+                    <view class="sub-scene-input-row">
+                        <input class="form-input small" v-model="tempSubScene" placeholder="例如：吧台、二楼包厢" @confirm="addSubScene" />
+                        <view class="add-btn-mini" @click="addSubScene">添加</view>
+                    </view>
+                    <view class="tags-wrapper">
+                        <view v-for="(sub, idx) in newScene.subScenes" :key="idx" class="tag-chip">
+                            {{ sub }}
+                            <text class="tag-del" @click="removeSubScene(idx)">×</text>
+                        </view>
+                    </view>
+                </view>
+            </scroll-view>
+            <view class="modal-footer">
+                <button class="modal-btn" @click="submitCreateScene">立即创建</button>
+            </view>
+        </view>
+    </view>
 
     <CustomTabBar :current="0" />
   </view>
@@ -101,7 +161,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { onShow, onReady } from '@dcloudio/uni-app';
+import { onShow } from '@dcloudio/uni-app';
 import CustomTabBar from '@/components/CustomTabBar.vue';
 import { useTheme } from '@/composables/useTheme.js';
 import GamePhone from '@/components/GamePhone.vue';
@@ -110,72 +170,282 @@ import { useGameTime } from '@/composables/useGameTime.js';
 const { isDarkMode } = useTheme();
 const { formattedTime } = useGameTime();
 
+// 数据源
 const contactList = ref([]);
+const sceneList = ref([]); // 真实创建的场景列表
+const worldList = ref([]); // 世界列表
+
 const globalLocation = ref('CORRIDOR'); 
 const showPhone = ref(false);
+const showCreateSceneModal = ref(false);
+
+// 创建场景表单数据
+const newScene = ref({
+    worldId: '',
+    name: '',
+    subScenes: []
+});
+const tempSubScene = ref('');
 
 const currentWorldId = computed(() => {
-    if (contactList.value.length > 0) {
-        return contactList.value[0].worldId;
-    }
+    // 简单取第一个角色的世界ID传给手机组件，或者根据当前位置判断
+    if (contactList.value.length > 0) return contactList.value[0].worldId;
     return '';
 });
 
 onShow(() => {
-  const list = uni.getStorageSync('contact_list') || [];
-  contactList.value = list;
-  
-  const savedLoc = uni.getStorageSync('app_global_player_location');
-  if (savedLoc) {
-      globalLocation.value = savedLoc;
-  } else {
-      updateLocation('CORRIDOR');
-  }
+  loadData();
 });
 
-const roomGroups = computed(() => {
-    const groups = {};
-    contactList.value.forEach(npc => {
-        const loc = npc.location || '未知区域';
-        if (!groups[loc]) {
-            groups[loc] = [];
-        }
-        groups[loc].push(npc);
+const loadData = () => {
+    contactList.value = uni.getStorageSync('contact_list') || [];
+    sceneList.value = uni.getStorageSync('app_scene_list') || [];
+    worldList.value = uni.getStorageSync('app_world_settings') || [];
+    
+    const savedLoc = uni.getStorageSync('app_global_player_location');
+    if (savedLoc) globalLocation.value = savedLoc;
+};
+
+// =============================================================================
+// 核心逻辑：场景分组与展示
+// =============================================================================
+const displayScenes = computed(() => {
+    const result = [];
+    const usedNpcIds = new Set();
+
+    // 1. 遍历真实创建的场景
+    sceneList.value.forEach(scene => {
+        // 找到属于该场景世界 且 location 匹配的 NPC
+        const npcsInScene = contactList.value.filter(npc => {
+            // 兼容逻辑：必须世界ID匹配（如果有世界ID的话），且地点名称匹配
+            const isSameWorld = !scene.worldId || String(npc.worldId) === String(scene.worldId);
+            return isSameWorld && npc.location === scene.name;
+        });
+
+        // 标记这些 NPC 已被展示
+        npcsInScene.forEach(n => usedNpcIds.add(n.id));
+        
+        // 查找世界名称
+        const world = worldList.value.find(w => String(w.id) === String(scene.worldId));
+        
+        result.push({
+            ...scene,
+            npcs: npcsInScene,
+            worldName: world ? world.name : '',
+            isTemporary: false
+        });
     });
-    return Object.keys(groups).sort().map(locName => ({
-        name: locName,
-        npcs: groups[locName]
-    }));
+
+    // 2. [兼容] 处理没有真实场景的“临时/未登记区域” NPC
+    // 比如用户之前创建的角色，或者直接输入了一个未创建场景的地点
+    const tempGroups = {};
+    contactList.value.forEach(npc => {
+        if (!usedNpcIds.has(npc.id)) {
+            const loc = npc.location || '未知区域';
+            if (!tempGroups[loc]) tempGroups[loc] = [];
+            tempGroups[loc].push(npc);
+        }
+    });
+
+    Object.keys(tempGroups).forEach(locName => {
+        // 尝试找一下这个 NPC 的世界名
+        const firstNpc = tempGroups[locName][0];
+        const world = worldList.value.find(w => String(w.id) === String(firstNpc.worldId));
+        
+        result.push({
+            id: 'temp_' + locName,
+            name: locName,
+            worldId: firstNpc.worldId,
+            worldName: world ? world.name : '',
+            subScenes: [],
+            npcs: tempGroups[locName],
+            isTemporary: true
+        });
+    });
+
+    return result;
 });
+
+const handleDeleteNpc = (npc) => {
+    uni.showModal({
+        title: '删除角色',
+        content: `确定要永久删除角色“${npc.name}”吗？\n(删除后无法恢复，且会清除该角色的所有聊天记录)`,
+        confirmColor: '#ff4d4f',
+        success: (res) => {
+            if (res.confirm) {
+                // 1. 从列表移除
+                const idx = contactList.value.findIndex(c => c.id === npc.id);
+                if (idx !== -1) {
+                    contactList.value.splice(idx, 1);
+                    // 2. 保存到本地存储
+                    uni.setStorageSync('contact_list', contactList.value);
+                    
+                    // 3. (可选) 如果你想更彻底，也可以在这里调用 DB 删除聊天记录
+                    // 但仅为了解决重复问题，从列表删除就够了
+                    
+                    uni.showToast({ title: '角色已删除', icon: 'none' });
+                }
+            }
+        }
+    });
+};
+// =============================================================================
+// 右上角 + 号逻辑
+// =============================================================================
+const handlePlusClick = () => {
+    uni.showActionSheet({
+        itemList: ['✨ 创建新角色', '🏘️ 创建新场景'],
+        success: (res) => {
+            if (res.tapIndex === 0) {
+                // 创建角色
+                createNewContact();
+            } else if (res.tapIndex === 1) {
+                // 创建场景
+                openCreateSceneModal();
+            }
+        }
+    });
+};
 
 const createNewContact = () => {
   uni.navigateTo({ url: '/pages/create/create' });
 };
 
-const handleEnterRoom = (room) => {
-    const targetLoc = room.name;
+// =============================================================================
+// 场景创建逻辑
+// =============================================================================
+const openCreateSceneModal = () => {
+    if (worldList.value.length === 0) {
+        uni.showModal({
+            title: '提示',
+            content: '还没有创建世界观，请先去【我的 -> 世界观设定】创建一个世界。',
+            confirmText: '去创建',
+            success: (res) => {
+                if(res.confirm) uni.switchTab({ url: '/pages/mine/mine' });
+            }
+        });
+        return;
+    }
+    // 重置表单
+    newScene.value = { worldId: '', name: '', subScenes: [] };
+    tempSubScene.value = '';
+    showCreateSceneModal.value = true;
+};
+
+const closeCreateModal = () => {
+    showCreateSceneModal.value = false;
+};
+
+const handleWorldChange = (e) => {
+    const idx = e.detail.value;
+    newScene.value.worldId = worldList.value[idx].id;
+};
+
+const getSelectedWorldName = () => {
+    const w = worldList.value.find(w => String(w.id) === String(newScene.value.worldId));
+    return w ? w.name : '';
+};
+
+const addSubScene = () => {
+    const val = tempSubScene.value.trim();
+    if (val) {
+        if (newScene.value.subScenes.includes(val)) {
+            uni.showToast({ title: '重复的子场景', icon: 'none' });
+            return;
+        }
+        newScene.value.subScenes.push(val);
+        tempSubScene.value = '';
+    }
+};
+const handleLongPressScene = (scene) => {
+    // 1. 核心判断：如果是系统自动生成的临时区域（isTemporary），不允许删除
+    if (scene.isTemporary) {
+        // 可选：给个提示，或者什么都不做
+        // uni.showToast({ title: '临时区域不可删除', icon: 'none' });
+        return;
+    }
+
+    // 2. 震动反馈 (提升手感)
+    uni.vibrateShort();
+
+    // 3. 弹出确认框
+    uni.showModal({
+        title: '删除场景',
+        content: `确定要删除场景“${scene.name}”吗？\n(场景内的角色不会被删除，将变为未登记状态)`,
+        confirmColor: '#ff4d4f',
+        success: (res) => {
+            if (res.confirm) {
+                const idx = sceneList.value.findIndex(s => s.id === scene.id);
+                if (idx !== -1) {
+                    sceneList.value.splice(idx, 1);
+                    uni.setStorageSync('app_scene_list', sceneList.value);
+                    uni.showToast({ title: '已删除', icon: 'none' });
+                }
+            }
+        }
+    });
+};
+
+const removeSubScene = (index) => {
+    newScene.value.subScenes.splice(index, 1);
+};
+
+const submitCreateScene = () => {
+    if (!newScene.value.worldId) return uni.showToast({ title: '请选择世界观', icon: 'none' });
+    if (!newScene.value.name) return uni.showToast({ title: '请输入场景名称', icon: 'none' });
+
+    // 检查重复
+    const exists = sceneList.value.some(s => 
+        String(s.worldId) === String(newScene.value.worldId) && s.name === newScene.value.name
+    );
+    if (exists) {
+        return uni.showToast({ title: '该世界下已存在同名场景', icon: 'none' });
+    }
+
+    const sceneObj = {
+        id: Date.now(),
+        ...newScene.value,
+        npcs: [], // 👈 显式初始化
+        lastSubLocation: '' // 👈 也可以顺手初始化这个
+    };
+
+    sceneList.value.push(sceneObj);
+    uni.setStorageSync('app_scene_list', sceneList.value);
+    
+    uni.showToast({ title: '场景创建成功', icon: 'success' });
+    closeCreateModal();
+};
+
+// =============================================================================
+// 进场/移动逻辑
+// =============================================================================
+// pages/index/index.vue
+
+const handleEnterRoom = (scene) => {
+    // 1. 如果是“真实创建的场景”，跳转到 scene/chat
+    if (!scene.isTemporary) {
+        uni.navigateTo({
+            url: `/pages/scene/chat?id=${scene.id}`
+        });
+        return;
+    }
+
+    // 2. 如果是“临时区域”（只有人，没有场景数据），保持原有逻辑进私聊
+    const targetLoc = scene.name;
     const currentLoc = globalLocation.value;
-    const targetNpc = room.npcs[0]; 
-    if (!targetNpc) return;
+    
+    if (scene.npcs.length === 0) return; // 没人就不进了
+    const targetNpc = scene.npcs[0]; 
 
     if (currentLoc === targetLoc) {
         enterChat(targetNpc.id);
         return;
     }
 
-    let title = '敲门进入';
-    let content = `要进入 ${targetLoc} 吗？`;
-    
-    if (currentLoc !== 'CORRIDOR') {
-        title = '串门';
-        content = `从 [${currentLoc}] 前往 [${targetLoc}] 吗？`;
-    }
-
     uni.showModal({
-        title: title,
-        content: content,
-        confirmText: '进屋',
-        cancelText: '取消', 
+        title: '移动确认',
+        content: `从 [${currentLoc}] 前往 [${targetLoc}] 吗？`,
+        confirmText: '前往',
         success: (res) => {
             if (res.confirm) {
                 updateLocation(targetLoc);
@@ -225,7 +495,6 @@ const enterChat = (id, isNewEntry = false) => {
     -webkit-backdrop-filter: blur(20px);
     z-index: 999; 
     border-bottom: 1px solid rgba(0,0,0,0.05);
-    /* 确保内部元素垂直排列 */
     display: flex;
     flex-direction: column;
 }
@@ -234,7 +503,6 @@ const enterChat = (id, isNewEntry = false) => {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-/* 🔥🔥🔥 核心修复：定义状态栏高度 🔥🔥🔥 */
 .status-bar {
     height: var(--status-bar-height);
     width: 100%;
@@ -285,7 +553,6 @@ const enterChat = (id, isNewEntry = false) => {
 .phone-btn .btn-icon { width: 44rpx; height: 44rpx; }
 .add-btn .btn-icon { width: 40rpx; height: 40rpx; opacity: 0.8; }
 
-/* 占位符高度 = 状态栏 + 导航内容栏 */
 .nav-placeholder { height: calc(var(--status-bar-height) + 100rpx); }
 
 /* === 列表区域 === */
@@ -308,7 +575,7 @@ const enterChat = (id, isNewEntry = false) => {
 .empty-icon { width: 120rpx; height: 120rpx; margin-bottom: 30rpx; opacity: 0.5; }
 .empty-sub { font-size: 24rpx; color: var(--text-sub); margin-top: 10rpx; }
 
-/* === 卡片样式优化 === */
+/* === 卡片样式 === */
 .room-card {
     background: var(--card-bg); 
     border-radius: 32rpx; 
@@ -317,6 +584,7 @@ const enterChat = (id, isNewEntry = false) => {
     transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     border: 1px solid transparent;
     overflow: hidden;
+    position: relative;
 }
 .dark-mode .room-card { box-shadow: 0 8rpx 30rpx rgba(0,0,0,0.3); }
 
@@ -325,13 +593,33 @@ const enterChat = (id, isNewEntry = false) => {
     border: 2rpx solid #007aff;
     background: linear-gradient(to bottom right, var(--card-bg), rgba(0,122,255,0.05));
 }
+.room-card.is-temporary {
+    border: 2rpx dashed var(--border-color);
+    opacity: 0.9;
+}
 
 .card-content { padding: 30rpx; display: flex; align-items: center; justify-content: space-between; }
-
 .room-info { flex: 1; padding-right: 20rpx; }
 
-.room-title-row { display: flex; align-items: center; margin-bottom: 24rpx; flex-wrap: wrap; gap: 16rpx; }
+.room-title-row { display: flex; align-items: center; margin-bottom: 16rpx; flex-wrap: wrap; gap: 12rpx; }
 .room-name { font-size: 34rpx; font-weight: 700; color: var(--text-color); }
+
+.tag-world {
+    font-size: 20rpx;
+    background: rgba(156, 39, 176, 0.1);
+    color: #9c27b0;
+    padding: 4rpx 10rpx;
+    border-radius: 8rpx;
+    font-weight: bold;
+}
+.tag-temp {
+    font-size: 20rpx;
+    background: rgba(0,0,0,0.05);
+    color: var(--text-sub);
+    padding: 4rpx 10rpx;
+    border-radius: 8rpx;
+}
+.dark-mode .tag-temp { background: rgba(255,255,255,0.1); }
 
 /* 当前位置徽章 */
 .my-location-badge {
@@ -347,6 +635,13 @@ const enterChat = (id, isNewEntry = false) => {
     0% { transform: scale(0.8); opacity: 1; }
     50% { transform: scale(1.2); opacity: 0.6; }
     100% { transform: scale(0.8); opacity: 1; }
+}
+
+/* 子场景标签 */
+.subscene-tags { display: flex; gap: 12rpx; margin-bottom: 24rpx; flex-wrap: wrap; }
+.sub-tag { 
+    font-size: 22rpx; color: var(--text-sub); 
+    background: var(--tool-bg); padding: 4rpx 12rpx; border-radius: 8rpx; 
 }
 
 /* === 头像堆叠效果 === */
@@ -396,4 +691,68 @@ const enterChat = (id, isNewEntry = false) => {
 
 .dark-mode .action-btn-pill.enter { background: #333; color: #aaa; }
 .dark-mode .action-btn-pill.travel { background: transparent; color: #007aff; border-color: #007aff; }
+
+/* === 模态框样式 === */
+.modal-mask {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.modal-content {
+    width: 600rpx; max-height: 80vh;
+    background: var(--card-bg); border-radius: 32rpx;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20rpx 50rpx rgba(0,0,0,0.2);
+}
+.modal-header {
+    padding: 30rpx; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+.modal-title { font-size: 32rpx; font-weight: bold; color: var(--text-color); }
+.close-btn { font-size: 40rpx; color: var(--text-sub); padding: 0 10rpx; line-height: 1; }
+
+.modal-body { padding: 30rpx; flex: 1; overflow-y: auto; }
+
+.form-item { margin-bottom: 30rpx; }
+.form-label { font-size: 26rpx; color: var(--text-sub); margin-bottom: 12rpx; display: block; }
+.form-tip { font-size: 22rpx; color: #ff9f43; margin-top: 8rpx; display: block; }
+
+.picker-box {
+    background: var(--input-bg); height: 80rpx; border-radius: 16rpx;
+    padding: 0 24rpx; display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid var(--border-color);
+}
+.picker-box text { font-size: 28rpx; color: var(--text-color); }
+.picker-box text.placeholder { color: #999; }
+.arrow { color: #ccc; font-size: 24rpx; }
+
+.form-input {
+    background: var(--input-bg); height: 80rpx; border-radius: 16rpx;
+    padding: 0 24rpx; font-size: 28rpx; color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+.form-input.small { flex: 1; margin-right: 16rpx; }
+
+.sub-scene-input-row { display: flex; align-items: center; margin-bottom: 16rpx; }
+.add-btn-mini {
+    background: #007aff; color: #fff; font-size: 24rpx;
+    height: 80rpx; width: 100rpx; border-radius: 16rpx;
+    display: flex; align-items: center; justify-content: center;
+}
+
+.tags-wrapper { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.tag-chip {
+    background: var(--tool-bg); padding: 8rpx 20rpx; border-radius: 30rpx;
+    font-size: 24rpx; color: var(--text-color); border: 1px solid var(--border-color);
+    display: flex; align-items: center;
+}
+.tag-del { margin-left: 10rpx; color: #ff4d4f; font-weight: bold; padding: 0 4rpx; }
+
+.modal-footer { padding: 30rpx; border-top: 1px solid var(--border-color); }
+.modal-btn {
+    background: #007aff; color: #fff; border-radius: 44rpx;
+    font-size: 30rpx; font-weight: bold;
+}
+.modal-btn:active { opacity: 0.9; }
 </style>

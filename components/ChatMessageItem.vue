@@ -31,9 +31,17 @@
       </view>
     
       <image v-if="msg.role === 'model'" class="avatar" :src="roleAvatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
+      <image 
+        v-if="msg.role !== 'user' && msg.role !== 'model'" 
+        class="avatar" 
+        :src="specificAvatar || roleAvatar || '/static/ai-avatar.png'" 
+        mode="aspectFill"
+      ></image>
       <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar || '/static/user-avatar.png'" mode="aspectFill"></image>
     
       <view class="bubble-wrapper">
+        <view v-if="showName && msg.role !== 'user'" class="sender-name">{{ msg.role }}</view>
+      
         <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
           <text class="msg-text" user-select>{{ msg.content }}</text>
         </view>
@@ -56,8 +64,8 @@
             </view>
           </view>
         </view>
-      </view>
-    </template>
+      </view> 
+      </template>
   </view>
 </template>
 
@@ -69,7 +77,9 @@ const props = defineProps({
   isEditMode: { type: Boolean, default: false },
   isSelected: { type: Boolean, default: false },
   roleAvatar: { type: String, default: '' },
-  userAvatar: { type: String, default: '' }
+  userAvatar: { type: String, default: '' },
+  showName: { type: Boolean, default: false }, // 是否显示名字
+    specificAvatar: { type: String, default: '' } // 指定显示的头像 URL
 });
 
 const emit = defineEmits(['longPress', 'toggleSelect', 'retry', 'preview']);
@@ -229,5 +239,12 @@ const onImageError = () => {
         display: flex; align-items: center; justify-content: center; font-size: 24rpx;
         &.checked { background: #007aff; border-color: #007aff; color: #fff; }
     }
+}
+/* 🔥 新增：名字样式 */
+.sender-name {
+    font-size: 22rpx; 
+    color: var(--text-sub); 
+    margin-bottom: 6rpx;
+    margin-left: 4rpx; /* 微调对齐 */
 }
 </style>
