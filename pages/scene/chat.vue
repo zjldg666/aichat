@@ -19,7 +19,8 @@
                       <text>📍 {{ currentSubLocation || '大厅' }}</text>
                       <text class="dropdown-arrow">▼</text>
                   </view>
-                  <view class="info-tag time-tag" @click.stop="handleTimeAction">
+                  
+                  <view class="info-tag time-tag" @click.stop="activeModal = 'timeSetting'">
                       <text>🕒 {{ timeParts.week }} {{ timeParts.time }}</text>
                   </view>
               </view>
@@ -109,16 +110,30 @@
         @toggleToolbar="toggleToolbar"
         @send="sendMessage"
     
-        @clickTime="handleTimeAction"
+        @clickTime="activeModal = 'timeSkip'" 
         @clickLocation="handleLocationSwitch" 
         @clickContinue="triggerNextStep"
         @toggleThought="toggleThought"
     />
+    
+    <ChatModals
+        :visibleModal="activeModal"
+        :locationList="[]"
+        
+        v-model:tempDateStr="tempDateStr"
+        v-model:tempTimeStr="tempTimeStr"
+        v-model:tempTimeRatio="tempTimeRatio"
+        
+        @close="activeModal = ''"
+        @timeSkip="onTimeSkip"
+        @confirmTime="confirmManualTime"
+    />
+
   </view>
 </template>
 
 <script setup>
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, watch } from 'vue'; // 确认这里有 watch
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { DB } from '@/utils/db.js';
 import { LLM, getCurrentLlmConfig } from '@/services/llm.js';
@@ -131,10 +146,23 @@ import { onShow } from '@dcloudio/uni-app';
 import { runAutonomousActor, analyzeNpcRelation } from '@/core/director.js';
 import ChatMessageItem from '@/components/ChatMessageItem.vue';
 import ChatFooter from '@/components/ChatFooter.vue';
+import ChatModals from '@/components/ChatModals.vue';
 const allNpcs = ref([]); // 👥 保存该场景的所有 NPC（大名单）
 const currentSubLocation = ref(''); // 📍 当前子区域 (如: "卫生间", "包厢")
 const { isDarkMode, applyNativeTheme } = useTheme();
-const { currentTime, formattedTime, initTimeSync, handleTimeSkip } = useGameTime();
+const { 
+    currentTime, 
+    formattedTime, 
+    initTimeSync, 
+    handleTimeSkip: _handleTimeSkip, // 重命名底层函数，因为我们要自己写一个外壳
+    confirmManualTime: _confirmManualTime, // 同上
+    // 👇 新增解构这些变量，用于弹窗绑定
+    showTimeSettingPanel, 
+    tempDateStr, 
+    tempTimeStr, 
+    customMinutes 
+} = useGameTime();
+
 // 🔥 新增：拆解时间，用于头部美观显示
 const timeParts = computed(() => {
     if (!formattedTime.value) return { week: '', time: '--:--' };
@@ -170,7 +198,65 @@ const playerLocation = ref('场景中');
 const enableSummary = ref(true);
 const summaryFrequency = ref(10);
 const currentSummary = ref('');
+// --- 缺失的状态定义 (用于弹窗控制) ---
+const activeModal = ref(''); // 控制弹窗显示: 'timeSetting' | 'timeSkip' | ''
+const tempTimeRatio = ref(0); // 时间倍率
 
+// 监听 activeModal，当打开时间设置时初始化数据
+watch(() => activeModal.value, (val) => {
+    if (val === 'timeSetting') {
+        showTimeSettingPanel.value = true; // 告诉 useGameTime 准备初始值
+    }
+});
+
+// --- 缺失的处理函数 (用于处理弹窗事件) ---
+
+// 处理时间跳过逻辑
+const onTimeSkip = (type, customMin) => {
+    // 如果是自定义时间，更新 customMinutes
+    if (type === 'custom' && customMin) {
+        customMinutes.value = customMin; 
+    }
+    
+    // 调用 useGameTime 的底层逻辑 (注意这里传入了 messageList 以便插入系统提示)
+    const isNextDay = _handleTimeSkip(type, messageList.value, scrollToBottom);
+
+    // 驱动世界调度器
+    if (sceneData.value.worldId) {
+        tickWorldState(currentTime.value, sceneData.value.worldId);
+    }
+    
+    // 如果跨天，执行总结
+    if (isNextDay) runDayEndSummary();
+    
+    activeModal.value = ''; // 关闭弹窗
+};
+
+// 确认手动校准时间
+const confirmManualTime = () => {
+    const newTime = _confirmManualTime();
+    
+    if (newTime) {
+        const sysMsg = {
+            id: Date.now(),
+            role: 'system',
+            content: `⏳ 时间已校准为 ${formattedTime.value}`,
+            isSystem: true
+        };
+        messageList.value.push(sysMsg);
+        saveMsgToDB(sysMsg);
+        scrollToBottom();
+        
+        if (sceneData.value.worldId) {
+            tickWorldState(currentTime.value, sceneData.value.worldId);
+        }
+    }
+    activeModal.value = ''; // 关闭弹窗
+};
+
+// 弹窗内部输入绑定支持
+const onDateChange = (e) => { tempDateStr.value = e.detail.value; }; 
+const onTimeChange = (e) => { tempTimeStr.value = e.detail.value; };
 onShow(() => {
     // 每次页面显示时，重新加载场景数据
     // 这样如果刚才去设置页改名了，回来标题会自动变
@@ -546,20 +632,30 @@ onUnload(() => { saveCharacterState(); });
 // 🔥 修复版：loadSceneData
 // pages/scene/chat.vue
 
+// 🔥 终极修复版：强制召回所有 NPC，不管他们在哪里
 const loadSceneData = (id, visitorId) => {
+    console.log('🔄 开始加载场景数据:', id);
+    
     // 1. 读取场景基础信息
     const allScenes = uni.getStorageSync('app_scene_list') || [];
     const target = allScenes.find(s => String(s.id) === String(id));
-    if (!target) return;
+    
+    if (!target) {
+        console.error('❌ 未找到场景数据');
+        return;
+    }
 
     sceneData.value = target;
-    const currentSceneName = target.name; 
+    const currentSceneName = target.name;
     
-    // 2. 确定子场景结构与玩家位置
+    // 2. 确定子场景 (默认大厅)
     const subScenes = target.subScenes && target.subScenes.length > 0 ? target.subScenes : ['大厅'];
-    currentSubLocation.value = target.lastSubLocation || subScenes[0];
+    // 如果没有记录最后位置，就默认去第一个房间
+    if (!currentSubLocation.value) {
+        currentSubLocation.value = target.lastSubLocation || subScenes[0];
+    }
 
-    // 加载记忆设置
+    // 3. 加载记忆设置
     if (target.summary) currentSummary.value = target.summary;
     if (target.memorySettings) {
         enableSummary.value = target.memorySettings.enableSummary !== false;
@@ -568,49 +664,91 @@ const loadSceneData = (id, visitorId) => {
 
     initTimeSync(Date.now(), target.worldId);
 
-    // 3. 🔥🔥🔥 核心修复：基于“实际位置”的全员大考勤 🔥🔥🔥
+    // 4. 🔥 构建在场人员名单 (关键修复)
     const allContacts = uni.getStorageSync('contact_list') || [];
+    const sceneNpcList = target.npcs || []; // 场景原始名单
     
-    // 我们不再只看 target.npcs，而是看全服谁在这里
-    // 筛选出所有位置匹配的 NPC
-    const presentContacts = allContacts.filter(c => {
-        const loc = c.currentLocation || '';
-        // 只要地点名字匹配，就算在这里
-        return loc === currentSceneName || currentSceneName.includes(loc) || loc.includes(currentSceneName);
-    });
-
-    allNpcs.value = presentContacts.map(fullProfile => {
-        // 尝试从场景原始数据里找一下子场景记录 (如果有的话)
-        // 这样能保留“他在卫生间”这种状态，而不是全都重置到大厅
-        const sceneRecord = (target.npcs || []).find(n => String(n.id) === String(fullProfile.id));
+    // 我们要把场景里原本有的 ID，和全局通讯录里声称在这里的 ID 合并
+    // 优先信赖场景原始名单 (sceneNpcList)
+    
+    allNpcs.value = sceneNpcList.map(sceneNpc => {
+        // 尝试去全局通讯录找详细信息 (头像、设定等)
+        const fullProfile = allContacts.find(c => String(c.id) === String(sceneNpc.id));
         
-        let rtLocation = null;
-        if (sceneRecord && sceneRecord.currentSubLocation) {
-            rtLocation = sceneRecord.currentSubLocation;
-        } else {
-            // 如果没记录，但人确实在这里，默认分配到大厅
-            rtLocation = subScenes[0];
+        // 如果通讯录里有，就用通讯录的；如果没有(可能删了)，就用场景里的备份数据
+        const baseData = fullProfile || sceneNpc;
+
+        // 🕵️‍♂️ 位置判定逻辑
+        // 1. 优先读取场景存档里的子区域记录
+        let myLocation = sceneNpc.currentSubLocation;
+        
+        // 2. 如果存档里没位置，或者位置无效（不在当前的子场景列表里），强制重置到大厅
+        // 这样可以防止 NPC 也就是旧数据卡在 "null" 或者 "undefined" 空间里
+        if (!myLocation || !subScenes.includes(myLocation)) {
+            myLocation = subScenes[0]; 
+            // 自动修正内存中的位置，让他出现
+            sceneNpc.currentSubLocation = myLocation; 
         }
 
         return {
-            id: fullProfile.id, // 确保 ID 正确
-            name: fullProfile.name,
-            avatar: fullProfile.avatar || '/static/ai-avatar.png',
-            settings: fullProfile.settings || {},
-            persona: fullProfile.settings?.description || '普通人',
-            clothing: fullProfile.clothing,
-            privateChatId: fullProfile.id,
-            currentSubLocation: rtLocation,
-            realGlobalLoc: fullProfile.currentLocation
+            id: baseData.id,
+            name: baseData.name,
+            avatar: baseData.avatar || '/static/ai-avatar.png',
+            settings: baseData.settings || {},
+            persona: baseData.settings?.description || '普通人',
+            clothing: baseData.clothing || '默认',
+            privateChatId: baseData.id,
+            
+            // 🔥 关键：确保 currentSubLocation 有值
+            currentSubLocation: myLocation,
+            
+            // 记录真实全局位置
+            realGlobalLoc: baseData.currentLocation
         };
     });
 
-    // 5. 刷新当前视野
+    // 5. 检查是否有“访客” (Global Walk-ins)
+    // 检查通讯录里有没有人 currentSubLocation 正好是当前场景名，但不在 sceneNpcList 里
+    const visitors = allContacts.filter(c => {
+        const isHere = c.currentLocation === currentSceneName;
+        const isAlreadyInList = allNpcs.value.some(n => String(n.id) === String(c.id));
+        return isHere && !isAlreadyInList;
+    });
+
+    // 把访客也加进来
+    visitors.forEach(v => {
+        allNpcs.value.push({
+            id: v.id,
+            name: v.name,
+            avatar: v.avatar || '/static/ai-avatar.png',
+            settings: v.settings || {},
+            persona: v.settings?.description || '访客',
+            clothing: v.clothing,
+            privateChatId: v.id,
+            currentSubLocation: subScenes[0], // 访客默认在大厅
+            realGlobalLoc: v.currentLocation,
+            isVisitor: true // 标记为访客
+        });
+    });
+
+    console.log(`✅ 加载完成: 总人数 ${allNpcs.value.length}, 当前位置 [${currentSubLocation.value}]`);
+
+    // 6. 刷新当前视野 (这一步会过滤出当前房间的人)
     refreshActiveNpcs();
 
-    // 空房间提示
+    // 🚨 最后的兜底：如果 activeNpcs 还是空的，说明所有人都“跑”到别的房间去了
+    // 为了防止你觉得“没人”，如果当前是大厅，强制把所有还没位置的人拉过来
+    if (activeNpcs.value.length === 0 && allNpcs.value.length > 0) {
+        console.warn('⚠️ 当前房间没人，正在强制召回 NPC 到当前位置...');
+        allNpcs.value.forEach(n => {
+            n.currentSubLocation = currentSubLocation.value;
+        });
+        refreshActiveNpcs();
+    }
+
+    // 此时如果还没人，发提示
     if (activeNpcs.value.length === 0) {
-        messageList.value.push({
+         messageList.value.push({
             role: 'system', isSystem: true,
             content: `(你来到了 [${currentSubLocation.value}]，暂时只有你一个人...)`
         });
@@ -940,6 +1078,7 @@ const handleTimeAction = () => {
     height: 100vh; 
     background-color: var(--bg-color); 
     overflow: hidden;
+    position: relative; /* 确保定位准确 */
 }
 
 /* 占位符：给固定定位的导航栏留出空间 */
@@ -1159,7 +1298,8 @@ const handleTimeAction = () => {
 
 .chat-content { 
     padding: 30rpx; 
-    padding-bottom: 40rpx; /* 底部留白 */
+    /* 🔥 关键修改：底部加高，防止被输入框遮挡 */
+    padding-bottom: calc(180rpx + env(safe-area-inset-bottom)); 
 }
 
 /* 系统事件 (如剧本加载) */
