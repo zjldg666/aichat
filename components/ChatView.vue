@@ -28,8 +28,8 @@
         <view class="system-tip"><text>长按对话内容可进入多选删除模式</text></view>
         
         <ChatMessageItem
-          v-for="(msg, index) in messageList"
-          :key="msg.id || index"
+          v-for="(msg, index) in visibleMessageList" 
+            :key="msg.id || index"
           :id="'msg-' + index"
           :msg="msg"
           :isEditMode="isEditMode"
@@ -251,6 +251,21 @@ const getWakeUpTimestamp = (targetTimeStr) => {
     return targetDate.getTime();
 };
 
+// ✨✨✨ 核心过滤逻辑：决定显示哪些消息 ✨✨✨
+const visibleMessageList = computed(() => {
+    // 1. 如果不是嵌入模式 (即作为独立主界面使用)，显示所有消息
+    // 这样保证了非手机模式下，玩家能看到完整的记忆
+    if (!props.isEmbedded) return messageList.value;
+
+    // 2. 如果是嵌入手机模式 (isEmbedded = true)，只显示 'device' 来源的消息
+    return messageList.value.filter(msg => {
+        // 过滤规则：
+        // 保留 source_mode 为 'device' 的消息
+        // 保留 source_mode 为 null/undefined 的消息 (兼容旧数据)
+        // ❌ 剔除明确标记为 'reality' (当面) 的消息
+        return msg.source_mode !== 'reality';
+    });
+});
 const onSleepTimeChange = async (e) => {
     const selectedTime = e.detail.value;
     wakeTime.value = selectedTime;
@@ -297,13 +312,30 @@ const handleForceMove = (locObj) => {
     uni.showToast({ title: `已修正为: ${targetName}`, icon: 'none' });
 };
 
+// 文件路径：components/ChatView.vue
+
 const saveHistory = async (msg) => {
     if (!chatId.value) return;
     const targetMsg = msg || (messageList.value.length > 0 ? messageList.value[messageList.value.length - 1] : null);
     if (!targetMsg) return;
+
+    // 🔥 计算模式逻辑
+    // 如果是嵌入版(手机内)，强制为 device
+    // 如果不是嵌入版，则看当前是 face 还是 phone
+    let mode = 'device';
+    if (!props.isEmbedded && interactionMode.value === 'face') {
+        mode = 'reality';
+    }
+    
+    // 同步到内存对象，确保发送后列表立即更新/过滤
+    if (!targetMsg.source_mode) {
+        targetMsg.source_mode = mode;
+    }
+
     try {
+        // 🔥 SQL 增加第8个参数 source_mode
         await DB.execute(
-            `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp, source_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 targetMsg.id || (Date.now() + Math.random()),
                 String(chatId.value), 
@@ -311,7 +343,8 @@ const saveHistory = async (msg) => {
                 targetMsg.content, 
                 targetMsg.type || 'text', 
                 targetMsg.isSystem ? 1 : 0, 
-                Date.now()
+                Date.now(),
+                mode // ✨ 插入 source_mode
             ]
         );
         let list = uni.getStorageSync('contact_list') || [];
@@ -321,7 +354,7 @@ const saveHistory = async (msg) => {
             list[index].lastTime = "刚刚"; 
             uni.setStorageSync('contact_list', list);
         }
-        console.log('💾 [DB] 消息已保存且预览已更新');
+        console.log(`💾 [DB] 消息已保存 (${mode}) 且预览已更新`);
     } catch (e) { console.error('❌ 数据库保存失败', e); }
 };
 
@@ -586,27 +619,39 @@ const handleImageLoadError = (msg) => {
     }
 };
 
+// 文件路径：components/ChatView.vue
+
 const processAIResponse = async (rawText) => {
+    // 基础判空
     if (!rawText) return;
+
+    // 计算当前的 source_mode，确保 AI 的回复也能被 visibleMessageList 正确过滤/显示
+    const currentMode = props.isEmbedded ? 'device' : (interactionMode.value === 'face' ? 'reality' : 'device');
+
+    // 1. 心理活动提取与分流逻辑
     let thinkContent = "";
     let mainContent = rawText; 
+    
     const thinkMatch = rawText.match(/<think>([\s\S]*?)<\/think>/i);
     if (thinkMatch) {
         thinkContent = thinkMatch[1].trim(); 
         mainContent = rawText.replace(/<think>[\s\S]*?<\/think>/i, '').trim(); 
     }
+
     if (showThought.value && thinkContent) {
         const thinkMsg = {
             id: Date.now() + Math.random(),
             role: 'model',
             type: 'think', 
             content: `💭 ${thinkContent}`,
-            isSystem: true 
+            isSystem: true,
+            source_mode: currentMode // ✨ 标记心理活动
         };
         messageList.value.push(thinkMsg);
         await saveHistory(thinkMsg);
     } 
 
+    // 2. 正文上屏逻辑
     if (mainContent) {
          let tempText = mainContent
             .replace(/\n\s*([”"’])/g, '$1')     
@@ -617,20 +662,27 @@ const processAIResponse = async (rawText) => {
             .replace(/(?:\|\|\|)+/g, '|||');    
             
          const parts = tempText.split('|||');
+         
          for (const part of parts) {
              let cleanPart = part.trim();
              if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
                  const newMsg = {
                      id: Date.now() + Math.random(),
                      role: 'model', 
-                     content: cleanPart 
+                     content: cleanPart,
+                     source_mode: currentMode // ✨ 标记 AI 回复
                  };
+                 
                  messageList.value.push(newMsg);
                  await saveHistory(newMsg);
              }
          }
     }
+    
+    // 基础维护
     scrollToBottom();
+    
+    // 3. 对话与状态监控日志
     if (rawText) {
         let lastUserMsg = "";
         for (let i = messageList.value.length - 2; i >= 0; i--) {
@@ -640,6 +692,7 @@ const processAIResponse = async (rawText) => {
                 break; 
             }
         }
+        
         console.log('--- 💬 对话监控 ------------------------------------------');
         console.log(`🗣️ [玩家]: ${lastUserMsg}`);
         console.log(`🤖 [角色(RAW)]: ${rawText}`); 
@@ -652,85 +705,132 @@ const processAIResponse = async (rawText) => {
         console.log(`📱 模式: ${interactionMode.value === 'phone' ? '手机聊天' : '当面互动'}`);
         console.log('-----------------------------------------------------------');
 
+        // 4. 触发 Agent 检查
         setTimeout(() => {
             console.log('🚦 [后台导演] 全并行策略启动...');
+        
             runRelationCheck(lastUserMsg, rawText); 
             checkAndRunSummary(); 
+        
             runSceneCheck(lastUserMsg, rawText);
+        
             const isSystemSnapshot = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('📷'); 
-            if (isSystemSnapshot) {
-                runCameraManCheck(lastUserMsg, rawText);
-            } else {
-                runVisualDirectorCheck(lastUserMsg, rawText);
-            }
+            
+            if (isSystemSnapshot) {
+                runCameraManCheck(lastUserMsg, rawText);
+            } else {
+                runVisualDirectorCheck(lastUserMsg, rawText);
+            }
+            
         }, 500);
     }
 };
 
+// 文件路径：components/ChatView.vue
+
 const sendMessage = async (isContinue = false, systemOverride = '') => {
+    // 1. 基础校验
     if (!isContinue && !inputText.value.trim() && !systemOverride) return;
     if (isLoading.value) return;
     const config = getCurrentLlmConfig();
     if (!config || !config.apiKey) return uni.showToast({ title: '请配置模型', icon: 'none' });
+    
     let userMsgForRecall = inputText.value;
+
+    // 2. 处理用户输入与系统指令上屏
     if (!isContinue) {
         if (inputText.value.trim()) { 
             console.log(`🚀 [发送消息]: ${inputText.value}`);
+            
+            // 🔥 计算当前的模式，以便立即赋值给 source_mode
+            const currentMode = props.isEmbedded ? 'device' : (interactionMode.value === 'face' ? 'reality' : 'device');
+
             const userMsg = { 
                  id: Date.now() + Math.random(),
                  role: 'user', 
-                 content: inputText.value 
+                 content: inputText.value,
+                 source_mode: currentMode // ✨ 立即标记，确保 computed 能立即识别显示
             };
             messageList.value.push(userMsg); 
             inputText.value = ''; 
+            
+            // ✅ 关键修复：用户发消息也要 await 保存
             await saveHistory(userMsg);
         } 
         else if (systemOverride && (systemOverride.includes('SNAPSHOT') || systemOverride.includes('SHUTTER') || systemOverride.includes('快门'))) { 
             console.log(`⚙️ [系统触发]: ${systemOverride.slice(0, 50)}...`);
+            
+            // 系统消息通常跟随当前环境
+            const currentMode = props.isEmbedded ? 'device' : (interactionMode.value === 'face' ? 'reality' : 'device');
+
             const sysMsg = { 
                 role: 'system', 
                 content: '📷 (你举起手机拍了一张)', 
-                isSystem: true 
+                isSystem: true,
+                source_mode: currentMode // ✨ 立即标记
             };
             messageList.value.push(sysMsg); 
+            
+            // ✅ 关键修复：系统动作也要 await 保存
             await saveHistory(sysMsg);
         }
     }
+
     scrollToBottom(); 
     isLoading.value = true; 
+    
     const appUser = uni.getStorageSync('app_user_info') || {};
     if (appUser.name) userName.value = appUser.name;
+
+    // 3. 记忆系统逻辑
+    
+    // 轨道 A: 被动检索
     let recallDetail = null;
     if (!isContinue && !systemOverride && userMsgForRecall) {
         recallDetail = await checkHistoryRecall(userMsgForRecall);
     }
+
+    // 轨道 B: 主动显性记忆
     let activeMemory = "";
     try {
         activeMemory = await fetchActiveMemoryContext();
         if (activeMemory) console.log("🧠 [Active Memory] 已注入短期记忆上下文");
     } catch (e) { console.error("Active memory error:", e); }
+
+    // 4. 构建 Prompt
     const prompt = buildSystemPrompt({
         role: currentRole.value || {}, userName: userName.value, summary: currentSummary.value,
         formattedTime: formattedTime.value, location: currentLocation.value, mode: interactionMode.value,
         activity: currentActivity.value, clothes: currentClothing.value, relation: currentRelation.value
     });
+
     const historyLimit = charHistoryLimit.value; 
     let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
     if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
+    
+    // 基础消息清洗
     const cleanHistoryForAI = contextMessages.map(item => ({ 
         role: item.role === 'user' ? 'user' : 'assistant', 
         content: item.content.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/\[.*?\]/gi, '').trim() 
     })).filter(m => m.content);
+
     if (activeMemory) {
-        cleanHistoryForAI.unshift({ role: 'system', content: activeMemory });
+        cleanHistoryForAI.unshift({
+            role: 'system',
+            content: activeMemory
+        });
     }
+
     if (recallDetail) {
         cleanHistoryForAI.push({ 
             role: 'system', 
             content: `[Recall Detail]: The following is a detailed diary entry of the past event user mentioned: "${recallDetail}". Use this to answer correctly.` 
         });
     }
+
     if (systemOverride) cleanHistoryForAI.push({ role: 'user', content: systemOverride });
+    
+    // 5. 发起请求
     try {
         const rawText = await LLM.chat({ 
             config, 
@@ -739,11 +839,13 @@ const sendMessage = async (isContinue = false, systemOverride = '') => {
             temperature: 0.8, 
             maxTokens: 1500
         });
+   
         if (rawText) {
             await processAIResponse(rawText);
         } else {
             uni.showToast({ title: '无内容响应', icon: 'none' });
         }
+
     } catch (e) { 
         console.error(e); 
         uni.showToast({ title: '网络/API错误', icon: 'none' }); 
@@ -858,9 +960,7 @@ const clearHistoryAndReset = () => {
     });
 };
 
-// ==================================================================================
-// 🔄 组件生命周期逻辑 (完全映射 chat.vue)
-// ==================================================================================
+
 
 // 映射 onLoad 逻辑
 watch(() => props.id, async (newId) => {

@@ -2,57 +2,52 @@
   <view class="chat-container" :class="{ 'dark-mode': isDarkMode }">
     
     <view class="custom-navbar">
-          <view class="status-bar"></view> 
-          <view class="nav-content">
-            
-            <view class="left-area">
-                 <view class="nav-icon-btn back-btn" @click="handleLeaveScene">
-                    <text class="icon">⬅️</text>
-                 </view>
-            </view>
-            
-            <view class="center-area" @click="handleLocationSwitch">
-              <text class="scene-title">{{ sceneData.name || '未知场景' }}</text>
-              
-              <view class="scene-info-row">
-                  <view class="info-tag location-tag">
-                      <text>📍 {{ currentSubLocation || '大厅' }}</text>
-                      <text class="dropdown-arrow">▼</text>
-                  </view>
-                  
-                  <view class="info-tag time-tag" @click.stop="activeModal = 'timeSetting'">
-                      <text>🕒 {{ timeParts.week }} {{ timeParts.time }}</text>
-                  </view>
-              </view>
-            </view>
-            
-            <view class="right-area">
-                <view class="avatar-pile">
-                    <image 
-                        v-for="(npc, idx) in activeNpcs.slice(0, 3)" 
-                        :key="npc.id" 
-                        :src="npc.avatar || '/static/ai-avatar.png'" 
-                        class="pile-avatar"
-                        :class="{ 'is-visitor': npc.isVisitor }"
-                        :style="{ zIndex: 10 - idx, right: (idx * 24) + 'rpx' }"
-                        mode="aspectFill"
-                    ></image>
-                    <view v-if="activeNpcs.length > 3" class="pile-more">
-                        <text>···</text>
-                    </view>
-                </view>
-    
-                <view class="nav-icon-btn invite-btn" @click="handleInvite">
-                    <text class="icon-plus">＋</text>
-                </view>
-                
-                <view class="nav-icon-btn setting-btn" @click="openSettings">
-                    <text class="icon-gear">⚙️</text>
-                </view>
-            </view>
-    
-          </view>
+      <view class="status-bar"></view> 
+      <view class="nav-content">
+        <view class="nav-btn left" @click="handleLeaveScene">
+          <text class="btn-text warning">🚪 离开</text>
         </view>
+        
+	<view class="nav-title" @click="handleLocationSwitch">
+	<text class="title-text">{{ sceneData.name || '未知场景' }}</text>
+	<text class="sub-text">📍 {{ currentSubLocation || '大厅' }} <text style="font-size: 20rpx; margin-left:6rpx;">▼</text></text>
+	</view>
+	
+	<view class="npc-list">
+	<image 
+		v-for="npc in activeNpcs" 
+		:key="npc.id" 
+		:src="npc.avatar || '/static/ai-avatar.png'" 
+		class="mini-avatar"
+		:class="{ 'is-visitor': npc.isVisitor }"
+		mode="aspectFill"
+	></image>
+	
+	<view class="invite-btn" @click="handleInvite">
+		<text>+</text>
+	</view>
+	</view>
+        
+        <view class="nav-btn right" @click="openSettings">
+          <text class="btn-text">⚙️</text>
+        </view>
+      </view>
+      
+      <view class="npc-bar">
+        <scroll-view scroll-x class="npc-scroll">
+          <view class="npc-list">
+            <image 
+              v-for="npc in activeNpcs" 
+              :key="npc.id" 
+              :src="npc.avatar || '/static/ai-avatar.png'" 
+              class="mini-avatar"
+              :class="{ 'is-visitor': npc.isVisitor }"
+              mode="aspectFill"
+            ></image>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
     
     <view class="nav-placeholder"></view>
 
@@ -67,23 +62,33 @@
           <text>🎭 剧本已加载: {{ sceneData.playerIdentity || '玩家' }} 进入了场景</text>
         </view>
 
-        <ChatMessageItem
-          v-for="(msg, index) in messageList"
-          :key="msg.id || index"
-          :id="'msg-' + index"
-          :msg="msg"
-          :isEditMode="isEditMode"
-          :isSelected="selectedIds.includes(msg.id)"
-        
-          :userAvatar="userAvatar"
-          :specificAvatar="getNpcAvatar(msg.role)"
-          :showName="true" 
-        
-          @longPress="enterEditMode"
-          @toggleSelect="toggleSelect"
-          @retry="handleRetry"
-          @preview="previewImage"
-        />
+        <view 
+          v-for="(msg, index) in messageList" 
+          :key="msg.id || index" 
+          :id="'msg-' + index" 
+          class="message-item" 
+          :class="msg.role === 'user' ? 'right' : 'left'"
+        >
+          <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
+          <image 
+            v-if="msg.role !== 'user' && !msg.isSystem" 
+            class="avatar" 
+            :src="getNpcAvatar(msg.role)" 
+            mode="aspectFill"
+          ></image>
+
+          <view class="bubble-wrapper">
+             <view v-if="msg.role !== 'user' && !msg.isSystem" class="sender-name">{{ msg.role }}</view>
+             
+             <view v-if="msg.isSystem" class="system-bubble">
+                <text>{{ msg.content }}</text>
+             </view>
+
+             <view v-else class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
+                <text class="msg-text" user-select>{{ msg.content }}</text>
+             </view>
+          </view>
+        </view>
         
         <view v-if="loadingStatus" class="loading-wrapper">
           <view class="loading-content">
@@ -97,43 +102,18 @@
       </view>
     </scroll-view>
 
-    <ChatFooter
-        v-model="inputText"
-        :isEditMode="isEditMode"
-        :selectedCount="selectedIds.length"
-        :isToolbarOpen="isToolbarOpen"
-        :showThought="showThought"
-        :isEmbedded="false" 
-    
-        @cancelEdit="cancelEdit"
-        @confirmDelete="confirmDelete"
-        @toggleToolbar="toggleToolbar"
-        @send="sendMessage"
-    
-        @clickTime="activeModal = 'timeSkip'" 
-        @clickLocation="handleLocationSwitch" 
-        @clickContinue="triggerNextStep"
-        @toggleThought="toggleThought"
-    />
-    
-    <ChatModals
-        :visibleModal="activeModal"
-        :locationList="[]"
-        
-        v-model:tempDateStr="tempDateStr"
-        v-model:tempTimeStr="tempTimeStr"
-        v-model:tempTimeRatio="tempTimeRatio"
-        
-        @close="activeModal = ''"
-        @timeSkip="onTimeSkip"
-        @confirmTime="confirmManualTime"
-    />
-
+    <view class="footer">
+      <view class="input-area">
+        <view class="action-btn" @click="handleTimeAction">⏳</view>
+        <input class="input" v-model="inputText" confirm-type="send" @confirm="sendMessage()" placeholder="描述你的行动或说话..." />
+        <view class="send-btn" @click="sendMessage()">发送</view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup>
-import { ref, nextTick, computed, watch } from 'vue'; // 确认这里有 watch
+import { ref, nextTick, computed } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { DB } from '@/utils/db.js';
 import { LLM, getCurrentLlmConfig } from '@/services/llm.js';
@@ -142,33 +122,12 @@ import { useGameTime } from '@/composables/useGameTime.js';
 import { useAgents } from '@/composables/useAgents.js';
 import { buildSystemPrompt } from '@/core/prompt-builder.js';
 import { useWorldScheduler } from '@/composables/useWorldScheduler.js'; // 引入世界调度器
-import { onShow } from '@dcloudio/uni-app';
-import { runAutonomousActor, analyzeNpcRelation } from '@/core/director.js';
-import ChatMessageItem from '@/components/ChatMessageItem.vue';
-import ChatFooter from '@/components/ChatFooter.vue';
-import ChatModals from '@/components/ChatModals.vue';
+import { runAutonomousActor } from '@/core/director.js'; // 只需要引入这个新函数
+
 const allNpcs = ref([]); // 👥 保存该场景的所有 NPC（大名单）
 const currentSubLocation = ref(''); // 📍 当前子区域 (如: "卫生间", "包厢")
 const { isDarkMode, applyNativeTheme } = useTheme();
-const { 
-    currentTime, 
-    formattedTime, 
-    initTimeSync, 
-    handleTimeSkip: _handleTimeSkip, // 重命名底层函数，因为我们要自己写一个外壳
-    confirmManualTime: _confirmManualTime, // 同上
-    // 👇 新增解构这些变量，用于弹窗绑定
-    showTimeSettingPanel, 
-    tempDateStr, 
-    tempTimeStr, 
-    customMinutes 
-} = useGameTime();
-
-// 🔥 新增：拆解时间，用于头部美观显示
-const timeParts = computed(() => {
-    if (!formattedTime.value) return { week: '', time: '--:--' };
-    const parts = formattedTime.value.split(' ');
-    return { week: parts[0] || '', time: parts[1] || '' };
-});
+const { currentTime, formattedTime, initTimeSync, handleTimeSkip } = useGameTime();
 const { tickWorldState } = useWorldScheduler(); // 初始化调度器
 
 // --- 核心状态 ---
@@ -181,11 +140,7 @@ const loadingStatus = ref(''); // '' | 'director' | 'actor'
 const currentSpeakerName = ref('');
 const scrollIntoView = ref('');
 const userAvatar = ref('/static/user-avatar.png');
-const isEditMode = ref(false);
-const selectedIds = ref([]);
-const isToolbarOpen = ref(false);
-// 读取心理活动开关设置
-const showThought = ref(uni.getStorageSync('setting_show_thought') === true);
+
 // --- 虚拟状态适配 useAgents (为了复用 summary 逻辑) ---
 const currentLocation = ref('场景中');
 const currentClothing = ref('默认');
@@ -198,72 +153,7 @@ const playerLocation = ref('场景中');
 const enableSummary = ref(true);
 const summaryFrequency = ref(10);
 const currentSummary = ref('');
-// --- 缺失的状态定义 (用于弹窗控制) ---
-const activeModal = ref(''); // 控制弹窗显示: 'timeSetting' | 'timeSkip' | ''
-const tempTimeRatio = ref(0); // 时间倍率
 
-// 监听 activeModal，当打开时间设置时初始化数据
-watch(() => activeModal.value, (val) => {
-    if (val === 'timeSetting') {
-        showTimeSettingPanel.value = true; // 告诉 useGameTime 准备初始值
-    }
-});
-
-// --- 缺失的处理函数 (用于处理弹窗事件) ---
-
-// 处理时间跳过逻辑
-const onTimeSkip = (type, customMin) => {
-    // 如果是自定义时间，更新 customMinutes
-    if (type === 'custom' && customMin) {
-        customMinutes.value = customMin; 
-    }
-    
-    // 调用 useGameTime 的底层逻辑 (注意这里传入了 messageList 以便插入系统提示)
-    const isNextDay = _handleTimeSkip(type, messageList.value, scrollToBottom);
-
-    // 驱动世界调度器
-    if (sceneData.value.worldId) {
-        tickWorldState(currentTime.value, sceneData.value.worldId);
-    }
-    
-    // 如果跨天，执行总结
-    if (isNextDay) runDayEndSummary();
-    
-    activeModal.value = ''; // 关闭弹窗
-};
-
-// 确认手动校准时间
-const confirmManualTime = () => {
-    const newTime = _confirmManualTime();
-    
-    if (newTime) {
-        const sysMsg = {
-            id: Date.now(),
-            role: 'system',
-            content: `⏳ 时间已校准为 ${formattedTime.value}`,
-            isSystem: true
-        };
-        messageList.value.push(sysMsg);
-        saveMsgToDB(sysMsg);
-        scrollToBottom();
-        
-        if (sceneData.value.worldId) {
-            tickWorldState(currentTime.value, sceneData.value.worldId);
-        }
-    }
-    activeModal.value = ''; // 关闭弹窗
-};
-
-// 弹窗内部输入绑定支持
-const onDateChange = (e) => { tempDateStr.value = e.detail.value; }; 
-const onTimeChange = (e) => { tempTimeStr.value = e.detail.value; };
-onShow(() => {
-    // 每次页面显示时，重新加载场景数据
-    // 这样如果刚才去设置页改名了，回来标题会自动变
-    if (sceneId.value) {
-        loadSceneData(sceneId.value);
-    }
-});
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -312,8 +202,7 @@ const refreshActiveNpcs = () => {
     activeNpcs.value = allNpcs.value.filter(n => n.currentSubLocation === currentSubLocation.value);
 };
 // --- 初始化 Agents (用于自动总结) ---
-const { checkAndRunSummary, runDayEndSummary,runVisualDirectorCheck, 
-    runCameraManCheck } = useAgents({
+const { checkAndRunSummary, runDayEndSummary } = useAgents({
     chatId: sceneId, 
     messageList,
     currentRole: sceneData, 
@@ -326,111 +215,7 @@ const { checkAndRunSummary, runDayEndSummary,runVisualDirectorCheck,
     getCurrentLlmConfig,
     sceneParticipants: activeNpcs 
 });
-// 🔥 3. 获取 NPC 头像 (用于传给 MessageItem)
-const getNpcAvatar = (roleName) => {
-    // 移除可能存在的冒号 (例如 "Alice: ")
-    const cleanName = roleName.replace(/[:：]/g, '').trim();
-    const target = allNpcs.value?.find(n => cleanName.includes(n.name) || n.name.includes(cleanName));
-    return target ? target.avatar : ''; 
-};
 
-// 🔥 4. UI 交互 Handler (复制自 chat/chat.vue)
-const toggleToolbar = () => { isToolbarOpen.value = !isToolbarOpen.value; };
-const toggleThought = () => { 
-    showThought.value = !showThought.value; 
-    uni.setStorageSync('setting_show_thought', showThought.value); 
-};
-
-// 多选编辑逻辑
-const enterEditMode = (msg) => { isEditMode.value = true; selectedIds.value = [msg.id]; uni.vibrateShort(); };
-const toggleSelect = (msg) => {
-    const idx = selectedIds.value.indexOf(msg.id);
-    if (idx > -1) selectedIds.value.splice(idx, 1);
-    else selectedIds.value.push(msg.id);
-    if (selectedIds.value.length === 0) isEditMode.value = false;
-};
-const cancelEdit = () => { isEditMode.value = false; selectedIds.value = []; };
-const confirmDelete = async () => {
-    uni.showModal({
-        title: '删除消息', content: '确定删除选中的消息吗？',
-        success: async (res) => {
-            if (res.confirm) {
-                messageList.value = messageList.value.filter(m => !selectedIds.value.includes(m.id));
-                const ids = selectedIds.value.map(id => `'${id}'`).join(',');
-                if (ids) await DB.execute(`DELETE FROM messages WHERE id IN (${ids})`);
-                cancelEdit();
-            }
-        }
-    });
-};
-const handleRetry = (msg) => { /* 暂时留空，可加重试逻辑 */ };
-const previewImage = (url) => { uni.previewImage({ urls: [url] }); };
-const triggerNextStep = () => { if (!loadingStatus.value) sendMessage(true); };
-// 🔥 5. 核心消息处理管道 (移植自 chat/chat.vue)
-const processAIResponse = async (npcName, rawText) => {
-    let thinkContent = "";
-    let mainContent = rawText; 
-    
-    // A. 提取 <think>
-    const thinkMatch = rawText.match(/<think>([\s\S]*?)<\/think>/i);
-    if (thinkMatch) {
-        thinkContent = thinkMatch[1].trim(); 
-        mainContent = rawText.replace(/<think>([\s\S]*?<\/think>)/i, '').trim(); 
-    }
-
-    // B. 显示思考气泡 (如果开启)
-    if (showThought.value && thinkContent) {
-        const thinkMsg = {
-            id: Date.now() + Math.random(),
-            role: npcName, 
-            type: 'think', 
-            content: `💭 ${thinkContent}`,
-            isSystem: false 
-        };
-        messageList.value.push(thinkMsg);
-        await saveMsgToDB(thinkMsg);
-    }
-
-    // C. 正文处理 (分段上屏 + 指令识别)
-    if (mainContent) {
-         // 使用正则预处理文本，以便分段
-         let tempText = mainContent
-            .replace(/\n\s*([”"’])/g, '$1')     
-            .replace(/([“"‘])\s*\n/g, '$1')     
-            .replace(/([（\(])/g, '|||$1')      
-            .replace(/([）\)])/g, '$1|||')      
-            .replace(/(\r\n|\n|\r)+/g, '|||')   
-            .replace(/(?:\|\|\|)+/g, '|||');    
-            
-         const parts = tempText.split('|||');
-         
-         for (const part of parts) {
-             let cleanPart = part.trim();
-             if (cleanPart) {
-                 // 检查 [MOVE: xxx] 指令
-                 const moveMatch = cleanPart.match(/\[MOVE:\s*(.+?)\]/i);
-                 if (moveMatch) {
-                     const targetLoc = moveMatch[1].trim();
-                     const targetNpc = activeNpcs.value.find(n => n.name === npcName);
-                     if (targetNpc) await handleNpcMove(targetNpc, targetLoc);
-                     cleanPart = cleanPart.replace(moveMatch[0], '').trim();
-                 }
-
-                 if (cleanPart) {
-                     const newMsg = {
-                         id: Date.now() + Math.random(),
-                         role: npcName, 
-                         content: cleanPart,
-                         type: 'text'
-                     };
-                     messageList.value.push(newMsg);
-                     await saveMsgToDB(newMsg);
-                 }
-             }
-         }
-    }
-    scrollToBottom();
-};
 
 // 🔥 修改函数：handleLeaveScene (多视角并行记忆写入)
 const handleLeaveScene = () => {
@@ -628,130 +413,100 @@ onLoad(async (options) => {
 onUnload(() => { saveCharacterState(); });
 
 
-
-// 🔥 修复版：loadSceneData
-// pages/scene/chat.vue
-
-// 🔥 终极修复版：强制召回所有 NPC，不管他们在哪里
+// 🔥 修复版：loadSceneData (调整读取优先级 + 考勤机制)
+// 🔥 修复版：loadSceneData (彻底移除访客强制拉人逻辑)
 const loadSceneData = (id, visitorId) => {
-    console.log('🔄 开始加载场景数据:', id);
-    
     // 1. 读取场景基础信息
     const allScenes = uni.getStorageSync('app_scene_list') || [];
     const target = allScenes.find(s => String(s.id) === String(id));
-    
-    if (!target) {
-        console.error('❌ 未找到场景数据');
-        return;
-    }
+    if (!target) return;
 
     sceneData.value = target;
-    const currentSceneName = target.name;
+    const currentSceneName = target.name; 
     
-    // 2. 确定子场景 (默认大厅)
+    // 2. 确定子场景结构与玩家位置
     const subScenes = target.subScenes && target.subScenes.length > 0 ? target.subScenes : ['大厅'];
-    // 如果没有记录最后位置，就默认去第一个房间
-    if (!currentSubLocation.value) {
-        currentSubLocation.value = target.lastSubLocation || subScenes[0];
-    }
+    
+    // 玩家位置逻辑：优先去上次退出的位置
+    currentSubLocation.value = target.lastSubLocation || subScenes[0];
 
-    // 3. 加载记忆设置
+    // 加载记忆设置
     if (target.summary) currentSummary.value = target.summary;
     if (target.memorySettings) {
         enableSummary.value = target.memorySettings.enableSummary !== false;
         summaryFrequency.value = target.memorySettings.summaryFrequency || 10;
     }
 
+    // 初始化时间
     initTimeSync(Date.now(), target.worldId);
 
-    // 4. 🔥 构建在场人员名单
-        const allContacts = uni.getStorageSync('contact_list') || [];
-        const sceneNpcList = target.npcs || [];
+    // 3. 读取通讯录全局状态，进行“考勤”
+    const allContacts = uni.getStorageSync('contact_list') || [];
+    
+    allNpcs.value = target.npcs.map(simpleNpc => {
+        const fullProfile = allContacts.find(c => String(c.id) === String(simpleNpc.id));
         
-        allNpcs.value = sceneNpcList.map(sceneNpc => {
-            const fullProfile = allContacts.find(c => String(c.id) === String(sceneNpc.id));
-            const baseData = fullProfile || sceneNpc;
-    
-            // 🕵️‍♂️ 位置判定逻辑
-            let myLocation = sceneNpc.currentSubLocation;
+        // --- 🕵️‍♂️ 考勤逻辑开始 ---
+        
+        // A. 获取 NPC 在真实世界里的位置
+        const realGlobalLoc = fullProfile?.currentLocation || '';
+        
+        // B. 判定是否就在本场景
+        const isPresentHere = realGlobalLoc && (
+            realGlobalLoc === currentSceneName || 
+            currentSceneName.includes(realGlobalLoc) || 
+            realGlobalLoc.includes(currentSceneName)
+        );
+
+        // C. 确定子房间状态
+        let rtLocation = null; 
+
+        if (isPresentHere) {
+            // 逻辑优先级：动态位置 > 初始设定 > 保底
+            rtLocation = simpleNpc.currentSubLocation || simpleNpc.initialSubLocation || subScenes[0];
+        } else {
+            // 人不在这里 (比如他在"公司")，直接标记为 null
+            // ❌❌❌ 【已删除 D 段：特殊通道】 ❌❌❌
+            // 原逻辑：if (visitorId == simpleNpc.id) 强制拉过来
+            // 新逻辑：无论是不是 visitorId，只要她物理位置不在这里，就不显示
+            rtLocation = null; 
+        }
+
+        return {
+            ...simpleNpc,
+            name: fullProfile?.name || simpleNpc.name,
+            avatar: fullProfile?.avatar || '/static/ai-avatar.png',
+            settings: fullProfile?.settings || {},
+            persona: fullProfile?.settings?.description || '普通人',
+            clothing: fullProfile?.clothing,
+            privateChatId: fullProfile?.id || simpleNpc.id,
             
-            // 🔥 [核心修改] 如果位置无效，优先读取“场景专属初始位置”
-            if (!myLocation || !subScenes.includes(myLocation)) {
-                // 1. 尝试从 fullProfile 的 sceneConfig 中读取本场景的设定
-                if (baseData.sceneConfig && baseData.sceneConfig[id] && baseData.sceneConfig[id].initialSubLocation) {
-                    myLocation = baseData.sceneConfig[id].initialSubLocation;
-                    // 校验一下这个初始位置是否还有效（比如房间有没有被删掉）
-                    if (!subScenes.includes(myLocation)) myLocation = null;
-                }
-    
-                // 2. 如果还是没找到，读取场景默认入口 (defaultSubLocation)
-                if (!myLocation) {
-                    myLocation = target.defaultSubLocation;
-                }
-    
-                // 3. 如果还没找到，只能丢在大厅 (subScenes[0])
-                if (!myLocation && subScenes.length > 0) {
-                    myLocation = subScenes[0];
-                }
-                
-                // 修正位置
-                sceneNpc.currentSubLocation = myLocation; 
-            }
-    
-            return {
-                id: baseData.id,
-                name: baseData.name,
-                avatar: baseData.avatar || '/static/ai-avatar.png',
-                settings: baseData.settings || {},
-                persona: baseData.settings?.description || '普通人',
-                clothing: baseData.clothing || '默认',
-                privateChatId: baseData.id,
-                currentSubLocation: myLocation,
-                realGlobalLoc: baseData.currentLocation
-            };
+            // 绑定运行时位置 (null 会被过滤掉)
+            currentSubLocation: rtLocation,
+            
+            realGlobalLoc: realGlobalLoc 
+        };
     });
 
-    // 5. 检查是否有“访客” (Global Walk-ins)
-    // 检查通讯录里有没有人 currentSubLocation 正好是当前场景名，但不在 sceneNpcList 里
-    const visitors = allContacts.filter(c => {
-        const isHere = c.currentLocation === currentSceneName;
-        const isAlreadyInList = allNpcs.value.some(n => String(n.id) === String(c.id));
-        return isHere && !isAlreadyInList;
-    });
+    // ❌❌❌ 【已删除：更新通讯录逻辑】 ❌❌❌
+    // 既然我们不再强制拉人，就不需要在这里更新 contact_list 了
 
-    // 把访客也加进来
-    visitors.forEach(v => {
-        allNpcs.value.push({
-            id: v.id,
-            name: v.name,
-            avatar: v.avatar || '/static/ai-avatar.png',
-            settings: v.settings || {},
-            persona: v.settings?.description || '访客',
-            clothing: v.clothing,
-            privateChatId: v.id,
-            currentSubLocation: subScenes[0], // 访客默认在大厅
-            realGlobalLoc: v.currentLocation,
-            isVisitor: true // 标记为访客
-        });
-    });
-
-    console.log(`✅ 加载完成: 总人数 ${allNpcs.value.length}, 当前位置 [${currentSubLocation.value}]`);
-
-    // 6. 刷新当前视野 (这一步会过滤出当前房间的人)
+    // 5. 刷新当前视野
     refreshActiveNpcs();
 
-
-
-    // 此时如果还没人，发提示
+    // 空房间提示
     if (activeNpcs.value.length === 0) {
-         messageList.value.push({
+        messageList.value.push({
             role: 'system', isSystem: true,
-            content: `(你来到了 [${currentSubLocation.value}]，暂时只有你一个人...)`
+            content: `(你来到了 [${currentSubLocation.value}]，但大家似乎都不在...)`
         });
     }
 };
 
-
+const getNpcAvatar = (roleName) => {
+    const target = allNpcs.value?.find(n => roleName.includes(n.name));
+    return target ? target.avatar : '/static/ai-avatar.png'; 
+};
 
 // --- 消息处理 ---
 const saveMsgToDB = async (msg) => {
@@ -808,107 +563,103 @@ const handleNpcMove = async (npc, targetLocation) => {
 };
 
 // 4. 🔥 彻底重构的 sendMessage (自主模式 + 移动支持)
-// 🔥 发送消息与导演调度函数
-// 🔥 发送消息与导演调度函数 (最终完整版)
-const sendMessage = async (isContinue = false) => {
-    // 1. 基础校验
-    if (!isContinue && !inputText.value.trim() && !loadingStatus.value) return;
-    
-    let userText = "";
+const sendMessage = async () => {
+    // A. 基础校验
+    if (!inputText.value.trim() || loadingStatus.value) return;
+    const config = getCurrentLlmConfig();
+    if (!config) return uni.showToast({ title: '请先配置模型', icon: 'none' });
 
-    // 2. 处理用户发送
-    if (!isContinue) {
-        userText = inputText.value;
-        const userMsg = { 
-            id: Date.now(), 
-            role: 'user', 
-            content: userText, 
-            timestamp: Date.now() 
-        };
-        messageList.value.push(userMsg);
-        inputText.value = '';
-        await saveMsgToDB(userMsg);
-        scrollToBottom();
-
-        // 📸 视觉触发 A：用户发言后，尝试触发“摄影师”抓拍 (用于捕捉场景氛围)
-        // 传入 userText 和 空AI回复
-        runCameraManCheck(userText, "");
-    } else {
-        // 如果是“继续生成”，尝试找上一条用户消息作为上下文
-        const lastUserMsg = messageList.value.slice().reverse().find(m => m.role === 'user');
-        userText = lastUserMsg ? lastUserMsg.content : "";
-    }
+    // B. 用户消息上屏
+    const text = inputText.value;
+    const userMsg = { id: Date.now(), role: 'user', content: text, timestamp: Date.now() };
     
-    // 3. 进入导演调度流程
+    console.log(`玩家发送：${text}`);
+    messageList.value.push(userMsg);
+    inputText.value = '';
+    await saveMsgToDB(userMsg);
+    scrollToBottom();
+
     try {
-        loadingStatus.value = 'director';
-        const config = getCurrentLlmConfig();
-        if (!config) return uni.showToast({ title: '请先配置模型', icon: 'none' });
-
-        const allContacts = uni.getStorageSync('contact_list') || [];
+        loadingStatus.value = 'director'; // 借用 loading 状态
         
-        // A. 乱序遍历 (防止发言顺序固化)
+        // C. 乱序遍历：打乱在场 NPC 的顺序，防止固定顺序抢麦
+        // 复制一份数组来打乱，避免影响界面显示顺序
         const interactionQueue = shuffleArray([...activeNpcs.value]);
+        
+        const allContacts = uni.getStorageSync('contact_list') || [];
         let anyoneSpoke = false;
 
-        // B. 逐个 NPC 决策
+        // D. 串行遍历：逐个询问
         for (const targetNpc of interactionQueue) {
+            
             currentSpeakerName.value = targetNpc.name; 
             
-            // 获取记忆深度
+            // 获取角色自己的记忆深度
             const realProfile = allContacts.find(c => String(c.id) === String(targetNpc.privateChatId));
             const charContextLimit = realProfile?.historyLimit || 20;
 
-            // 🔥 C. 自主决策 (已包含 DB 记忆读取)
+            // 🔥 调用自主决策函数
             const replyContent = await runAutonomousActor({
                 targetNpc,
                 locationName: currentSubLocation.value,
                 formattedTime: formattedTime.value,
                 userName: sceneData.value.playerIdentity || '玩家',
-                activeNpcs: activeNpcs.value,
-                history: messageList.value,
+                activeNpcs: activeNpcs.value, // 传入当前的 activeNpcs (注意：如果有人中途走了，refreshActiveNpcs 会更新这个值吗？vue的响应式是实时的，但 interactionQueue 是快照。不过这符合逻辑：这一轮对话开始时他还在)
+                history: messageList.value, // ✨ 传入实时更新的历史
                 allContacts,
                 config,
                 contextLimit: charContextLimit,
-                subScenes: sceneData.value.subScenes || ['大厅']
+                
+                // 🔥 传入合法的子场景列表，防止 AI 瞎跑
+                subScenes: sceneData.value.subScenes || ['大厅'] 
             });
 
-            // D. 如果 NPC 决定发言
             if (replyContent) {
-                // 1. 消息上屏 (支持 <think> 和分段)
-                await processAIResponse(targetNpc.name, replyContent);
-                anyoneSpoke = true;
+                 // --- 解析 [MOVE] 指令 ---
+                 let finalContent = replyContent;
+                 let moveTarget = null;
+                 
+                 const moveMatch = replyContent.match(/\[MOVE:\s*(.+?)\]/i);
+                 if (moveMatch) {
+                     moveTarget = moveMatch[1].trim();
+                     // 从显示内容中移除指令
+                     finalContent = replyContent.replace(moveMatch[0], '').trim();
+                 }
 
-                // ❤️ 2. 情感反馈 (Heart) - 异步执行
-                // 这一步会更新 contact_list 里的 relation 和 activeTime
-                analyzeNpcRelation({
-                    targetNpc,
-                    userMsg: userText,
-                    aiMsg: replyContent,
-                    config,
-                    allContacts
-                });
+                 console.log(`🗣️ ${targetNpc.name} 发言：${finalContent}`);
+                 
+                 if (finalContent) {
+                     const finalMsg = {
+                        id: Date.now() + Math.random(),
+                        role: targetNpc.name, 
+                        content: finalContent,
+                        isSystem: false,
+                        timestamp: Date.now()
+                    };
+                    
+                    messageList.value.push(finalMsg);
+                    await saveMsgToDB(finalMsg);
+                    scrollToBottom();
+                    anyoneSpoke = true;
+                 }
 
-                // 🎨 3. 视觉触发 B (Visuals) - 异步执行
-                // 尝试触发该 NPC 的相关生图 (如自拍、动作特写)
-                // 注意：由于 currentRole 绑定的是 sceneData，这里生成的图片 prompt 会基于场景描述，
-                // 但 runVisualDirectorCheck 会尝试捕捉当前对话内容进行构图。
-                runVisualDirectorCheck(userText, replyContent);
+                 // --- 执行移动 ---
+                 if (moveTarget) {
+                    await handleNpcMove(targetNpc, moveTarget);
+                 }
             }
         }
         
-        // E. 冷场保底
+        // E. 尴尬冷场保底
         if (!anyoneSpoke && activeNpcs.value.length > 0) {
             console.log("😶 全员沉默");
-            const silenceMsg = {
-                role: 'system', 
-                isSystem: true,
+            // 可选：加个系统旁白
+             messageList.value.push({
+                role: 'system', isSystem: true,
                 content: '空气中弥漫着一丝安静...' 
-            };
-            messageList.value.push(silenceMsg);
+            });
         }
         
-        // F. 触发后台总结
         checkAndRunSummary();
 
     } catch (e) {
@@ -1065,290 +816,80 @@ const handleTimeAction = () => {
 </script>
 
 <style lang="scss" scoped>
-/* ==========================================================================
-   1. 基础容器与布局
-   ========================================================================== */
-.chat-container { 
-    display: flex; 
-    flex-direction: column; 
-    height: 100vh; 
-    background-color: var(--bg-color); 
-    overflow: hidden;
-    position: relative; /* 确保定位准确 */
-}
+/* 容器 */
+.chat-container { display: flex; flex-direction: column; height: 100vh; background-color: var(--bg-color); }
 
-/* 占位符：给固定定位的导航栏留出空间 */
-/* 高度 = 状态栏 + 导航栏内容高度(100rpx) */
-.nav-placeholder { 
-    width: 100%; 
-    height: calc(var(--status-bar-height) + 100rpx); 
-    flex-shrink: 0;
-}
-
-/* ==========================================================================
-   2. 顶部自定义导航栏 (Glassmorphism 毛玻璃风格)
-   ========================================================================== */
+/* --- 🔥 1. 自定义导航栏样式 (Fixed Top) --- */
 .custom-navbar {
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    z-index: 999;
-    
-    /* 背景处理：半透明 + 模糊 */
-    background: rgba(255, 255, 255, 0.85); 
-    backdrop-filter: blur(20px);            
-    -webkit-backdrop-filter: blur(20px);
-    
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    transition: background 0.3s;
-    
-    display: flex;
-    flex-direction: column;
+    position: fixed; top: 0; left: 0; width: 100%; z-index: 999;
+    background-color: var(--card-bg); border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10rpx;
 }
+.status-bar { height: var(--status-bar-height); width: 100%; background-color: var(--card-bg); }
 
-/* 暗黑模式适配 */
-.dark-mode .custom-navbar {
-    background: rgba(30, 30, 30, 0.85);
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.status-bar { 
-    height: var(--status-bar-height); 
-    width: 100%; 
-}
-
-/* 导航栏主体内容区 */
 .nav-content {
-    height: 100rpx; 
-    display: flex; 
-    align-items: center; 
-    justify-content: space-between; 
-    padding: 0 24rpx;
+    height: 88rpx; display: flex; align-items: center; justify-content: space-between; padding: 0 20rpx;
+}
+.nav-btn {
+    padding: 10rpx 20rpx; border-radius: 12rpx; background: rgba(0,0,0,0.03);
+    &:active { background: rgba(0,0,0,0.1); }
+}
+.btn-text { font-size: 28rpx; color: var(--text-color); }
+.warning { color: #ff4d4f; font-weight: bold; }
+
+.nav-title { display: flex; flex-direction: column; align-items: center; }
+.title-text { font-size: 32rpx; font-weight: bold; color: var(--text-color); }
+.sub-text { font-size: 22rpx; color: #007aff; }
+
+/* NPC 头像条 */
+.npc-bar { padding: 10rpx 20rpx; }
+.npc-scroll { white-space: nowrap; width: 100%; }
+.npc-list { display: flex; gap: 16rpx; }
+.mini-avatar { 
+    width: 60rpx; height: 60rpx; border-radius: 50%; border: 2rpx solid #fff; 
+    &.is-visitor { border-color: #007aff; box-shadow: 0 0 8rpx rgba(0,122,255,0.5); }
 }
 
-/* --- 区域布局 --- */
-.left-area { 
-    flex: 0 0 80rpx; 
-    display: flex; 
-    align-items: center; 
-}
-.right-area { 
-    flex: 0 0 auto; 
-    display: flex; 
-    align-items: center; 
-    gap: 16rpx; /* 按钮之间的间距 */
-}
-.center-area { 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    justify-content: center;
-    margin: 0 20rpx;
-    /* 增加点击区域 */
-    height: 100%; 
-}
+/* 占位符 (Status + Nav + NPC Bar) */
+.nav-placeholder { width: 100%; height: calc(var(--status-bar-height) + 88rpx + 80rpx); }
 
-/* --- 中间信息展示 --- */
-.scene-title { 
-    font-size: 32rpx; 
-    font-weight: 700; 
-    color: var(--text-color); 
-    margin-bottom: 6rpx; 
-    line-height: 1.2;
-    max-width: 300rpx;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+/* --- 2. 聊天区 --- */
+.chat-scroll { flex: 1; overflow: hidden; }
+.chat-content { padding: 30rpx; padding-bottom: 180rpx; }
 
-.scene-info-row { 
-    display: flex; 
-    align-items: center; 
-    gap: 12rpx; 
+.message-item { display: flex; margin-bottom: 30rpx; 
+    &.left { flex-direction: row; }
+    &.right { flex-direction: row-reverse; }
 }
+.avatar { width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; background: #ccc; margin: 0 20rpx; }
+.bubble-wrapper { max-width: 70%; display: flex; flex-direction: column; }
+.sender-name { font-size: 22rpx; color: var(--text-sub); margin-bottom: 6rpx; }
+.bubble { padding: 18rpx 24rpx; border-radius: 12rpx; font-size: 30rpx; line-height: 1.5; word-wrap: break-word;}
+.left-bubble { background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); }
+.right-bubble { background: #95ec69; color: #000; }
+.system-bubble { background: rgba(0,0,0,0.05); padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; color: var(--text-sub); font-style: italic; }
+.system-event { text-align: center; margin-bottom: 30rpx; font-size: 24rpx; color: var(--text-sub); }
 
-/* 信息胶囊标签 */
-.info-tag {
-    display: flex; 
-    align-items: center;
-    background: rgba(0,0,0,0.04);
-    padding: 4rpx 12rpx; 
-    border-radius: 8rpx;
-    transition: background 0.2s;
-}
-.info-tag:active { background: rgba(0,0,0,0.08); }
-.dark-mode .info-tag { background: rgba(255,255,255,0.08); }
+/* --- 3. 底部 --- */
+.footer { position: fixed; bottom: 0; width: 100%; background: var(--card-bg); border-top: 1px solid var(--border-color); padding-bottom: env(safe-area-inset-bottom); }
+.input-area { display: flex; padding: 20rpx; align-items: center; }
+.input { flex: 1; background: var(--input-bg); height: 72rpx; border-radius: 36rpx; padding: 0 30rpx; color: var(--text-color); }
+.action-btn { font-size: 40rpx; padding: 0 20rpx; }
+.send-btn { margin-left: 20rpx; background: #007aff; color: #fff; padding: 10rpx 30rpx; border-radius: 30rpx; font-size: 28rpx;}
 
-.location-tag text { 
-    font-size: 20rpx; 
-    color: #007aff; 
-    font-weight: 600; 
+.loading-wrapper { display: flex; justify-content: center; margin-top: 20rpx; }
+.loading-content { display: flex; align-items: center; background: rgba(0,0,0,0.6); padding: 10rpx 20rpx; border-radius: 30rpx; }
+.loading-spinner { width: 30rpx; height: 30rpx; border: 3rpx solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 15rpx; }
+.loading-text { font-size: 24rpx; color: #fff; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.invite-btn {
+  width: 60rpx; height: 60rpx; 
+  border-radius: 50%; 
+  border: 2rpx dashed #999; 
+  color: #999;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40rpx; font-weight: 300;
+  margin-left: 10rpx; /* 稍微隔开一点 */
 }
-
-.time-tag text { 
-    font-size: 20rpx; 
-    color: var(--text-sub); 
-}
-
-.dropdown-arrow { 
-    margin-left: 6rpx; 
-    opacity: 0.6; 
-    font-size: 18rpx; 
-    transform: translateY(-1rpx);
-}
-
-/* --- 按钮样式 --- */
-.nav-icon-btn {
-    width: 64rpx; 
-    height: 64rpx;
-    border-radius: 50%;
-    background: transparent;
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    transition: all 0.2s;
-}
-.nav-icon-btn:active { 
-    background: rgba(0,0,0,0.05); 
-    transform: scale(0.92); 
-}
-.dark-mode .nav-icon-btn:active { 
-    background: rgba(255,255,255,0.1); 
-}
-
-.back-btn .icon { font-size: 38rpx; line-height: 1; }
-
-.invite-btn { 
-    border: 2rpx dashed #999; 
-    width: 60rpx; 
-    height: 60rpx; 
-} 
-.icon-plus { 
-    font-size: 34rpx; 
-    color: #999; 
-    font-weight: 300; 
-    margin-top: -2rpx; /* 视觉垂直居中微调 */
-}
-
-.setting-btn .icon-gear { 
-    font-size: 38rpx; 
-    opacity: 0.8; 
-}
-
-/* --- 头像堆叠效果 --- */
-.avatar-pile { 
-    display: flex; 
-    align-items: center; 
-    position: relative; 
-    height: 60rpx; 
-    width: 100rpx; /* 根据显示3个头像的宽度预留 */
-    margin-right: 6rpx;
-}
-
-.pile-avatar {
-    width: 60rpx; 
-    height: 60rpx; 
-    border-radius: 50%;
-    border: 3rpx solid var(--card-bg); /* 用背景色做描边实现切割感 */
-    position: absolute; 
-    top: 0;
-    transition: transform 0.2s;
-    background: #e0e0e0;
-}
-.dark-mode .pile-avatar { border-color: #1e1e1e; }
-
-/* 访客高亮圈 */
-.pile-avatar.is-visitor {
-    border-color: #007aff;
-    z-index: 20 !important; /* 访客总是在最上面 */
-}
-
-/* 更多头像指示器 (+...) */
-.pile-more {
-    position: absolute; 
-    right: 0; 
-    top: 0;
-    width: 60rpx; 
-    height: 60rpx; 
-    border-radius: 50%;
-    background: rgba(0,0,0,0.1); 
-    color: #666;
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    font-size: 20rpx; 
-    font-weight: bold;
-    border: 3rpx solid var(--card-bg); 
-    z-index: 25;
-}
-
-/* ==========================================================================
-   3. 聊天内容区域
-   ========================================================================== */
-.chat-scroll { 
-    flex: 1; 
-    overflow: hidden; 
-}
-
-.chat-content { 
-    padding: 30rpx; 
-    /* 🔥 关键修改：底部加高，防止被输入框遮挡 */
-    padding-bottom: calc(180rpx + env(safe-area-inset-bottom)); 
-}
-
-/* 系统事件 (如剧本加载) */
-.system-event { 
-    text-align: center; 
-    margin-bottom: 30rpx; 
-    
-    text {
-        font-size: 24rpx; 
-        color: var(--text-sub); 
-        background: rgba(0,0,0,0.03);
-        padding: 6rpx 20rpx;
-        border-radius: 20rpx;
-    }
-}
-
-/* ==========================================================================
-   4. 加载动画
-   ========================================================================== */
-.loading-wrapper { 
-    display: flex; 
-    justify-content: center; 
-    margin-top: 20rpx; 
-    margin-bottom: 20rpx;
-}
-
-.loading-content { 
-    display: flex; 
-    align-items: center; 
-    background: rgba(0,0,0,0.6); 
-    padding: 10rpx 24rpx; 
-    border-radius: 30rpx; 
-    backdrop-filter: blur(4px);
-}
-
-.loading-spinner { 
-    width: 30rpx; 
-    height: 30rpx; 
-    border: 3rpx solid #fff; 
-    border-top-color: transparent; 
-    border-radius: 50%; 
-    animation: spin 1s linear infinite; 
-    margin-right: 16rpx; 
-}
-
-.loading-text { 
-    font-size: 24rpx; 
-    color: #fff; 
-    font-weight: 500;
-}
-
-@keyframes spin { 
-    from { transform: rotate(0deg); } 
-    to { transform: rotate(360deg); } 
-}
+.invite-btn:active { background: rgba(0,0,0,0.05); }
 </style>

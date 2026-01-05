@@ -355,6 +355,8 @@ const handleForceMove = (locObj) => {
     uni.showToast({ title: `已修正为: ${targetName}`, icon: 'none' });
 };
 
+// 文件路径：pages/chat/chat.vue
+
 const saveHistory = async (msg) => {
     if (!chatId.value) return;
     
@@ -362,10 +364,21 @@ const saveHistory = async (msg) => {
     const targetMsg = msg || (messageList.value.length > 0 ? messageList.value[messageList.value.length - 1] : null);
     if (!targetMsg) return;
 
+    // 🔥 1. 计算当前消息的存储模式 (新增逻辑)
+    // 主界面中，直接根据 interactionMode 判断：face -> reality, phone -> device
+    const sourceMode = interactionMode.value === 'face' ? 'reality' : 'device';
+
+    // 🔥 2. 将 sourceMode 同步到内存对象中
+    // 这确保了如果后续有逻辑依赖这个字段，它已经在内存对象里了
+    if (!targetMsg.source_mode) {
+        targetMsg.source_mode = sourceMode;
+    }
+
     try {
         // 1. 物理保存到 SQLite 数据库
+        // 🔥 3. 修改 SQL：插入第 8 个参数 source_mode
         await DB.execute(
-            `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp, source_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 targetMsg.id || (Date.now() + Math.random()), // 确保有ID
                 String(chatId.value), 
@@ -373,7 +386,8 @@ const saveHistory = async (msg) => {
                 targetMsg.content, 
                 targetMsg.type || 'text', 
                 targetMsg.isSystem ? 1 : 0, 
-                Date.now()
+                Date.now(),
+                sourceMode // ✨ 这里传入计算好的模式
             ]
         );
 
@@ -387,7 +401,7 @@ const saveHistory = async (msg) => {
             uni.setStorageSync('contact_list', list);
         }
         
-        console.log('💾 [DB] 消息已保存且预览已更新');
+        console.log(`💾 [DB] 消息已保存 (${sourceMode}) 且预览已更新`);
     } catch (e) {
         console.error('❌ 数据库保存失败', e);
     }
@@ -548,7 +562,7 @@ const confirmManualTime = async () => {
 const { 
     showLocationPanel, customLocation, 
     locationList, checkIsWorking, calculateMoveResult 
-} = useGameLocation({ currentRole, userHome, charHome, currentTime, worldLocations });
+} = useGameLocation({ currentRole, userHome, charHome, currentTime, worldLocations, playerLocation });
 
 const {
     runSceneCheck, runRelationCheck, runVisualDirectorCheck, runCameraManCheck, 

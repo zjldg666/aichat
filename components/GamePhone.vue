@@ -22,13 +22,13 @@
             </view>
             
 			<view style="flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
-				<!-- ChatView 组件 -->
-				<ChatView 
-					:id="activeChatId" 
-					:isEmbedded="true"
-					:time="time"
-					style="height: 100%; width: 100%;" 
-				/>
+			          <!-- ChatView 组件 -->
+			          <ChatView 
+			              :id="activeChatId" 
+			              :isEmbedded="true"
+			              :time="time"
+			              style="height: 100%; width: 100%;" 
+			          />
 			</view>
         </view>
 
@@ -189,6 +189,7 @@ const backToList = () => {
   /* 🔥 关键修复：添加这行，强制限制内部高度，让 scroll-view 知道边界 */
   overflow: hidden; 
 }
+
 .app-header {
   padding: 30rpx 40rpx;
   background: #fff;

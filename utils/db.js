@@ -14,7 +14,11 @@ export const DB = {
                     path: DB_PATH,
                     success: () => {
                         console.log('📦 SQLite 数据库已连接');
-                        this.createTables().then(resolve).catch(reject);
+                        // 🔗 链式调用：先建表 -> 再尝试升级(处理旧数据) -> 完成
+                        this.createTables()
+                            .then(() => this.upgradeTables()) 
+                            .then(resolve)
+                            .catch(reject);
                     },
                     fail: (e) => reject(e)
                 });
@@ -32,7 +36,7 @@ export const DB = {
     // 2. 创建表结构 (消息表和日记表)
     createTables() {
         const sqls = [
-            // 消息表：增加 chatId 区分不同角色，增加 id 唯一标识
+            // 消息表：增加 source_mode 字段 (device=手机, reality=当面)
             `CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
                 chatId TEXT,
@@ -40,9 +44,10 @@ export const DB = {
                 content TEXT,
                 type TEXT,
                 isSystem INTEGER,
-                timestamp INTEGER
+                timestamp INTEGER,
+                source_mode TEXT  -- ✨ 新增字段
             )`,
-            // 日记表
+            // 日记表 (保持不变)
             `CREATE TABLE IF NOT EXISTS diaries (
                 id INTEGER PRIMARY KEY,
                 roleId TEXT,
@@ -53,6 +58,26 @@ export const DB = {
             )`
         ];
         return Promise.all(sqls.map(sql => this.execute(sql)));
+    },
+
+    // 🔥🔥 3. 数据库升级逻辑 (新增方法) 🔥🔥
+    upgradeTables() {
+        return new Promise((resolve) => {
+            // 尝试为旧数据添加 source_mode 字段
+            // 如果是新安装的用户，createTables 已经创建了该字段，这里会报错但无影响
+            // 如果是旧用户，这里会成功添加字段
+            this.execute("ALTER TABLE messages ADD COLUMN source_mode TEXT")
+                .then(() => {
+                    console.log('🛠️ [DB Upgrade] 成功添加 source_mode 字段');
+                    // 可选：将旧数据的 source_mode 默认设为 'device' 或 'reality'，这里暂留空
+                    resolve();
+                })
+                .catch((e) => {
+                    // 错误通常意味着字段已存在，忽略即可
+                    // console.log('无需升级或字段已存在'); 
+                    resolve(); 
+                });
+        });
     },
 
     // 执行 SQL (增、删、改)
@@ -85,26 +110,27 @@ export const DB = {
         let i = 0;
         return sql.replace(/\?/g, () => {
             const val = values[i++];
+            // 处理 null 或 undefined
+            if (val === null || val === undefined) return "''";
             return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
         });
     },
-	
-	// 🔍 探测器：统计表内数据量
-	    checkStats() {
-	        return new Promise((resolve) => {
-	            // #ifdef APP-PLUS
-	            const sqlMsg = "SELECT COUNT(*) as count FROM messages";
-	            const sqlDiary = "SELECT COUNT(*) as count FROM diaries";
-	            
-	            Promise.all([this.select(sqlMsg), this.select(sqlDiary)]).then(res => {
-	                console.log('--- 📊 数据库存量监控 ---');
-	                console.log(`💬 消息表: ${res[0][0].count} 条`);
-	                console.log(`📖 日记表: ${res[1][0].count} 条`);
-	                console.log('------------------------');
-	                resolve();
-	            });
-	            // #endif
-	        });
-	    }
-	
+    
+    // 🔍 探测器：统计表内数据量
+    checkStats() {
+        return new Promise((resolve) => {
+            // #ifdef APP-PLUS
+            const sqlMsg = "SELECT COUNT(*) as count FROM messages";
+            const sqlDiary = "SELECT COUNT(*) as count FROM diaries";
+            
+            Promise.all([this.select(sqlMsg), this.select(sqlDiary)]).then(res => {
+                console.log('--- 📊 数据库存量监控 ---');
+                console.log(`💬 消息表: ${res[0][0].count} 条`);
+                console.log(`📖 日记表: ${res[1][0].count} 条`);
+                console.log('------------------------');
+                resolve();
+            });
+            // #endif
+        });
+    }
 };

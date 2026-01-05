@@ -1,26 +1,27 @@
 // AiChat/composables/useGameTime.js
+
 import { ref, computed, watch } from 'vue';
 
-// 🔥🔥🔥 核心修复：所有状态变量移到函数外部！🔥🔥🔥
-// 这样无论在 App.vue 还是 Chat.vue 调用，永远操作的是同一份数据
-const currentTime = ref(Date.now());
-const timeRatio = ref(60); // 默认流速
-
-// UI 交互状态（也可以共享，保证弹窗状态一致）
-const showTimePanel = ref(false);
-const showTimeSettingPanel = ref(false);
-const tempTimeRatio = ref(60);
-const tempDateStr = ref('');
-const tempTimeStr = ref('');
-const customMinutes = ref(30);
-
-// 定时器引用 & 世界ID
-const timer = ref(null);
-const activeWorldId = ref(null);
-
 export function useGameTime(saveCallback) {
+    // 基础状态
+    const currentTime = ref(Date.now());
+    const timeRatio = ref(6); // 时间流速：现实1秒 = 游戏60秒 (1分钟)
+    
+    // UI 控制状态
+    const showTimePanel = ref(false);
+    const showTimeSettingPanel = ref(false);
+    const tempTimeRatio = ref(60);
+    const tempDateStr = ref('');
+    const tempTimeStr = ref('');
+    const customMinutes = ref(30);
 
-    // 格式化时间
+    // 内部定时器
+    const timer = ref(null);
+    
+    // 🔥🔥🔥 新增：当前绑定的世界 ID
+    const activeWorldId = ref(null);
+
+    // 格式化时间 (周X HH:mm)
     const formattedTime = computed(() => {
         const date = new Date(currentTime.value);
         const weeks = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -30,47 +31,51 @@ export function useGameTime(saveCallback) {
         return `${week} ${hour}:${minute}`;
     });
 
-    // 监听面板打开，同步数据到临时变量
+    // 🔥🔥🔥 核心修复：监听面板打开，同步数据 🔥🔥🔥
     watch(showTimeSettingPanel, (isOpen) => {
         if (isOpen) {
             const date = new Date(currentTime.value);
+            
+            // 1. 初始化日期 (YYYY-MM-DD)
             const y = date.getFullYear();
             const m = (date.getMonth() + 1).toString().padStart(2, '0');
             const d = date.getDate().toString().padStart(2, '0');
-            
             tempDateStr.value = `${y}-${m}-${d}`;
-            
+
+            // 2. 初始化时间 (HH:mm)
             const hh = date.getHours().toString().padStart(2, '0');
             const mm = date.getMinutes().toString().padStart(2, '0');
             tempTimeStr.value = `${hh}:${mm}`;
 
-            // 🔥 同步当前真实流速到弹窗输入框
+            // 3. 初始化流速 (同步当前的流速)
             tempTimeRatio.value = timeRatio.value;
         }
     });
 
-    // 初始化/同步时间
+    // 🔥🔥🔥 新增：初始化并同步时间 (核心逻辑)
+    // 如果传入了 worldId，优先使用世界时间
     const initTimeSync = (initialTime, worldId = null) => {
         activeWorldId.value = worldId;
+        
         if (worldId) {
             try {
                 const worlds = uni.getStorageSync('app_world_settings') || [];
                 const world = worlds.find(w => String(w.id) === String(worldId));
+                // 如果世界有时钟记录，使用世界时间
                 if (world && world.currentTime) {
-                    // 如果世界有存档时间，直接应用到全局 currentTime
                     currentTime.value = world.currentTime;
                     return;
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error('❌ 世界时间同步失败:', e);
+            }
         }
-        // 如果没有世界时间，仅在从未初始化过时使用 initialTime
-        // (或者你可以根据需求强制覆盖)
-        if (!currentTime.value || worldId) {
-            currentTime.value = initialTime || Date.now();
-        }
+        
+        // 兜底：如果没有世界时间，或者不是世界模式，使用角色存档时间
+        currentTime.value = initialTime || Date.now();
     };
 
-    // 保存到世界配置
+    // 🔥🔥🔥 新增：内部辅助函数，保存到世界设置
     const _saveToWorld = () => {
         if (!activeWorldId.value) return;
         try {
@@ -83,19 +88,20 @@ export function useGameTime(saveCallback) {
         } catch (e) { console.error(e); }
     };
 
-    // 🔥 启动时间流动
+    // 开始时间流动
     const startTimeFlow = () => {
-        if (timer.value) return; // 防止重复启动
-        console.log('⏳ [GameTime] 时间流动开始，流速:', timeRatio.value);
+        if (timer.value) return;
+        let counter = 0;
         
-        // 建议使用 1000ms 触发一次，每次增加 timeRatio * 1000 毫秒
         timer.value = setInterval(() => {
-            // 时间推进
+            // 增加时间
             currentTime.value += 1000 * timeRatio.value;
             
-            // 每现实 10 秒保存一次 (计数器简化处理)
-            if (Date.now() % 10000 < 1000) {
+            // 每现实 10 秒保存一次
+            if (++counter % 10 === 0) {
+                // 1. 保存角色状态
                 if (saveCallback) saveCallback(undefined, currentTime.value);
+                // 2. 🔥 保存世界状态
                 _saveToWorld();
             }
         }, 1000);
@@ -106,18 +112,18 @@ export function useGameTime(saveCallback) {
         if (timer.value) {
             clearInterval(timer.value);
             timer.value = null;
-            console.log('⏸️ [GameTime] 时间停止');
         }
     };
 
-    // 跳过时间
+    // 时间跳跃
     const handleTimeSkip = (type, messageList, scrollToBottom) => {
         const oldDate = new Date(currentTime.value).getDate();
-        let addMs = 0;
         
+        let addMs = 0;
         if (type === 'custom') {
             addMs = (parseInt(customMinutes.value) || 0) * 60 * 1000;
         } else {
+            // 简单跳跃逻辑
             switch(type) {
                 case 'morning': addMs = 4 * 60 * 60 * 1000; break;
                 case 'afternoon': addMs = 4 * 60 * 60 * 1000; break;
@@ -129,14 +135,18 @@ export function useGameTime(saveCallback) {
         currentTime.value += addMs;
         showTimePanel.value = false;
         
+        // 🔥 立即保存变更
         if (saveCallback) saveCallback(undefined, currentTime.value);
         _saveToWorld();
 
+        // 检查跨天
         const newDate = new Date(currentTime.value).getDate();
-        return newDate !== oldDate;
+        const isNextDay = newDate !== oldDate;
+        
+        return isNextDay;
     };
 
-    // 确认手动修改时间
+    // 手动设定时间
     const confirmManualTime = () => {
         if (!tempDateStr.value || !tempTimeStr.value) return null;
         
@@ -148,16 +158,21 @@ export function useGameTime(saveCallback) {
             parseInt(timeParts[0]), parseInt(timeParts[1])
         );
         
+        const oldTime = currentTime.value;
         currentTime.value = newDate.getTime();
         
-        // 🔥 修复流速设置：将临时变量赋值给全局 timeRatio
-        const newRatio = parseFloat(tempTimeRatio.value);
-        if (!isNaN(newRatio)) {
-            timeRatio.value = newRatio;
-            console.log('🚀 [GameTime] 流速已更新为:', newRatio);
+        // 🔥🔥🔥 核心修复：更新流速逻辑
+        // 确保 tempTimeRatio 是数字，并且赋值给 timeRatio
+        if (tempTimeRatio.value !== undefined && tempTimeRatio.value !== null) {
+             const newRatio = parseFloat(tempTimeRatio.value);
+             if (!isNaN(newRatio)) {
+                 timeRatio.value = newRatio;
+             }
         }
         
         showTimeSettingPanel.value = false;
+        
+        // 🔥 立即保存
         if (saveCallback) saveCallback(undefined, currentTime.value);
         _saveToWorld();
 
@@ -178,6 +193,7 @@ export function useGameTime(saveCallback) {
         stopTimeFlow,
         handleTimeSkip,
         confirmManualTime,
+        // 导出新函数
         initTimeSync
     };
 }
