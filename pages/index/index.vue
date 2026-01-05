@@ -26,77 +26,89 @@
     <view class="nav-placeholder"></view>
 
     <scroll-view scroll-y class="room-list">
-      <view class="list-header">
-        <text class="list-title">探索社区</text>
-        <text class="list-subtitle">发现 {{ displayScenes.length }} 个活跃区域</text>
-      </view>
-
-      <view v-if="displayScenes.length === 0" class="empty-state">
-        <image class="empty-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMCAwaDI0djI0SDB6IiBmaWxsPSJub25lIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOSIgLz48bGluZSB4MT0iOSIgeTE9IjEwIiB4Mj0iOS4wMSIgeTI9IjEwIiAvPjxsaW5lIHgxPSIxNSIgeTE9IjEwIiB4Mj0iMTUuMDEiIHkyPSIxOCIgLz48cGF0aCBkPSJNOS41IDE1LjI1YTMuNSAzLjUgMCAwIDEgNSAwIiAvPjwvc3ZnPg==" mode="aspectFit"></image>
-        <text>暂无场景</text>
-        <text class="empty-sub">点击右上角 + 创建新场景或角色</text>
-      </view>
-
-	   <view 
-	   class="room-card" 
-	   v-for="(scene, index) in displayScenes" 
-	   :key="scene.id || scene.name"
-	   @click="handleEnterRoom(scene)"
-	   @longpress="handleLongPressScene(scene)" 
-	   :class="{ 'active-location': globalLocation === scene.name, 'is-temporary': scene.isTemporary }"
-	   >
-        <view class="card-content">
-            <view class="room-info">
-                <view class="room-title-row">
-                    <text class="room-name">{{ scene.name }}</text>
-                    <view class="tag-world" v-if="scene.worldName">{{ scene.worldName }}</view>
-                    <view class="tag-temp" v-if="scene.isTemporary">未登记区域</view>
-                    
-                    <view class="my-location-badge" v-if="globalLocation === scene.name">
-                        <view class="pulse-dot"></view>
-                        <text>当前位置</text>
-                    </view>
-
-                </view>
-
-                <view class="subscene-tags" v-if="!scene.isTemporary && scene.subScenes && scene.subScenes.length > 0">
-                    <text v-for="(sub, sIdx) in scene.subScenes.slice(0, 3)" :key="sIdx" class="sub-tag">📍 {{ sub }}</text>
-                    <text v-if="scene.subScenes.length > 3" class="sub-tag">...</text>
-                </view>
-                
-                <view class="resident-pile">
-                    <view 
-                        class="avatar-circle" 
-                        v-for="(npc, i) in scene.npcs.slice(0, 5)" 
-                        :key="npc.id"
-                        :style="{ zIndex: 10 - i }"
-                        @longpress.stop="handleDeleteNpc(npc)"
-                    >
-                        <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="pile-img"></image>
-                        <view class="status-indicator" v-if="npc.unread > 0"></view>
-                    </view>
-                    <view class="more-count" v-if="scene.npcs.length > 5">
-                        <text>+{{ scene.npcs.length - 5 }}</text>
-                    </view>
-                    <text class="resident-count-text" v-if="scene.npcs.length > 0">{{ scene.npcs.length }} 人在场</text>
-                    <text class="resident-count-text empty" v-else>暂无人在场</text>
-                </view>
-            </view>
-            
-            <view class="card-action">
-                 <button class="action-btn-pill enter" v-if="globalLocation === scene.name">
-                    <text>↩️ 返回</text>
-                 </button>
-                 <button class="action-btn-pill visit" v-else-if="globalLocation === 'CORRIDOR'">
-                    <text>🔑 进门</text>
-                 </button>
-                 <button class="action-btn-pill travel" v-else>
-                    <text>👣 串门</text>
-                 </button>
-            </view>
-        </view>
-      </view>
-    </scroll-view>
+		
+          <view class="list-header">
+            <text class="list-title">探索社区</text>
+            <text class="list-subtitle">已加载 {{ worldGroups.length }} 个世界区域</text>
+          </view>
+    
+          <view v-if="worldGroups.length === 0" class="empty-state">
+            <text>暂无场景</text>
+            <text class="empty-sub">点击右上角 + 创建新场景或角色</text>
+          </view>
+    
+          <view class="world-group" v-for="group in worldGroups" :key="group.id">
+              
+              <view class="group-header" @click="toggleWorld(group.id)">
+                  <view class="header-left">
+                      <text class="world-icon">🌍</text>
+                      <text class="group-title">{{ group.name }}</text>
+                      <text class="group-count">({{ group.scenes.length }})</text>
+                  </view>
+                  <text class="arrow-icon" :class="{ 'collapsed': collapsedWorlds.has(group.id) }">▼</text>
+              </view>
+    
+              <view class="group-content" v-if="!collapsedWorlds.has(group.id)">
+                   <view 
+                   class="room-card" 
+                   v-for="(scene, index) in group.scenes" 
+                   :key="scene.id || scene.name"
+                   @click="handleEnterRoom(scene)"
+                   @longpress="handleLongPressScene(scene)" 
+                   :class="{ 'active-location': globalLocation === scene.name, 'is-temporary': scene.isTemporary }"
+                   >
+                        <view class="card-content">
+                            <view class="room-info">
+                                <view class="room-title-row">
+                                    <text class="room-name">{{ scene.name }}</text>
+                                    <view class="tag-temp" v-if="scene.isTemporary">未登记区域</view>
+                                    <view class="my-location-badge" v-if="globalLocation === scene.name">
+                                        <view class="pulse-dot"></view>
+                                        <text>当前位置</text>
+                                    </view>
+                                </view>
+    
+                                <view class="subscene-tags" v-if="!scene.isTemporary && scene.subScenes && scene.subScenes.length > 0">
+                                    <text v-for="(sub, sIdx) in scene.subScenes.slice(0, 3)" :key="sIdx" class="sub-tag">📍 {{ sub }}</text>
+                                    <text v-if="scene.subScenes.length > 3" class="sub-tag">...</text>
+                                </view>
+                                
+                                <view class="resident-pile">
+                                    <view 
+                                        class="avatar-circle" 
+                                        v-for="(npc, i) in scene.npcs.slice(0, 5)" 
+                                        :key="npc.id"
+                                        :style="{ zIndex: 10 - i }"
+                                        @longpress.stop="handleDeleteNpc(npc)"
+                                    >
+                                        <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="pile-img"></image>
+                                        <view class="status-indicator" v-if="npc.unread > 0"></view>
+                                    </view>
+                                    <view class="more-count" v-if="scene.npcs.length > 5">
+                                        <text>+{{ scene.npcs.length - 5 }}</text>
+                                    </view>
+                                    <text class="resident-count-text" v-if="scene.npcs.length > 0">{{ scene.npcs.length }} 人在场</text>
+                                    <text class="resident-count-text empty" v-else>暂无人在场</text>
+                                </view>
+                            </view>
+                            
+                            <view class="card-action">
+                                 <button class="action-btn-pill enter" v-if="globalLocation === scene.name">
+                                    <text>↩️ 返回</text>
+                                 </button>
+                                 <button class="action-btn-pill visit" v-else-if="globalLocation === 'CORRIDOR'">
+                                    <text>🔑 进门</text>
+                                 </button>
+                                 <button class="action-btn-pill travel" v-else>
+                                    <text>👣 串门</text>
+                                 </button>
+                            </view>
+                        </view>
+                        </view>
+              </view>
+          </view>
+    
+        </scroll-view>
 
     <GamePhone 
       :visible="showPhone"
@@ -136,17 +148,28 @@
                 </view>
 
                 <view class="form-item">
-                    <text class="form-label">子场景 / 区域 (可选)</text>
-                    <view class="sub-scene-input-row">
-                        <input class="form-input small" v-model="tempSubScene" placeholder="例如：吧台、二楼包厢" @confirm="addSubScene" />
+                    <text class="form-label">子场景 / 区域 (点击标签设为默认入口)</text> <view class="sub-scene-input-row">
+                        <input class="form-input small" v-model="tempSubScene" placeholder="例如：大厅、301室..." @confirm="addSubScene" />
                         <view class="add-btn-mini" @click="addSubScene">添加</view>
                     </view>
+                    
                     <view class="tags-wrapper">
-                        <view v-for="(sub, idx) in newScene.subScenes" :key="idx" class="tag-chip">
+                        <view 
+                            v-for="(sub, idx) in newScene.subScenes" 
+                            :key="idx" 
+                            class="tag-chip"
+                            :class="{ 'is-default': newScene.defaultSubLocation === sub }"
+                            @click="setDefaultLocation(sub)"
+                        >
+                            <text v-if="newScene.defaultSubLocation === sub" class="default-icon">📍</text>
                             {{ sub }}
-                            <text class="tag-del" @click="removeSubScene(idx)">×</text>
+                            <text class="tag-del" @click.stop="removeSubScene(idx)">×</text>
                         </view>
                     </view>
+                    
+                    <text class="form-tip" v-if="newScene.defaultSubLocation">
+                        当前默认入口: {{ newScene.defaultSubLocation }}
+                    </text>
                 </view>
             </scroll-view>
             <view class="modal-footer">
@@ -183,7 +206,8 @@ const showCreateSceneModal = ref(false);
 const newScene = ref({
     worldId: '',
     name: '',
-    subScenes: []
+    subScenes: [],
+	defaultSubLocation: '' // 👈 [新增] 默认落脚点
 });
 const tempSubScene = ref('');
 
@@ -192,7 +216,16 @@ const currentWorldId = computed(() => {
     if (contactList.value.length > 0) return contactList.value[0].worldId;
     return '';
 });
+// 👇 [新增] 控制折叠状态 (使用 Set 存储被收起的世界 ID)
+const collapsedWorlds = ref(new Set());
 
+const toggleWorld = (worldId) => {
+    if (collapsedWorlds.value.has(worldId)) {
+        collapsedWorlds.value.delete(worldId);
+    } else {
+        collapsedWorlds.value.add(worldId);
+    }
+};
 onShow(() => {
   loadData();
 });
@@ -206,9 +239,83 @@ const loadData = () => {
     if (savedLoc) globalLocation.value = savedLoc;
 };
 
-// =============================================================================
-// 核心逻辑：场景分组与展示
-// =============================================================================
+// 🔥 [重构] 核心逻辑：先处理场景映射，再按世界分组
+const worldGroups = computed(() => {
+    // A. 第一步：先算出扁平化的所有场景 (逻辑同之前修复过的 displayScenes)
+    // 这样能保证 NPC 位置判定逻辑（实时位置优先）依然生效
+    const flatScenes = [];
+    const usedNpcIds = new Set();
+
+    // 1. 真实场景处理
+    sceneList.value.forEach(scene => {
+        const npcsInScene = contactList.value.filter(npc => {
+            const isSameWorld = !scene.worldId || String(npc.worldId) === String(scene.worldId);
+            // 优先看实时位置
+            const actualLoc = npc.currentLocation || npc.location;
+            return isSameWorld && actualLoc === scene.name;
+        });
+        npcsInScene.forEach(n => usedNpcIds.add(n.id));
+        
+        flatScenes.push({
+            ...scene,
+            npcs: npcsInScene,
+            isTemporary: false
+        });
+    });
+
+    // 2. 临时区域处理
+    const tempGroups = {};
+    contactList.value.forEach(npc => {
+        if (!usedNpcIds.has(npc.id)) {
+            const loc = npc.currentLocation || npc.location || '未知区域';
+            if (!tempGroups[loc]) tempGroups[loc] = [];
+            tempGroups[loc].push(npc);
+        }
+    });
+
+    Object.keys(tempGroups).forEach(locName => {
+        const firstNpc = tempGroups[locName][0];
+        flatScenes.push({
+            id: 'temp_' + locName,
+            name: locName,
+            worldId: firstNpc.worldId, // 临时场景跟随第一个 NPC 的世界观
+            isTemporary: true,
+            npcs: tempGroups[locName],
+            subScenes: []
+        });
+    });
+
+    // B. 第二步：按世界分组
+    const groupsMap = new Map();
+
+    // 初始化世界分组
+    worldList.value.forEach(world => {
+        groupsMap.set(String(world.id), {
+            id: String(world.id),
+            name: world.name,
+            scenes: []
+        });
+    });
+    
+    // 初始化“其他/未知世界”
+    const UNKNOWN_ID = 'unknown';
+    groupsMap.set(UNKNOWN_ID, { id: UNKNOWN_ID, name: '未分类 / 独立世界', scenes: [] });
+
+    // 分发场景到对应世界
+    flatScenes.forEach(scene => {
+        const targetWorldId = scene.worldId ? String(scene.worldId) : UNKNOWN_ID;
+        if (groupsMap.has(targetWorldId)) {
+            groupsMap.get(targetWorldId).scenes.push(scene);
+        } else {
+            // 如果世界ID存在但找不到对应世界设定，也归入未知
+            groupsMap.get(UNKNOWN_ID).scenes.push(scene);
+        }
+    });
+
+    // 转换为数组并过滤掉空的世界 (可选：如果你想显示空世界，去掉 filter 即可)
+    return Array.from(groupsMap.values()).filter(g => g.scenes.length > 0);
+});
+
 const displayScenes = computed(() => {
     const result = [];
     const usedNpcIds = new Set();
@@ -217,9 +324,14 @@ const displayScenes = computed(() => {
     sceneList.value.forEach(scene => {
         // 找到属于该场景世界 且 location 匹配的 NPC
         const npcsInScene = contactList.value.filter(npc => {
-            // 兼容逻辑：必须世界ID匹配（如果有世界ID的话），且地点名称匹配
+            // 兼容逻辑：必须世界ID匹配（如果有世界ID的话）
             const isSameWorld = !scene.worldId || String(npc.worldId) === String(scene.worldId);
-            return isSameWorld && npc.location === scene.name;
+            
+            // 🔥🔥🔥 [修改点 1] 核心修复：优先判断 currentLocation（实时位置），没有才看 location（常驻地）
+            const actualLoc = npc.currentLocation || npc.location;
+            
+            // 只有当“实际位置”等于“场景名称”时，才归类到这里
+            return isSameWorld && actualLoc === scene.name;
         });
 
         // 标记这些 NPC 已被展示
@@ -237,18 +349,18 @@ const displayScenes = computed(() => {
     });
 
     // 2. [兼容] 处理没有真实场景的“临时/未登记区域” NPC
-    // 比如用户之前创建的角色，或者直接输入了一个未创建场景的地点
     const tempGroups = {};
     contactList.value.forEach(npc => {
         if (!usedNpcIds.has(npc.id)) {
-            const loc = npc.location || '未知区域';
+            // 🔥🔥🔥 [修改点 2] 临时区域分组也要优先看实时位置
+            const loc = npc.currentLocation || npc.location || '未知区域';
+            
             if (!tempGroups[loc]) tempGroups[loc] = [];
             tempGroups[loc].push(npc);
         }
     });
 
     Object.keys(tempGroups).forEach(locName => {
-        // 尝试找一下这个 NPC 的世界名
         const firstNpc = tempGroups[locName][0];
         const world = worldList.value.find(w => String(w.id) === String(firstNpc.worldId));
         
@@ -354,6 +466,12 @@ const addSubScene = () => {
             return;
         }
         newScene.value.subScenes.push(val);
+        
+        // 🔥 [新增] 如果这是第一个添加的子场景，自动设为默认
+        if (newScene.value.subScenes.length === 1) {
+            newScene.value.defaultSubLocation = val;
+        }
+        
         tempSubScene.value = '';
     }
 };
@@ -387,7 +505,21 @@ const handleLongPressScene = (scene) => {
 };
 
 const removeSubScene = (index) => {
+    const removedVal = newScene.value.subScenes[index];
     newScene.value.subScenes.splice(index, 1);
+    
+    // 🔥 [新增] 如果删掉的是默认地点，重置默认地点
+    if (newScene.value.defaultSubLocation === removedVal) {
+        // 如果还有其他子场景，取第一个；否则为空
+        newScene.value.defaultSubLocation = newScene.value.subScenes.length > 0 
+            ? newScene.value.subScenes[0] 
+            : '';
+    }
+};
+
+// 🔥 [新增] 手动设置默认地点
+const setDefaultLocation = (sub) => {
+    newScene.value.defaultSubLocation = sub;
 };
 
 const submitCreateScene = () => {
@@ -405,8 +537,9 @@ const submitCreateScene = () => {
     const sceneObj = {
         id: Date.now(),
         ...newScene.value,
-        npcs: [], // 👈 显式初始化
-        lastSubLocation: '' // 👈 也可以顺手初始化这个
+        // 🔥 确保保存了默认位置，如果没有子场景，就叫"大厅"
+        lastSubLocation: newScene.value.defaultSubLocation || '大厅', 
+        npcs: []
     };
 
     sceneList.value.push(sceneObj);
@@ -755,4 +888,106 @@ const enterChat = (id, isNewEntry = false) => {
     font-size: 30rpx; font-weight: bold;
 }
 .modal-btn:active { opacity: 0.9; }
+/* 🔥 新增分组样式 */
+.world-group {
+    margin-bottom: 40rpx;
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16rpx 10rpx;
+    margin-bottom: 16rpx;
+    /* 粘性定位：让标题在滚动时吸顶，体验更好 (可选) */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-color); /* 需要背景色遮挡 */
+    border-radius: 12rpx;
+}
+/* 增加点击反馈 */
+.group-header:active {
+    background: rgba(0,0,0,0.03);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.world-icon {
+    font-size: 32rpx;
+    margin-right: 12rpx;
+}
+
+.group-title {
+    font-size: 30rpx;
+    font-weight: 800;
+    color: var(--text-color);
+    margin-right: 10rpx;
+}
+
+.group-count {
+    font-size: 24rpx;
+    color: var(--text-sub);
+    font-weight: normal;
+}
+
+.arrow-icon {
+    font-size: 24rpx;
+    color: var(--text-sub);
+    transition: transform 0.3s ease;
+}
+
+/* 箭头旋转动画 */
+.arrow-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
+.group-content {
+    /* 这里不需要写太多，主要靠 v-if 控制 */
+}
+
+/* 调整原来的 room-card margin，因为现在有分组包裹了 */
+.room-card {
+    margin-bottom: 24rpx; /* 稍微减小一点间距，让组内更紧凑 */
+}
+
+.tag-chip {
+    background: var(--tool-bg); 
+    padding: 8rpx 20rpx; 
+    border-radius: 30rpx;
+    font-size: 24rpx; 
+    color: var(--text-color); 
+    border: 1px solid var(--border-color);
+    display: flex; 
+    align-items: center;
+    transition: all 0.2s;
+}
+
+/* 🔥 [新增] 默认地点的选中样式 */
+.tag-chip.is-default {
+    background: rgba(0, 122, 255, 0.1);
+    border-color: #007aff;
+    color: #007aff;
+    font-weight: bold;
+    padding-left: 14rpx; /* 调整内边距给图标留位 */
+}
+
+.default-icon {
+    margin-right: 6rpx;
+    font-size: 22rpx;
+}
+
+.tag-del { 
+    margin-left: 10rpx; 
+    color: #ff4d4f; 
+    font-weight: bold; 
+    padding: 0 4rpx;
+    opacity: 0.6;
+}
+.tag-del:active { opacity: 1; }
+
+
 </style>

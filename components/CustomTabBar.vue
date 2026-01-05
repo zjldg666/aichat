@@ -9,22 +9,13 @@
       <text class="text" :class="{ active: current === 0 }">消息</text>
     </view>
 
-    <view class="tab-item" @click="switchTab(1, '/pages/scene/index')">
+    <view class="tab-item" @click="switchTab(1, '/pages/mine/mine')">
       <image 
         class="icon" 
-        :src="current === 1 ? '/static/scene-active.png' : '/static/scene.png'" 
+        :src="current === 1 ? '/static/me-active.png' : '/static/me.png'" 
         mode="aspectFit"
       ></image>
-      <text class="text" :class="{ active: current === 1 }">场景</text>
-    </view>
-
-    <view class="tab-item" @click="switchTab(2, '/pages/mine/mine')">
-      <image 
-        class="icon" 
-        :src="current === 2 ? '/static/me-active.png' : '/static/me.png'" 
-        mode="aspectFit"
-      ></image>
-      <text class="text" :class="{ active: current === 2 }">我的</text>
+      <text class="text" :class="{ active: current === 1 }">我的</text>
     </view>
   </view>
 </template>
@@ -45,12 +36,10 @@ const { isDarkMode } = useTheme();
 const switchTab = (index, path) => {
   if (props.current === index) return;
   
-  // 使用 reLaunch 关闭所有页面打开新页面，模拟 TabBar 行为
   uni.reLaunch({
     url: path,
     fail: (err) => {
         console.error('跳转失败:', err);
-        // 如果 reLaunch 失败（有时候在某些页面栈深处），尝试 redirectTo
         uni.redirectTo({ url: path });
     }
   });
@@ -58,25 +47,24 @@ const switchTab = (index, path) => {
 </script>
 
 <style lang="scss" scoped>
+/* 样式保持不变，flex 布局会自动适应 2 个项目 */
 .tab-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 110rpx; /* 稍微调高一点，适应现在的手机 */
+  height: 110rpx;
   background-color: #ffffff;
   border-top: 1px solid #eeeeee;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-around; /* 两个图标会自动平分间距 */
   align-items: center;
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 999;
   
-  /* 暗黑模式适配 */
   &.dark-mode {
     background-color: #191919;
     border-top: 1px solid #333;
-    
     .text { color: #666; }
     .text.active { color: #007aff; }
   }

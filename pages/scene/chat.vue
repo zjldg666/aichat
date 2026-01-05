@@ -664,47 +664,51 @@ const loadSceneData = (id, visitorId) => {
 
     initTimeSync(Date.now(), target.worldId);
 
-    // 4. 🔥 构建在场人员名单 (关键修复)
-    const allContacts = uni.getStorageSync('contact_list') || [];
-    const sceneNpcList = target.npcs || []; // 场景原始名单
-    
-    // 我们要把场景里原本有的 ID，和全局通讯录里声称在这里的 ID 合并
-    // 优先信赖场景原始名单 (sceneNpcList)
-    
-    allNpcs.value = sceneNpcList.map(sceneNpc => {
-        // 尝试去全局通讯录找详细信息 (头像、设定等)
-        const fullProfile = allContacts.find(c => String(c.id) === String(sceneNpc.id));
+    // 4. 🔥 构建在场人员名单
+        const allContacts = uni.getStorageSync('contact_list') || [];
+        const sceneNpcList = target.npcs || [];
         
-        // 如果通讯录里有，就用通讯录的；如果没有(可能删了)，就用场景里的备份数据
-        const baseData = fullProfile || sceneNpc;
-
-        // 🕵️‍♂️ 位置判定逻辑
-        // 1. 优先读取场景存档里的子区域记录
-        let myLocation = sceneNpc.currentSubLocation;
-        
-        // 2. 如果存档里没位置，或者位置无效（不在当前的子场景列表里），强制重置到大厅
-        // 这样可以防止 NPC 也就是旧数据卡在 "null" 或者 "undefined" 空间里
-        if (!myLocation || !subScenes.includes(myLocation)) {
-            myLocation = subScenes[0]; 
-            // 自动修正内存中的位置，让他出现
-            sceneNpc.currentSubLocation = myLocation; 
-        }
-
-        return {
-            id: baseData.id,
-            name: baseData.name,
-            avatar: baseData.avatar || '/static/ai-avatar.png',
-            settings: baseData.settings || {},
-            persona: baseData.settings?.description || '普通人',
-            clothing: baseData.clothing || '默认',
-            privateChatId: baseData.id,
+        allNpcs.value = sceneNpcList.map(sceneNpc => {
+            const fullProfile = allContacts.find(c => String(c.id) === String(sceneNpc.id));
+            const baseData = fullProfile || sceneNpc;
+    
+            // 🕵️‍♂️ 位置判定逻辑
+            let myLocation = sceneNpc.currentSubLocation;
             
-            // 🔥 关键：确保 currentSubLocation 有值
-            currentSubLocation: myLocation,
-            
-            // 记录真实全局位置
-            realGlobalLoc: baseData.currentLocation
-        };
+            // 🔥 [核心修改] 如果位置无效，优先读取“场景专属初始位置”
+            if (!myLocation || !subScenes.includes(myLocation)) {
+                // 1. 尝试从 fullProfile 的 sceneConfig 中读取本场景的设定
+                if (baseData.sceneConfig && baseData.sceneConfig[id] && baseData.sceneConfig[id].initialSubLocation) {
+                    myLocation = baseData.sceneConfig[id].initialSubLocation;
+                    // 校验一下这个初始位置是否还有效（比如房间有没有被删掉）
+                    if (!subScenes.includes(myLocation)) myLocation = null;
+                }
+    
+                // 2. 如果还是没找到，读取场景默认入口 (defaultSubLocation)
+                if (!myLocation) {
+                    myLocation = target.defaultSubLocation;
+                }
+    
+                // 3. 如果还没找到，只能丢在大厅 (subScenes[0])
+                if (!myLocation && subScenes.length > 0) {
+                    myLocation = subScenes[0];
+                }
+                
+                // 修正位置
+                sceneNpc.currentSubLocation = myLocation; 
+            }
+    
+            return {
+                id: baseData.id,
+                name: baseData.name,
+                avatar: baseData.avatar || '/static/ai-avatar.png',
+                settings: baseData.settings || {},
+                persona: baseData.settings?.description || '普通人',
+                clothing: baseData.clothing || '默认',
+                privateChatId: baseData.id,
+                currentSubLocation: myLocation,
+                realGlobalLoc: baseData.currentLocation
+            };
     });
 
     // 5. 检查是否有“访客” (Global Walk-ins)
@@ -736,15 +740,7 @@ const loadSceneData = (id, visitorId) => {
     // 6. 刷新当前视野 (这一步会过滤出当前房间的人)
     refreshActiveNpcs();
 
-    // 🚨 最后的兜底：如果 activeNpcs 还是空的，说明所有人都“跑”到别的房间去了
-    // 为了防止你觉得“没人”，如果当前是大厅，强制把所有还没位置的人拉过来
-    if (activeNpcs.value.length === 0 && allNpcs.value.length > 0) {
-        console.warn('⚠️ 当前房间没人，正在强制召回 NPC 到当前位置...');
-        allNpcs.value.forEach(n => {
-            n.currentSubLocation = currentSubLocation.value;
-        });
-        refreshActiveNpcs();
-    }
+
 
     // 此时如果还没人，发提示
     if (activeNpcs.value.length === 0) {

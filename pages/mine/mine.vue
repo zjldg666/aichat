@@ -289,7 +289,7 @@
 		</view>
 		<switch :checked="isDarkMode" color="#007aff" @change="toggleTheme" />
 	</view>
-    <CustomTabBar :current="2" />
+    <CustomTabBar :current="1" />
   </view>
 </template>
 

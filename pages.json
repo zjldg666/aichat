@@ -70,12 +70,6 @@
 		}
 	},
     {
-      "path": "pages/scene/index",
-      "style": {
-        "navigationStyle": "custom" // 自定义导航栏，与首页保持一致
-      }
-    },
-    {
       "path": "pages/scene/create",
       "style": {
         "navigationBarTitleText": "创建新场景",
