@@ -9,22 +9,13 @@
       <text class="text" :class="{ active: current === 0 }">消息</text>
     </view>
 
-    <view class="tab-item" @click="switchTab(1, '/pages/scene/index')">
+    <view class="tab-item" @click="switchTab(1, '/pages/mine/mine')">
       <image 
         class="icon" 
-        :src="current === 1 ? '/static/scene-active.png' : '/static/scene.png'" 
+        :src="current === 1 ? '/static/me-active.png' : '/static/me.png'" 
         mode="aspectFit"
       ></image>
-      <text class="text" :class="{ active: current === 1 }">场景</text>
-    </view>
-
-    <view class="tab-item" @click="switchTab(2, '/pages/mine/mine')">
-      <image 
-        class="icon" 
-        :src="current === 2 ? '/static/me-active.png' : '/static/me.png'" 
-        mode="aspectFit"
-      ></image>
-      <text class="text" :class="{ active: current === 2 }">我的</text>
+      <text class="text" :class="{ active: current === 1 }">我的</text>
     </view>
   </view>
 </template>

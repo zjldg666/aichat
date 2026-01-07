@@ -378,88 +378,8 @@
         </view>
       </view>
 
-      <view class="form-section">
-        <view class="section-header" @click="toggleSection('player')">
-          <view class="section-title-wrapper">
-            <view class="section-title" style="color: #2ecc71;">玩家设定 (你)</view>
-            <text class="section-subtitle">你的身份、世界、外貌</text>
-          </view>
-          <text class="arrow-icon">{{ activeSections.player ? '▼' : '▶' }}</text>
-        </view>
-        
-        <view v-show="activeSections.player" class="section-content">
-           <view class="sub-group">
-               <view class="sub-header" @click="toggleSubSection('userWorld')">
-                   <text class="sub-title">🌍 你的世界</text>
-                   <text class="sub-arrow">{{ subSections.userWorld ? '▼' : '▶' }}</text>
-               </view>
-               <view v-show="subSections.userWorld" class="sub-content">
-                <view class="input-item">
-                     <text class="label">你的昵称</text>
-                     <input class="input" v-model="formData.userNameOverride" placeholder="例：阿林 (留空则使用APP全局昵称)" />
-                 </view>
-                 <view class="input-item">
-                    <text class="label">你们的关系</text>
-                    <input class="input" v-model="formData.userRelation" placeholder="例：青梅竹马 / 刚认识的邻居 / 你的债主" />
-                 </view>
-                 <view class="textarea-item">
-                    <text class="label">你的性格/人设</text>
-                    <textarea class="textarea" style="height: 120rpx;" v-model="formData.userPersona" placeholder="例：性格内向，容易害羞，不敢直视女生..." maxlength="-1" />
-                 </view>
-                   <view class="input-item">
-                      <text class="label">所属世界</text>
-                      <picker mode="selector" :range="worldList" range-key="name" :value="userWorldIndex" @change="handleUserWorldChange">
-                          <view class="picker-box">{{ selectedUserWorld ? selectedUserWorld.name : '🌐 与角色保持一致 (或默认)' }}</view>
-                      </picker>
-                   </view>
-                   <template v-if="selectedUserWorld">
-                       <view class="input-item"><text class="label">你的住址</text><input class="input" v-model="formData.userLocation" /></view>
-                       <view class="input-item"><text class="label">你的身份</text><input class="input" v-model="formData.userOccupation" /></view>
-                   </template>
-                   <template v-else>
-                       <view class="input-item"><text class="label">你的住址</text><input class="input" v-model="formData.userLocation" /></view>
-                       <view class="input-item"><text class="label">你的身份</text><input class="input" v-model="formData.userOccupation" /></view>
-                   </template>
-               </view>
-           </view>
-
-           <view class="sub-group">
-               <view class="sub-header" @click="toggleSubSection('userLooks')">
-                   <text class="sub-title">🧔‍♂️ 你的外貌 (男性特征)</text>
-                   <text class="sub-arrow">{{ subSections.userLooks ? '▼' : '▶' }}</text>
-               </view>
-               <view v-show="subSections.userLooks" class="sub-content">
-                   <view class="category-block">
-                        <text class="block-title">基本特征</text>
-                        <view class="feature-row">
-                           <text class="feat-label">发型</text>
-                           <scroll-view scroll-x class="chips-scroll">
-                               <view class="chips-flex">
-                                   <view v-for="item in OPTIONS.maleHair" :key="item" class="chip" :class="{active: formData.userFeatures.hair === item}" @click="setFeature('user', 'hair', item)">{{item}}</view>
-                               </view>
-                           </scroll-view>
-                        </view>
-                        <view class="feature-row">
-                           <text class="feat-label">身材</text>
-                           <scroll-view scroll-x class="chips-scroll">
-                               <view class="chips-flex">
-                                   <view v-for="item in OPTIONS.maleBody" :key="item" class="chip" :class="{active: formData.userFeatures.body === item}" @click="setFeature('user', 'body', item)">{{item}}</view>
-                               </view>
-                           </scroll-view>
-                        </view>
-                   </view>
-
-                   <button class="mini-btn-gen" @click="generateUserDescription">⬇️ 生成玩家 Prompt (英文)</button>
-               </view>
-           </view>
-           
-           <view class="textarea-item">
-             <text class="label">玩家外貌 Prompt (英文 - 用于双人生图)</text>
-             <textarea class="textarea" v-model="formData.userAppearance" placeholder="1boy, short hair..." maxlength="-1" />
-           </view>
-        </view>
-      </view>
-
+      <!-- 🗑️ 玩家设定已移除，统一在首页-世界观中配置 -->
+      
       <view class="form-section">
         <view class="section-header" @click="toggleSection('core')">
           <view class="section-title-wrapper">
@@ -730,10 +650,10 @@ const formData = ref({
 
   userNameOverride: '', 
   userRelation: '',     
-  userPersona: '',      
-  userWorldId: '', userLocation: '', userOccupation: '',
-  userAppearance: '', 
-  userFeatures: { hair: '', body: '' },
+  // userPersona: '',      
+  // userWorldId: '', userLocation: '', userOccupation: '',
+  // userAppearance: '', 
+  // userFeatures: { hair: '', body: '' },
 
   maxReplies: 1, 
   initialAffection: 10,
@@ -1079,7 +999,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
 			formData.value.allowSelfImage = target.settings.allowSelfImage === true;
             formData.value.userNameOverride = target.settings.userNameOverride || '';
             formData.value.userRelation = target.settings.userRelation || '';
-            formData.value.userPersona = target.settings.userPersona || '';
+            // formData.value.userPersona = target.settings.userPersona || '';
             formData.value.workplace = target.settings.workplace || '';
             formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings.workStartHour : 9;
             formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings.workEndHour : 18;
@@ -1096,19 +1016,19 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.dislikes = target.settings.dislikes || '';            
             formData.value.personalityNormal = target.settings.personalityNormal || '';
             
-            formData.value.userWorldId = target.settings.userWorldId || '';
-            formData.value.userLocation = target.settings.userLocation || '';
-            formData.value.userOccupation = target.settings.userOccupation || '';
-            formData.value.userAppearance = target.settings.userAppearance || '';
+            // formData.value.userWorldId = target.settings.userWorldId || '';
+            // formData.value.userLocation = target.settings.userLocation || '';
+            // formData.value.userOccupation = target.settings.userOccupation || '';
+            // formData.value.userAppearance = target.settings.userAppearance || '';
             formData.value.worldLore = target.settings.worldLore || '';
             
             if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
-            if (target.settings.userFeatures) {
-                formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
+            // if (target.settings.userFeatures) {
+            //    formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
                 
-                // 🔥🔥🔥 新增：强制清洗旧数据的残留 🔥🔥🔥
-                delete formData.value.userFeatures.privates; 
-            };
+            //    // 🔥🔥🔥 新增：强制清洗旧数据的残留 🔥🔥🔥
+            //    delete formData.value.userFeatures.privates; 
+            // };
         }
         
         if (formData.value.worldId) {
@@ -1197,9 +1117,9 @@ const saveCharacter = () => {
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
-        userNameOverride: formData.value.userNameOverride,
-        userRelation: formData.value.userRelation,
-        userPersona: formData.value.userPersona,
+        userNameOverride: formData.value.userNameOverride, // 保留，兼容旧数据
+        userRelation: formData.value.userRelation,         // 保留，首页修改后会回写到这里
+        // userPersona: formData.value.userPersona,
         workplace: formData.value.workplace,
         workStartHour: formData.value.workStartHour,
         workEndHour: formData.value.workEndHour,
@@ -1209,11 +1129,11 @@ const saveCharacter = () => {
         likes: formData.value.likes,                  
         dislikes: formData.value.dislikes,            
         occupation: formData.value.occupation, 
-        userWorldId: formData.value.userWorldId,
-        userLocation: formData.value.userLocation,
-        userOccupation: formData.value.userOccupation,
-        userAppearance: formData.value.userAppearance, 
-        userFeatures: formData.value.userFeatures,
+        // userWorldId: formData.value.userWorldId,
+        // userLocation: formData.value.userLocation,
+        // userOccupation: formData.value.userOccupation,
+        // userAppearance: formData.value.userAppearance, 
+        // userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
         personalityNormal: formData.value.personalityNormal,
     },

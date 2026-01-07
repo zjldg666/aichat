@@ -1,10 +1,10 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
+    <!-- 1. 顶部导航栏 -->
     <view class="custom-navbar">
       <view class="status-bar"></view>
       <view class="nav-content">
         <view class="location-capsule">
-            <image class="capsule-icon" src="/static/location.png" mode="aspectFit" v-if="false"></image>
             <text class="capsule-icon-text">📍</text>
             <view class="capsule-info">
                 <text class="capsule-label">当前位置</text>
@@ -25,149 +25,219 @@
     
     <view class="nav-placeholder"></view>
 
+    <!-- 2. 主内容滚动区 -->
     <scroll-view scroll-y class="room-list">
       <view class="list-header">
         <text class="list-title">我的世界</text>
-        <text class="list-subtitle">已探索 {{ worldScenes.length }} 个区域 · {{ contactList.length }} 位居民</text>
+        <text class="list-subtitle">已探索 {{ worldGroups.length }} 个世界 · {{ contactList.length }} 位居民</text>
       </view>
 
-      <view v-if="worldScenes.length === 0" class="empty-state" @click="openCreateSceneModal">
-        <text class="empty-emoji">🗺️</text>
-        <text>还没有创建地图场景</text>
-        <view class="create-hint-btn">创建第一个场景</view>
+      <!-- 空状态 -->
+      <view v-if="worldGroups.length === 0 && unmappedNpcs.length === 0" class="empty-state" @click="goToCreate">
+        <text class="empty-emoji">🌍</text>
+        <text>还没有创建任何角色</text>
+        <view class="create-hint-btn">创建第一个角色</view>
       </view>
 
+      <!-- 🌟 核心：按世界分组显示 -->
       <view 
-        class="scene-card" 
-        v-for="(scene, sIndex) in computedScenes" 
-        :key="scene.id"
-        @click="handleEnterScene(scene)" 
-        :class="{ 'active-location': globalLocation === scene.name }"
+        class="world-group-card" 
+        v-for="(group, gIndex) in worldGroups" 
+        :key="group.id"
       >
-        <view class="card-content">
-            <view class="room-info">
-                <view class="room-title-row">
+        <!-- 世界标题栏 (可折叠) -->
+        <view class="world-header" @click="toggleWorldCollapse(group.id)">
+            <view class="world-info">
+                <text class="world-icon">🪐</text>
+                <text class="world-name">{{ group.name }}</text>
+                <text class="world-count">({{ group.totalNpcs }}人)</text>
+            </view>
+            <text class="collapse-icon">{{ group.isCollapsed ? '▼' : '▲' }}</text>
+        </view>
 
-                    
-                    <view class="my-location-badge" v-if="globalLocation.includes(scene.name)">
-                        <view class="pulse-dot"></view>
-                        <text>当前位置</text>
+        <!-- 世界内容 (展开/收起) -->
+        <view class="world-body" v-show="!group.isCollapsed">
+
+            <!-- 🆕 玩家设定与关系管理 (新功能) -->
+            <view class="player-section">
+                <view class="player-header" @click="togglePlayerSettings(group.id)">
+                    <view class="ph-title-row">
+                        <text class="ph-icon">👤</text>
+                        <text class="ph-title">我的身份与关系</text>
                     </view>
-                    
-                    <view class="delete-btn" @click.stop="deleteScene(sIndex)">
-                        <text>🗑️</text>
-                    </view>
+                    <text class="ph-arrow">{{ playerSettingsOpen[group.id] ? '▼' : '▶' }}</text>
                 </view>
-                
-                <view class="resident-pile">
-                    <view 
-                        class="avatar-circle" 
-                        v-for="(npc, i) in scene.npcs.slice(0, 5)" 
-                        :key="npc.id"
-                        :style="{ zIndex: 10 - i }"
-                    >
-                        <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="pile-img"></image>
-                        <view class="status-indicator" v-if="npc.unread > 0"></view>
+
+                <view v-show="playerSettingsOpen[group.id]" class="player-body">
+                    <!-- 1. 玩家档案 -->
+                    <view class="subsection-title">我的档案 (在此世界)</view>
+                    <view class="form-card">
+                        <view class="input-row">
+                            <text class="label">名字</text>
+                            <input 
+                                class="input" 
+                                placeholder="你在该世界的昵称" 
+                                :value="getPlayerProfile(group.id).name"
+                                @input="(e) => updatePlayerProfile(group.id, 'name', e.detail.value)"
+                            />
+                        </view>
+                        <view class="input-row">
+                            <text class="label">住址</text>
+                            <input 
+                                class="input" 
+                                placeholder="例如: 301室" 
+                                :value="getPlayerProfile(group.id).location"
+                                @input="(e) => updatePlayerProfile(group.id, 'location', e.detail.value)"
+                            />
+                        </view>
+                        <view class="input-col">
+                            <text class="label">外貌/人设 (Prompt)</text>
+                            <textarea 
+                                class="textarea" 
+                                placeholder="描述你的外貌特征，用于生图和AI认知..." 
+                                :value="getPlayerProfile(group.id).appearance"
+                                @input="(e) => updatePlayerProfile(group.id, 'appearance', e.detail.value)"
+                                maxlength="-1"
+                            />
+                        </view>
+                        <button class="mini-save-btn" @click="savePlayerProfile(group.id)">💾 保存档案</button>
                     </view>
-                    
-                    <view class="more-count" v-if="scene.npcs.length > 5">
-                        <text>+{{ scene.npcs.length - 5 }}</text>
+
+                    <!-- 2. 关系表 -->
+                    <view class="subsection-title" style="margin-top: 30rpx;">羁绊关系网</view>
+                    <view class="relation-list">
+                        <view class="relation-item" v-for="npc in getAllNpcsInWorld(group.id)" :key="npc.id">
+                            <image :src="npc.avatar || '/static/ai-avatar.png'" class="rel-avatar"></image>
+                            <view class="rel-info">
+                                <text class="rel-name">{{ npc.name }}</text>
+                                <input 
+                                    class="rel-input" 
+                                    placeholder="定义你们的关系 (如: 邻居)" 
+                                    :value="npc.settings?.userRelation || ''" 
+                                    @input="(e) => updateNpcRelation(npc, e.detail.value)"
+                                    @blur="persistContactList"
+                                />
+                            </view>
+                        </view>
+                        <view v-if="getAllNpcsInWorld(group.id).length === 0" class="empty-tip">
+                            暂无角色，请先创建角色并加入此世界。
+                        </view>
                     </view>
-                    
-                    <text class="resident-count-text" v-if="scene.npcs.length > 0">
-                        {{ scene.npcs.length }} 人在屋内
-                    </text>
-                    <text class="resident-count-text empty" v-else>
-                        屋内空无一人
-                    </text>
                 </view>
             </view>
             
-            <view class="card-action">
-                 <button class="action-btn-pill enter" v-if="globalLocation.includes(scene.name)">
-                    <text>📍 在此</text>
-                 </button>
-                 <button class="action-btn-pill visit" v-else>
-                    <text>🔑 进门</text>
-                 </button>
+            <!-- A. 有明确住址的角色 (按地址分组) -->
+            <view 
+                class="location-card" 
+                v-for="(loc, lIndex) in group.locations" 
+                :key="lIndex"
+                @click="handleEnterLocation(loc.name, group.id)"
+                :class="{ 'active-location': globalLocation === loc.name }"
+            >
+                <view class="card-content">
+                    <view class="room-info">
+                        <view class="room-title-row">
+                            <text class="scene-icon">🏠</text>
+                            <text class="room-name">{{ loc.name }}</text>
+                            
+                            <view class="my-location-badge" v-if="globalLocation === loc.name">
+                                <view class="pulse-dot"></view>
+                                <text>当前位置</text>
+                            </view>
+                        </view>
+                        
+                        <view class="resident-pile">
+                            <view 
+                                class="avatar-circle" 
+                                v-for="(npc, i) in loc.npcs.slice(0, 5)" 
+                                :key="npc.id"
+                                :style="{ zIndex: 10 - i }"
+                            >
+                                <image :src="npc.avatar || '/static/ai-avatar.png'" mode="aspectFill" class="pile-img"></image>
+                                <view class="status-indicator" v-if="npc.unread > 0"></view>
+                            </view>
+                            
+                            <view class="more-count" v-if="loc.npcs.length > 5">
+                                <text>+{{ loc.npcs.length - 5 }}</text>
+                            </view>
+                            
+                            <text class="resident-count-text">
+                                {{ loc.npcs.map(n => n.name).join('、') }}
+                            </text>
+                        </view>
+                    </view>
+                    
+                    <view class="card-action">
+                         <button class="action-btn-pill enter" v-if="globalLocation === loc.name">
+                            <text>📍 在此</text>
+                         </button>
+                         
+                         <button 
+                            class="action-btn-pill home" 
+                            v-else-if="getPlayerProfile(group.id).location === loc.name"
+                            @click.stop="handleEnterLocation(loc.name, group.id)"
+                         >
+                            <text>🏠 回家</text>
+                         </button>
+                         
+                         <button 
+                            class="action-btn-pill visit" 
+                            v-else 
+                            @click.stop="handleEnterLocation(loc.name, group.id)"
+                         >
+                            <text>✊ 敲门</text>
+                         </button>
+                    </view>
+                </view>
             </view>
+
+            <!-- B. 游荡/无固定住址的角色 -->
+            <view v-if="group.wanderingNpcs.length > 0" class="wandering-section">
+                <view class="wandering-title">🚶 游荡中 / 未知区域</view>
+                <view class="wandering-list">
+                    <view 
+                        class="wandering-item" 
+                        v-for="npc in group.wanderingNpcs" 
+                        :key="npc.id"
+                        @click="enterChat(npc.id)"
+                    >
+                        <image :src="npc.avatar || '/static/ai-avatar.png'" class="mini-avatar"></image>
+                        <text class="mini-name">{{ npc.name }}</text>
+                    </view>
+                </view>
+            </view>
+
         </view>
       </view>
 
-      <view v-if="unmappedNpcs.length > 0" class="scene-card other-card">
-          <view class="scene-header">
-              <text class="scene-name" style="font-size: 28rpx; opacity: 0.7;">📍 其他区域 / 游荡中</text>
+      <!-- 兜底：未分配世界的角色 -->
+      <view v-if="unmappedNpcs.length > 0" class="world-group-card other-group">
+          <view class="world-header">
+              <view class="world-info">
+                  <text class="world-icon">🌫️</text>
+                  <text class="world-name">未知领域</text>
+                  <text class="world-count">({{ unmappedNpcs.length }}人)</text>
+              </view>
           </view>
-          <view class="other-list">
-              <view class="other-item" v-for="npc in unmappedNpcs" :key="npc.id" @click="enterChat(npc.id)">
-                  <image :src="npc.avatar || '/static/ai-avatar.png'" class="other-avatar"></image>
-                  <text class="other-name">{{ npc.name }}</text>
-                  <text class="other-loc">@{{ npc.location }}</text>
+          <view class="world-body">
+              <view class="wandering-list">
+                  <view 
+                      class="wandering-item" 
+                      v-for="npc in unmappedNpcs" 
+                      :key="npc.id"
+                      @click="enterChat(npc.id)"
+                  >
+                      <image :src="npc.avatar || '/static/ai-avatar.png'" class="mini-avatar"></image>
+                      <text class="mini-name">{{ npc.name }}</text>
+                      <text class="mini-loc">@{{ npc.location || '未知' }}</text>
+                  </view>
               </view>
           </view>
       </view>
 
     </scroll-view>
 
-    <view class="modal-mask" v-if="showCreateModal" @click.self="showCreateModal = false">
-        <view class="modal-content">
-            <view class="modal-header">
-                <text class="modal-title">创建新区域</text>
-            </view>
-            <view class="modal-body">
-				<view class="input-group">
-				    <text class="label">所属世界</text>
-				    <picker 
-				        mode="selector" 
-				        :range="worldList" 
-				        range-key="name" 
-				        :value="selectedWorldIndex" 
-				        @change="(e) => selectedWorldIndex = e.detail.value"
-				    >
-				        <view class="picker-box">
-				            {{ worldList[selectedWorldIndex] ? worldList[selectedWorldIndex].name : '请选择世界' }}
-				            <text class="arrow">▼</text>
-				        </view>
-				    </picker>
-				</view>
-                <view class="input-group">
-                    <text class="label">区域名称 (如: 家/学校)</text>
-                    <input class="input" v-model="newSceneName" placeholder="给这个地方起个名字" />
-                </view>
-                <view class="input-group">
-                    <text class="label">包含场所 (逐个添加)</text>
-                    
-                    <view class="add-node-row">
-                        <input 
-                            class="input node-input" 
-                            v-model="tempNodeName" 
-                            placeholder="输入房间名 (如: 卧室)" 
-                            @confirm="addNode" 
-                        />
-                        <button class="btn-mini add" @click="addNode">添加</button>
-                    </view>
-                
-                    <view class="tags-container" v-if="newSceneNodes.length > 0">
-                        <view 
-                            class="node-tag" 
-                            v-for="(node, index) in newSceneNodes" 
-                            :key="index"
-                            @click="removeNode(index)"
-                        >
-                            <text>{{ node }}</text>
-                            <text class="tag-close">×</text>
-                        </view>
-                    </view>
-                    <view class="hint" v-else>还没有添加房间，请在上方输入并点击添加</view>
-                </view>
-            </view>
-            <view class="modal-footer">
-                <button class="btn cancel" @click="showCreateModal = false">取消</button>
-                <button class="btn confirm" @click="confirmCreateScene">创建</button>
-            </view>
-        </view>
-    </view>
-
+    <!-- 手机组件 -->
     <GamePhone 
       :visible="showPhone"
       :world-id="currentWorldId"
@@ -177,6 +247,16 @@
     />
 
     <CustomTabBar :current="0" />
+    
+    <!-- 🚪 敲门互动弹窗 -->
+    <DoorInteraction 
+      :visible="showDoorModal"
+      :npc="currentDoorNpc"
+      :player-profile="currentDoorPlayerProfile"
+      @close="closeDoorModal"
+      @open="handleDoorOpened"
+      @save-history="saveDoorHistory"
+    />
   </view>
 </template>
 
@@ -187,6 +267,8 @@ import CustomTabBar from '@/components/CustomTabBar.vue';
 import { useTheme } from '@/composables/useTheme.js';
 import GamePhone from '@/components/GamePhone.vue';
 import { useGameTime } from '@/composables/useGameTime.js';
+import DoorInteraction from '@/components/DoorInteraction.vue';
+import { DB } from '@/utils/db.js';
 
 const { isDarkMode } = useTheme();
 const { formattedTime } = useGameTime();
@@ -194,22 +276,21 @@ const { formattedTime } = useGameTime();
 // 核心数据
 const contactList = ref([]);
 const globalLocation = ref('客厅'); 
-const worldScenes = ref([]); // 🌟 存储所有的场景配置
+const worldSettings = ref([]); // 读取 Mine 页面配置的世界观列表
+const collapsedWorlds = ref({}); // 记录折叠状态 { worldId: boolean }
+
+// 新增：玩家设定相关
+const playerProfiles = ref({}); // { worldId: { name, location, appearance } }
+const playerSettingsOpen = ref({}); // { worldId: boolean }
+
+// 敲门状态
+const showDoorModal = ref(false);
+const currentDoorNpc = ref({});
+const currentDoorPlayerProfile = ref({});
 
 // UI 状态
 const showPhone = ref(false);
-const showCreateModal = ref(false);
-const newSceneName = ref('');
 
-
-// 计算属性：世界ID (取第一个联系人的世界ID)
-const currentWorldId = computed(() => contactList.value.length > 0 ? contactList.value[0].worldId : '');
-const worldList = ref([]); // 所有的世界选项
-const selectedWorldIndex = ref(0); // 当前选中的世界索引 (picker用)
-
-// ✨ 新增：子场景一个个添加相关
-const tempNodeName = ref(''); // 输入框里临时的那个名字
-const newSceneNodes = ref([]); // 已经添加进去的子场景列表 (不再是字符串了)
 onShow(() => {
   // 1. 加载 NPC
   const list = uni.getStorageSync('contact_list') || [];
@@ -219,148 +300,221 @@ onShow(() => {
   const savedLoc = uni.getStorageSync('app_global_player_location');
   if (savedLoc) globalLocation.value = savedLoc;
   
-  // 3. 🌟 加载场景配置 (如果为空，初始化一个默认的“家”)
-  let scenes = uni.getStorageSync('app_world_scenes_custom');
-const savedWorlds = uni.getStorageSync('app_world_settings') || [];
-  if (savedWorlds.length > 0) {
-      worldList.value = savedWorlds;
-  } else {
-      // 如果没数据，给个默认的，防止 picker 报错
-      worldList.value = [{ id: 'default', name: '默认世界' }];
-  }
-  worldScenes.value = scenes;
+  // 3. 加载世界观配置
+  const savedWorlds = uni.getStorageSync('app_world_settings') || [];
+  worldSettings.value = savedWorlds;
+
+  // 4. 加载玩家档案
+  const savedProfiles = uni.getStorageSync('app_world_player_profiles') || {};
+  playerProfiles.value = savedProfiles;
 });
 
+// 计算属性：世界ID (取第一个联系人的世界ID，用于手机组件)
+const currentWorldId = computed(() => contactList.value.length > 0 ? contactList.value[0].worldId : '');
 
-// 🌟 核心修改：以大场景为单位汇总 NPC
-const computedScenes = computed(() => {
-    return worldScenes.value.map(scene => {
-        // 1. 找出所有在这个大场景（包括其子房间）里的 NPC
-        const residents = contactList.value.filter(npc => {
-            const cLoc = npc.location || '';
-            // 匹配逻辑：NPC位置 包含 场景名 (如 "301") 或 包含 任意子房间名 (如 "卧室")
-            const isMatchScene = cLoc.includes(scene.name); 
-            const isMatchNode = scene.nodes.some(n => cLoc.includes(n));
-            return isMatchScene || isMatchNode;
+// 辅助：获取某世界的所有NPC
+const getAllNpcsInWorld = (worldId) => {
+    return contactList.value.filter(npc => String(npc.worldId) === String(worldId));
+};
+
+// 玩家档案操作
+const togglePlayerSettings = (worldId) => {
+    playerSettingsOpen.value[worldId] = !playerSettingsOpen.value[worldId];
+};
+
+const getPlayerProfile = (worldId) => {
+    if (!playerProfiles.value[worldId]) {
+        // 初始化空对象
+        playerProfiles.value[worldId] = { name: '', location: '', appearance: '' };
+    }
+    return playerProfiles.value[worldId];
+};
+
+const updatePlayerProfile = (worldId, field, value) => {
+    if (!playerProfiles.value[worldId]) playerProfiles.value[worldId] = {};
+    playerProfiles.value[worldId][field] = value;
+};
+
+const savePlayerProfile = (worldId) => {
+    uni.setStorageSync('app_world_player_profiles', playerProfiles.value);
+    uni.showToast({ title: '档案已保存', icon: 'success' });
+    
+    // 可选：同步更新该世界下所有角色的 settings.userNameOverride 等字段？
+    // 策略：如果这只是“世界观设定”，那么具体聊天时应该优先读取这里的配置，
+    // 而不是每个角色的 settings。
+    // 但为了兼容旧逻辑，我们可以把这里的名字同步写入到该世界所有角色的 settings.userNameOverride 中
+    /*
+    const profile = playerProfiles.value[worldId];
+    let updated = false;
+    contactList.value.forEach(npc => {
+        if (String(npc.worldId) === String(worldId) && npc.settings) {
+            npc.settings.userNameOverride = profile.name;
+            npc.settings.userLocation = profile.location;
+            npc.settings.userAppearance = profile.appearance;
+            updated = true;
+        }
+    });
+    if (updated) {
+        uni.setStorageSync('contact_list', contactList.value);
+        console.log('✅ 已同步玩家档案到该世界所有角色');
+    }
+    */
+};
+
+// 关系修改
+const updateNpcRelation = (npc, newRelation) => {
+    if (!npc.settings) npc.settings = {};
+    npc.settings.userRelation = newRelation;
+};
+
+const persistContactList = () => {
+    uni.setStorageSync('contact_list', contactList.value);
+    // console.log('✅ 关系已保存');
+};
+
+// 🌟 核心逻辑：按世界 -> 地点 分组
+const worldGroups = computed(() => {
+    // 1. 预处理世界列表
+    const groups = worldSettings.value.map(world => {
+        // 找出属于该世界的 NPC
+        const worldNpcs = contactList.value.filter(npc => String(npc.worldId) === String(world.id));
+        
+        // 2. 在该世界内，按 location 分组
+        const locationMap = {};
+        const wandering = [];
+
+        worldNpcs.forEach(npc => {
+            const loc = npc.location;
+            if (loc && loc !== '未知位置' && loc !== '流浪中') {
+                if (!locationMap[loc]) {
+                    locationMap[loc] = [];
+                }
+                locationMap[loc].push(npc);
+            } else {
+                wandering.push(npc);
+            }
         });
 
-        // 2. 返回简化的结构，供 UI 显示头像堆叠
+        // 转为数组格式
+        const locations = Object.keys(locationMap).map(locName => ({
+            name: locName,
+            npcs: locationMap[locName]
+        }));
+
         return {
-            ...scene,
-            npcs: residents // 这里的 npcs 是整个大场景里的所有人
+            id: world.id,
+            name: world.name,
+            totalNpcs: worldNpcs.length,
+            locations: locations,
+            wanderingNpcs: wandering,
+            isCollapsed: !!collapsedWorlds.value[world.id] // 读取折叠状态
         };
     });
+
+    // 过滤掉没有任何 NPC 的世界 (可选，如果想显示空世界可以去掉这行)
+    return groups.filter(g => g.totalNpcs > 0);
 });
 
-// 🌟 核心逻辑：找出所有没有被归类到场景里的 NPC
+// 找出不属于任何已知世界的 NPC
 const unmappedNpcs = computed(() => {
-    return contactList.value.filter(c => {
-        const cLoc = c.location || '';
-        
-        // 检查这个 NPC 是否已经被上面的 computedScenes "认领" 了
-        const isClaimed = worldScenes.value.some(scene => {
-            // 情况1: 地址包含大场景名 (如 "幸福小区301")
-            if (cLoc.includes(scene.name)) return true;
-            // 情况2: 地址包含某个房间名
-            return scene.nodes.some(n => cLoc.includes(n) || n.includes(cLoc));
-        });
-        
-        return !isClaimed; // 没被认领的才显示在底部
-    });
+    const knownWorldIds = worldSettings.value.map(w => String(w.id));
+    return contactList.value.filter(npc => !npc.worldId || !knownWorldIds.includes(String(npc.worldId)));
 });
 
 // === 交互逻辑 ===
 
+const toggleWorldCollapse = (worldId) => {
+    // 必须重新赋值触发响应式，或者使用 ref 对象
+    collapsedWorlds.value[worldId] = !collapsedWorlds.value[worldId];
+    // 强制刷新一下（虽然 Vue3 通常能自动检测到）
+    collapsedWorlds.value = { ...collapsedWorlds.value };
+};
+
 const showActionMenu = () => {
     uni.showActionSheet({
-        itemList: ['🏗️ 创建新场景', '👤 创建新角色'],
+        itemList: ['👤 创建新角色', '⚙️ 管理世界观'],
         success: (res) => {
-            if (res.tapIndex === 0) openCreateSceneModal();
-            if (res.tapIndex === 1) uni.navigateTo({ url: '/pages/create/create' });
+            if (res.tapIndex === 0) uni.navigateTo({ url: '/pages/create/create' });
+            if (res.tapIndex === 1) uni.switchTab({ url: '/pages/mine/mine' });
         }
     });
 };
 
-const openCreateSceneModal = () => {
-    newSceneName.value = '';
-    newSceneNodes.value = []; // ✨ 必须是空数组 []
-    tempNodeName.value = '';  // 顺便清空一下输入框缓存
-    showCreateModal.value = true;
-    selectedWorldIndex.value = 0; 
+const goToCreate = () => {
+    uni.navigateTo({ url: '/pages/create/create' });
 };
 
-// ✨ 添加一个子场景
-const addNode = () => {
-    if (!tempNodeName.value.trim()) return; // 空的不管
-    // 查重（可选）
-    if (newSceneNodes.value.includes(tempNodeName.value)) {
-        return uni.showToast({ title: '这个房间已存在', icon: 'none' });
+// 点击地点卡片 / 敲门
+const handleEnterLocation = (locName, worldId) => {
+    // 1. 找出住在这里的 NPC
+    const residents = contactList.value.filter(n => n.location === locName && String(n.worldId) === String(worldId));
+    
+    if (residents.length === 0) {
+        return uni.showToast({ title: '这里好像没人住...', icon: 'none' });
     }
-    newSceneNodes.value.push(tempNodeName.value.trim()); // 放入列表
-    tempNodeName.value = ''; // 清空输入框，方便输下一个
+
+    // 2. 选一个主要角色来应门 (优先找好感度高的)
+    const sortedResidents = [...residents].sort((a, b) => (b.affection || 0) - (a.affection || 0));
+    const targetNpc = sortedResidents[0];
+
+    // 3. 打开互动弹窗
+    currentDoorNpc.value = targetNpc;
+    currentDoorPlayerProfile.value = getPlayerProfile(worldId);
+    showDoorModal.value = true;
 };
 
-// ✨ 删除已添加的
-const removeNode = (index) => {
-    newSceneNodes.value.splice(index, 1);
-};
-const confirmCreateScene = () => {
-    if (!newSceneName.value) return uni.showToast({ title: '缺场景名', icon:'none' });
-        if (newSceneNodes.value.length === 0) return uni.showToast({ title: '至少加一个房间', icon:'none' });
-    
-        // 获取当前选中的世界ID
-        const currentWorld = worldList.value[selectedWorldIndex.value];
-    
-        const newScene = {
-            id: 'scene_' + Date.now(),
-            worldId: currentWorld.id, // ✨ 绑定世界ID
-            name: newSceneName.value,
-            nodes: newSceneNodes.value // ✨ 直接存数组，不用 split 了
-        };
-    
-    // 保存
-    worldScenes.value.push(newScene);
-    uni.setStorageSync('app_world_scenes_custom', worldScenes.value);
-    
-    showCreateModal.value = false;
-    uni.showToast({ title: '场景创建成功', icon: 'success' });
+// 关闭门
+const closeDoorModal = () => {
+    showDoorModal.value = false;
 };
 
-const deleteScene = (index) => {
-    uni.showModal({
-        title: '删除场景',
-        content: '确定要删除这个区域吗？NPC 不会被删除，但位置会变为“游荡”。',
-        success: (res) => {
-            if (res.confirm) {
-                worldScenes.value.splice(index, 1);
-                uni.setStorageSync('app_world_scenes_custom', worldScenes.value);
-            }
-        }
-    });
-};
-
-// 点击节点逻辑
-const handleEnterScene = (scene) => {
-    const targetLoc = scene.name; // 目标是大场景，如 "幸福小区301"
-    
-    // 1. 更新玩家位置 (不具体到卧室，只到大门口)
-    // 这样进入 Chat 后，useGameLocation 会根据这个位置加载对应的子场景列表
-    updateLocation(targetLoc);
-    
-    // 2. 检查屋里有没有人
-    if (scene.npcs && scene.npcs.length > 0) {
-        // 如果有人，直接找第一个人聊天
-        // (优化点：如果有多人，这里其实可以弹窗让人选，或者默认找好感度最高的)
-        const targetNpc = scene.npcs[0];
-        uni.showToast({ title: `进入 ${targetLoc}`, icon: 'none' });
+// 门开了 -> 跳转
+const handleDoorOpened = () => {
+    if (currentDoorNpc.value && currentDoorNpc.value.id) {
+        // 更新位置
+        updateLocation(currentDoorNpc.value.location);
         
-        // 延迟跳转，让 Toast 显示一会
+        showDoorModal.value = false;
+        
+        // 延迟跳转，让开门动画播完的体感更好
         setTimeout(() => {
-            enterChat(targetNpc.id);
-        }, 500);
-    } else {
-        // 如果没人，只是进去逛逛
-        uni.showToast({ title: `已进入 ${targetLoc} (空屋)`, icon: 'none' });
+            enterChat(currentDoorNpc.value.id);
+        }, 100);
+    }
+};
+
+// 保存门外对话到历史记录
+const saveDoorHistory = async (messages) => {
+    if (!currentDoorNpc.value || !messages || messages.length === 0) return;
+    
+    const chatId = String(currentDoorNpc.value.id);
+    const now = Date.now();
+    
+    try {
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const isSys = msg.role === 'assistant' && (msg.content === '(门开了)' || msg.content.includes('OPEN_DOOR'));
+            
+            // 跳过纯指令
+            if (msg.content.includes('OPEN_DOOR')) continue;
+
+            await DB.execute(
+                `INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp, source_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    now + i, // 确保顺序
+                    chatId,
+                    msg.role === 'user' ? 'user' : 'model', // 映射 role
+                    isSys ? `(隔着门) ${msg.content}` : `(隔着门) ${msg.content}`, // 加上标记方便区分
+                    'text',
+                    0,
+                    now + i,
+                    'door_intercom' // 标记来源模式
+                ]
+            );
+        }
+        console.log(`✅ [Door] Saved ${messages.length} messages to history.`);
+    } catch (e) {
+        console.error('❌ Failed to save door history:', e);
     }
 };
 
@@ -388,12 +542,11 @@ const enterChat = (id) => {
     transition: background-color 0.3s ease;
 }
 
-/* === 顶部导航栏 (毛玻璃效果增强) === */
+/* === 顶部导航栏 (保持不变) === */
 .custom-navbar { 
     position: fixed; top: 0; width: 100%; 
     background: rgba(255, 255, 255, 0.8); 
     backdrop-filter: blur(20px); 
-    -webkit-backdrop-filter: blur(20px);
     z-index: 999; 
     border-bottom: 1rpx solid rgba(0,0,0,0.05);
     display: flex; flex-direction: column;
@@ -404,31 +557,25 @@ const enterChat = (id) => {
 }
 
 .status-bar { height: var(--status-bar-height); width: 100%; }
-
 .nav-content { 
     height: 100rpx; 
     display: flex; justify-content: space-between; align-items: center; 
     padding: 0 32rpx; 
 }
 
-/* 位置胶囊优化 */
 .location-capsule { 
     display: flex; align-items: center; 
     background: rgba(0,0,0,0.05);
     padding: 8rpx 24rpx 8rpx 16rpx;
     border-radius: 40rpx;
-    transition: all 0.3s;
 }
 .dark-mode .location-capsule { background: rgba(255,255,255,0.1); }
-
 .capsule-icon-text { font-size: 32rpx; margin-right: 12rpx; }
 .capsule-info { display: flex; flex-direction: column; justify-content: center; }
 .capsule-label { font-size: 20rpx; color: var(--text-sub); opacity: 0.8; line-height: 1; margin-bottom: 4rpx; }
 .capsule-value { font-size: 26rpx; font-weight: 700; color: var(--text-color); line-height: 1.2; }
 
-/* 右侧按钮组 */
 .right-actions { display: flex; align-items: center; gap: 24rpx; }
-
 .glass-btn { 
     width: 80rpx; height: 80rpx; 
     background: rgba(255,255,255,0.8); 
@@ -436,14 +583,12 @@ const enterChat = (id) => {
     display: flex; align-items: center; justify-content: center; 
     box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05); 
     border: 1rpx solid rgba(0,0,0,0.05);
-    transition: transform 0.1s;
 }
 .dark-mode .glass-btn {
     background: rgba(60, 60, 60, 0.6);
     border: 1rpx solid rgba(255,255,255,0.1);
     box-shadow: none;
 }
-.glass-btn:active { transform: scale(0.92); }
 .add-btn { background: #007aff !important; border: none; }
 .add-btn text { color: #fff; font-size: 40rpx; font-weight: 300; }
 .phone-btn text { font-size: 36rpx; }
@@ -461,241 +606,202 @@ const enterChat = (id) => {
 .list-title { font-size: 56rpx; font-weight: 800; color: var(--text-color); display: block; letter-spacing: -1rpx; }
 .list-subtitle { font-size: 26rpx; color: var(--text-sub); margin-top: 10rpx; display: block; opacity: 0.7; }
 
-/* === 🌟 场景卡片样式 (核心优化) === */
-.scene-card {
-    background: var(--card-bg); 
-    border-radius: 32rpx; 
-    margin-bottom: 32rpx;
-    box-shadow: 0 10rpx 40rpx rgba(0,0,0,0.06); 
-    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-    border: 1rpx solid rgba(0,0,0,0.02);
-    position: relative;
+/* === 🌍 世界分组卡片 === */
+.world-group-card {
+    background: var(--tool-bg); /* 浅灰底色区分世界 */
+    border-radius: 32rpx;
+    margin-bottom: 40rpx;
     overflow: hidden;
+    border: 1rpx solid var(--border-color);
 }
-.dark-mode .scene-card { 
-    box-shadow: 0 10rpx 40rpx rgba(0,0,0,0.3); 
-    border: 1rpx solid rgba(255,255,255,0.05);
+.dark-mode .world-group-card { background: rgba(255,255,255,0.02); }
+
+.world-header {
+    padding: 24rpx 32rpx;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--card-bg);
+    border-bottom: 1rpx solid var(--border-color);
 }
 
-.scene-card:active { transform: scale(0.98); }
-.scene-card.active-location {
-    border: 2rpx solid #007aff;
+.world-info { display: flex; align-items: center; }
+.world-icon { font-size: 36rpx; margin-right: 16rpx; }
+.world-name { font-size: 30rpx; font-weight: 800; color: var(--text-color); margin-right: 12rpx; }
+.world-count { font-size: 24rpx; color: var(--text-sub); }
+.collapse-icon { font-size: 24rpx; color: var(--text-sub); padding: 10rpx; }
+
+.world-body { padding: 24rpx; }
+
+/* === 🆕 玩家设定样式 === */
+.player-section {
+    margin-bottom: 30rpx;
+    background: var(--tool-bg);
+    border-radius: 16rpx;
+    border: 1rpx solid rgba(0,0,0,0.05);
+    overflow: hidden;
+}
+.player-header {
+    padding: 20rpx;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.03);
+    cursor: pointer;
+}
+.ph-title-row { display: flex; align-items: center; }
+.ph-icon { margin-right: 12rpx; font-size: 30rpx; }
+.ph-title { font-size: 26rpx; font-weight: bold; color: var(--text-color); }
+.ph-arrow { font-size: 22rpx; color: var(--text-sub); opacity: 0.6; }
+
+.player-body { padding: 20rpx; background: var(--card-bg); }
+.subsection-title { 
+    font-size: 24rpx; color: var(--text-sub); margin-bottom: 16rpx; font-weight: bold; 
+    border-left: 6rpx solid #007aff; padding-left: 10rpx;
+}
+
+.form-card { }
+.input-row { 
+    display: flex; align-items: center; margin-bottom: 16rpx; 
+    border-bottom: 1rpx solid var(--border-color); padding-bottom: 8rpx;
+}
+.input-col { margin-bottom: 20rpx; }
+
+.label { width: 100rpx; font-size: 26rpx; color: var(--text-sub); }
+.input { flex: 1; font-size: 26rpx; color: var(--text-color); }
+.textarea { 
+    width: 100%; height: 120rpx; 
+    background: var(--input-bg); 
+    border-radius: 8rpx; padding: 12rpx; 
+    font-size: 26rpx; color: var(--text-color); box-sizing: border-box;
+    margin-top: 10rpx;
+}
+
+.mini-save-btn {
+    background: #007aff; color: #fff; font-size: 24rpx; 
+    padding: 10rpx 0; border-radius: 30rpx; margin-top: 16rpx;
+}
+
+/* 关系表 */
+.relation-list { display: flex; flex-direction: column; gap: 16rpx; }
+.relation-item { 
+    display: flex; align-items: center; 
+    background: var(--tool-bg); padding: 12rpx; border-radius: 12rpx;
+}
+.rel-avatar { width: 60rpx; height: 60rpx; border-radius: 50%; margin-right: 16rpx; }
+.rel-info { flex: 1; display: flex; align-items: center; justify-content: space-between; }
+.rel-name { font-size: 26rpx; font-weight: bold; color: var(--text-color); margin-right: 20rpx; width: 120rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rel-input { 
+    flex: 1; font-size: 24rpx; color: var(--text-color); 
+    background: var(--card-bg); padding: 8rpx 16rpx; border-radius: 8rpx; text-align: right;
+}
+.empty-tip { font-size: 24rpx; color: var(--text-sub); text-align: center; padding: 20rpx; }
+
+/* === 🏠 地点卡片 (复用优化) === */
+.location-card {
+    background: var(--card-bg); 
+    border-radius: 24rpx; 
+    margin-bottom: 24rpx;
+    box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.04); 
+    transition: all 0.2s;
+    border: 1rpx solid transparent;
+}
+.dark-mode .location-card { box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.2); }
+.location-card:active { transform: scale(0.98); }
+
+.location-card.active-location {
+    border-color: #007aff;
     background: linear-gradient(to bottom right, var(--card-bg), rgba(0,122,255,0.03));
 }
 
-.card-content { padding: 36rpx; display: flex; align-items: center; justify-content: space-between; }
-.room-info { flex: 1; padding-right: 20rpx; min-width: 0; /* 防止文字溢出 */ }
+.card-content { padding: 30rpx; display: flex; align-items: center; justify-content: space-between; }
+.room-info { flex: 1; padding-right: 20rpx; min-width: 0; }
 
-/* 标题行布局 */
-.room-title-row { 
-    display: flex; align-items: center; justify-content: space-between; 
-    margin-bottom: 28rpx; width: 100%;
-}
-.title-left { display: flex; align-items: center; flex: 1; overflow: hidden; }
-.scene-icon { font-size: 38rpx; margin-right: 16rpx; }
-.room-name { 
-    font-size: 34rpx; font-weight: 700; color: var(--text-color); 
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+.room-title-row { display: flex; align-items: center; margin-bottom: 20rpx; }
+.scene-icon { font-size: 34rpx; margin-right: 12rpx; }
+.room-name { font-size: 32rpx; font-weight: 700; color: var(--text-color); }
 
-/* 删除按钮 */
-.delete-btn {
-    padding: 10rpx; opacity: 0.3; transition: opacity 0.2s; margin-right: -10rpx;
-}
-.delete-btn:active { opacity: 1; }
-
-/* 当前位置徽章 (呼吸灯效果) */
 .my-location-badge {
     background: rgba(0,122,255,0.08); 
-    padding: 6rpx 16rpx; 
-    border-radius: 20rpx;
-    display: flex; align-items: center; gap: 10rpx;
-    margin-left: 20rpx; flex-shrink: 0;
+    padding: 4rpx 12rpx; 
+    border-radius: 16rpx;
+    display: flex; align-items: center; gap: 8rpx;
+    margin-left: 16rpx;
 }
-.my-location-badge text { font-size: 20rpx; color: #007aff; font-weight: 600; }
+.my-location-badge text { font-size: 18rpx; color: #007aff; font-weight: 600; }
 .pulse-dot { 
-    width: 12rpx; height: 12rpx; 
+    width: 10rpx; height: 10rpx; 
     background: #007aff; border-radius: 50%; 
-    box-shadow: 0 0 8rpx rgba(0,122,255,0.6);
     animation: pulse 2s infinite; 
 }
 
 @keyframes pulse {
-    0% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.7); }
-    70% { transform: scale(1); opacity: 0.7; box-shadow: 0 0 0 10rpx rgba(0, 122, 255, 0); }
-    100% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
+    0% { transform: scale(0.9); opacity: 1; }
+    70% { transform: scale(1.2); opacity: 0.5; }
+    100% { transform: scale(0.9); opacity: 1; }
 }
 
-/* === 头像堆叠效果 === */
-.resident-pile { display: flex; align-items: center; height: 64rpx; margin-top: 8rpx; }
+.resident-pile { display: flex; align-items: center; height: 56rpx; }
 .avatar-circle { 
-    width: 64rpx; height: 64rpx; 
+    width: 56rpx; height: 56rpx; 
     border-radius: 50%; 
-    border: 4rpx solid var(--card-bg); 
-    margin-left: -24rpx; /* 更紧凑的堆叠 */
+    border: 3rpx solid var(--card-bg); 
+    margin-left: -20rpx; 
     position: relative;
     flex-shrink: 0;
-    transition: transform 0.2s;
 }
 .avatar-circle:first-child { margin-left: 0; }
 .pile-img { width: 100%; height: 100%; border-radius: 50%; background: #f0f0f0; }
 .status-indicator { 
     position: absolute; top: -2rpx; right: -2rpx; 
-    width: 18rpx; height: 18rpx; 
-    background: #ff4d4f; border: 3rpx solid var(--card-bg); border-radius: 50%; 
+    width: 16rpx; height: 16rpx; 
+    background: #ff4d4f; border: 2rpx solid var(--card-bg); border-radius: 50%; 
 }
-
 .more-count {
-    width: 64rpx; height: 64rpx; 
-    border-radius: 50%; 
-    background: var(--tool-bg); 
-    border: 4rpx solid var(--card-bg);
-    margin-left: -24rpx;
-    display: flex; align-items: center; justify-content: center;
-    z-index: 0;
+    width: 56rpx; height: 56rpx; 
+    border-radius: 50%; background: var(--tool-bg); 
+    border: 3rpx solid var(--card-bg); margin-left: -20rpx;
+    display: flex; align-items: center; justify-content: center; z-index: 0;
 }
-.more-count text { font-size: 20rpx; color: var(--text-sub); font-weight: 700; }
-.resident-count-text { font-size: 24rpx; color: var(--text-sub); margin-left: 20rpx; opacity: 0.8; }
-.resident-count-text.empty { margin-left: 0; opacity: 0.5; font-style: italic; }
+.more-count text { font-size: 18rpx; color: var(--text-sub); font-weight: 700; }
+.resident-count-text { font-size: 24rpx; color: var(--text-sub); margin-left: 16rpx; opacity: 0.8; }
 
-/* === 按钮样式 === */
-.card-action { flex-shrink: 0; margin-left: 20rpx; }
+/* 按钮 */
+.card-action { flex-shrink: 0; }
 .action-btn-pill {
-    margin: 0; padding: 0 32rpx;
-    height: 72rpx;
-    border-radius: 36rpx;
+    margin: 0; padding: 0 28rpx; height: 64rpx;
+    border-radius: 32rpx;
     display: flex; align-items: center; justify-content: center;
-    font-size: 28rpx; font-weight: 600;
-    border: none;
-    transition: all 0.2s;
+    font-size: 26rpx; font-weight: 600; border: none;
 }
 .action-btn-pill::after { border: none; }
+.enter { background: rgba(0,122,255,0.1); color: #007aff; }
+.visit { background: #007aff; color: #fff; box-shadow: 0 6rpx 16rpx rgba(0,122,255,0.25); }
 
-.action-btn-pill.enter { 
-    background: rgba(0,122,255,0.1); color: #007aff; 
-}
-.action-btn-pill.visit { 
-    background: #007aff; color: #fff; 
-    box-shadow: 0 8rpx 20rpx rgba(0,122,255,0.25); 
-}
-.action-btn-pill.visit:active { transform: scale(0.95); box-shadow: 0 4rpx 10rpx rgba(0,122,255,0.2); }
-
-/* === 其他区域 (弱化显示) === */
-.other-card { 
-    margin-top: 60rpx; 
-    background: transparent; 
-    box-shadow: none; 
-    border: 1rpx dashed var(--border-color); 
-}
-.other-card .scene-header { display: none; /* 隐藏原来的header */ }
-.scene-header { padding: 20rpx 30rpx; } /* 仅用于other-card内部的标题 */
-
-.other-list { padding: 0; }
-.other-item { 
-    display: flex; align-items: center; padding: 24rpx; 
+/* === 游荡列表 === */
+.wandering-section { margin-top: 30rpx; padding-top: 20rpx; border-top: 1rpx dashed var(--border-color); }
+.wandering-title { font-size: 24rpx; color: var(--text-sub); margin-bottom: 16rpx; padding-left: 10rpx; }
+.wandering-list { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.wandering-item {
     background: var(--card-bg);
-    margin-bottom: 2rpx;
-}
-.other-item:first-child { border-top-left-radius: 20rpx; border-top-right-radius: 20rpx; }
-.other-item:last-child { border-bottom-left-radius: 20rpx; border-bottom-right-radius: 20rpx; }
-
-.other-avatar { width: 72rpx; height: 72rpx; border-radius: 50%; margin-right: 24rpx; }
-.other-name { font-size: 30rpx; font-weight: 600; color: var(--text-color); margin-right: 20rpx; }
-.other-loc { font-size: 24rpx; color: var(--text-sub); background: var(--tool-bg); padding: 4rpx 16rpx; border-radius: 8rpx; }
-
-/* === 弹窗样式优化 === */
-.modal-mask {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6); z-index: 2000;
-    display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(8px);
-    transition: opacity 0.3s;
-}
-.modal-content {
-    width: 620rpx; 
-    background: var(--card-bg); 
+    padding: 12rpx 24rpx 12rpx 12rpx;
     border-radius: 40rpx;
-    padding: 48rpx; 
-    box-shadow: 0 30rpx 80rpx rgba(0,0,0,0.3);
-    animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-@keyframes modalPop {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-.modal-title { 
-    font-size: 36rpx; font-weight: 800; color: var(--text-color); 
-    text-align: center; margin-bottom: 48rpx; 
-}
-
-.input-group { margin-bottom: 36rpx; }
-.label { 
-    font-size: 26rpx; font-weight: 600; color: var(--text-color); 
-    margin-bottom: 16rpx; display: block; opacity: 0.9;
-}
-
-/* 输入框统一风格 */
-.input, .textarea, .picker-box {
-    width: 100%; 
-    height: 96rpx; 
-    background: var(--bg-color); 
-    border-radius: 24rpx;
-    padding: 0 32rpx; 
-    font-size: 30rpx; color: var(--text-color);
-    box-sizing: border-box;
-    line-height: 96rpx;
-    border: 2rpx solid transparent;
-    transition: border-color 0.2s;
-}
-.input:focus, .node-input:focus { border-color: #007aff; background: var(--card-bg); }
-
-/* 选择器美化 */
-.picker-box { display: flex; justify-content: space-between; align-items: center; }
-.arrow { color: var(--text-sub); font-size: 24rpx; transform: rotate(90deg); }
-
-/* 添加子场景行 */
-.add-node-row { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
-.node-input { flex: 1; width: auto; }
-.btn-mini.add {
-    width: 140rpx; height: 96rpx; 
-    background: #007aff; color: white;
-    font-size: 28rpx; font-weight: 600;
-    border-radius: 24rpx; display: flex; align-items: center; justify-content: center;
-}
-.btn-mini.add:active { opacity: 0.8; }
-
-/* 标签墙 */
-.tags-container { display: flex; flex-wrap: wrap; gap: 16rpx; padding: 10rpx 0; }
-.node-tag {
-    background: rgba(0,122,255,0.08); color: #007aff;
-    padding: 12rpx 28rpx; border-radius: 40rpx;
-    font-size: 26rpx; font-weight: 600;
     display: flex; align-items: center;
+    border: 1rpx solid var(--border-color);
 }
-.tag-close { margin-left: 12rpx; font-size: 32rpx; opacity: 0.5; line-height: 0.8; }
-.tag-close:active { opacity: 1; }
-
-.hint { font-size: 24rpx; color: var(--text-sub); margin-top: 10rpx; opacity: 0.6; }
-
-/* 弹窗底部按钮 */
-.modal-footer { display: flex; gap: 24rpx; margin-top: 50rpx; }
-.btn { 
-    flex: 1; height: 96rpx; line-height: 96rpx;
-    border-radius: 28rpx; font-size: 30rpx; font-weight: 700; border: none; 
-}
-.btn.cancel { background: var(--bg-color); color: var(--text-sub); }
-.btn.confirm { background: #007aff; color: white; box-shadow: 0 10rpx 30rpx rgba(0,122,255,0.25); }
-.btn:active { transform: scale(0.98); }
+.wandering-item:active { background: var(--tool-bg); }
+.mini-avatar { width: 48rpx; height: 48rpx; border-radius: 50%; margin-right: 12rpx; }
+.mini-name { font-size: 26rpx; color: var(--text-color); font-weight: 600; }
+.mini-loc { font-size: 22rpx; color: var(--text-sub); margin-left: 10rpx; }
 
 /* 空状态 */
-.empty-state { padding: 120rpx 0; opacity: 0.8; }
-.empty-emoji { font-size: 120rpx; margin-bottom: 30rpx; display: block; filter: grayscale(0.5); }
+.empty-state { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; opacity: 0.8; }
+.empty-emoji { font-size: 100rpx; margin-bottom: 20rpx; filter: grayscale(0.5); }
 .create-hint-btn { 
-    margin-top: 40rpx; padding: 20rpx 48rpx; 
+    margin-top: 30rpx; padding: 16rpx 40rpx; 
     background: var(--card-bg); 
-    border-radius: 50rpx; font-size: 28rpx; color: #007aff; font-weight: 600; 
-    box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06);
+    border-radius: 40rpx; font-size: 26rpx; color: #007aff; font-weight: 600; 
+    box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.06);
     border: 1rpx solid rgba(0,122,255,0.1);
 }
 </style>
