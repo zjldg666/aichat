@@ -73,62 +73,56 @@ export function useChatGallery(context) {
     // ✅ 2. ComfyUI 优化器 (已升级为接收门卫指令)
     // 🆕 参数：isDuoModeStr (来自门卫)
     const optimizePromptForComfyUI = async (actionAndSceneDescription, isDuoModeStr) => {
-        let aiTags = actionAndSceneDescription || "";
-        const settings = currentRole.value?.settings || {};
-        const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
+            let aiTags = actionAndSceneDescription || "";
+            const settings = currentRole.value?.settings || {};
+            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
+            
+            // 🆕 核心逻辑：不再瞎猜，直接听门卫的
+            let isDuo = (isDuoModeStr === 'DUO'); 
+            
+            // 🛡️ Phone 模式双重保险 (虽然门卫已经挡了一道，但这里的清洗逻辑必须保留，防止 Tag 冲突)
+            if (interactionMode.value === 'phone') {
+                isDuo = false; 
+                const subjectKeywords = /\b(couple|2people|1boy|boys|man|men|male|shota)\b/i;
+                aiTags = aiTags.replace(subjectKeywords, "");
+                aiTags = aiTags.replace(/\b(multiple|penis|testicles|cum)\b/gi, "");
+                aiTags = aiTags.replace(/\b(doggystyle|missionary|paizuri|sex|fellatio|cuddling|hug)\b/gi, "kneeling, all fours");
+            } else {
+                // Face 模式：如果门卫说是 DUO，那就清除 SOLO 标签
+                if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
+            }
         
-        // 🆕 核心逻辑：不再瞎猜，直接听门卫的
-        let isDuo = (isDuoModeStr === 'DUO'); 
+            let parts = [];
+            
+            // 🆕 智能补全：根据门卫指令补全主体
+            if (isDuo) {
+                if (!aiTags.includes('couple') && !aiTags.includes('2people')) parts.push("couple, 2people");
+            } else {
+                if (!aiTags.includes('solo')) parts.push("solo");
+            }
+            
+            // 画风注入 (完全保留)
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const styleSetting = imgConfig.style || 'anime';
+            const presetPrompt = STYLE_PROMPT_MAP[styleSetting];
+            
+            if (presetPrompt) {
+                parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
+                parts.push(presetPrompt);
+            } else {
+                parts.push("masterpiece, best quality, highres"); 
+                parts.push(`(${styleSetting}:1.2)`); 
+            }
+            
+            parts.push(appearanceSafe);
         
-        // 🛡️ Phone 模式双重保险 (虽然门卫已经挡了一道，但这里的清洗逻辑必须保留，防止 Tag 冲突)
-        if (interactionMode.value === 'phone') {
-            isDuo = false; 
-            const subjectKeywords = /\b(couple|2people|1boy|boys|man|men|male|shota)\b/i;
-            aiTags = aiTags.replace(subjectKeywords, "");
-            aiTags = aiTags.replace(/\b(multiple|penis|testicles|cum)\b/gi, "");
-            aiTags = aiTags.replace(/\b(doggystyle|missionary|paizuri|sex|fellatio|cuddling|hug)\b/gi, "kneeling, all fours");
-        } else {
-            // Face 模式：如果门卫说是 DUO，那就清除 SOLO 标签
-            if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
-        }
-    
-        let parts = [];
-        
-        // 🆕 智能补全：根据门卫指令补全主体
-        if (isDuo) {
-            if (!aiTags.includes('couple') && !aiTags.includes('2people')) parts.push("couple, 2people");
-        } else {
-            if (!aiTags.includes('solo')) parts.push("solo");
-        }
-        
-        // 画风注入 (完全保留)
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const styleSetting = imgConfig.style || 'anime';
-        const presetPrompt = STYLE_PROMPT_MAP[styleSetting];
-        
-        if (presetPrompt) {
-            parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
-            parts.push(presetPrompt);
-        } else {
-            parts.push("masterpiece, best quality, highres"); 
-            parts.push(`(${styleSetting}:1.2)`); 
-        }
-        
-        parts.push(appearanceSafe);
-    
-        if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
-        
-        // ✨ 新增：衣柜英文 Tags 注入
-        if (settings.clothingTags) {
-            parts.push(`(${settings.clothingTags})`); // 强制使用衣柜指定的衣服
-        }
-
-        if (aiTags) parts.push(`(${aiTags}:1.2)`);
-        
-        let rawPrompt = parts.join(', ');
-        let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
-        return uniqueTags.join(', ');
-    };
+            if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
+            if (aiTags) parts.push(`(${aiTags}:1.2)`);
+            
+            let rawPrompt = parts.join(', ');
+            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
+            return uniqueTags.join(', ');
+        };
 
     // ✅ 3. 生图总控 (接收 compositionType)
     const generateChatImage = async (sceneDescription, compositionType) => {
