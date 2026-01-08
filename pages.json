@@ -64,11 +64,11 @@
 		}
 	},
 	{
-      "path": "pages/mine/gallery",
-      "style": {
-        "navigationBarTitleText": ""
-      }
-    }
+		"path": "pages/mine/gallery",
+		"style": {
+			"navigationBarTitleText": ""
+		}
+	}
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",

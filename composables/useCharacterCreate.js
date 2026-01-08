@@ -152,20 +152,69 @@ export function useCharacterCreate(formData, targetId) {
         }
     };
 
-    // 3. 自动生成行为逻辑
+    // 3. 自动生成行为逻辑 (升级版：深度人格)
     const autoGenerateBehavior = async () => {
         if (!formData.value.bio || formData.value.bio.length < 5) return uni.showToast({ title: '请先填写"背景故事"', icon: 'none' });
-        uni.showLoading({ title: 'AI正在分析...', mask: true });
+        
+        uni.showLoading({ title: 'AI正在深入剖析...', mask: true });
+        
         const roleInfo = `姓名: ${formData.value.name || '未命名'}\n职业: ${formData.value.occupation || '未设定'}\n背景故事: ${formData.value.bio}\n说话风格: ${formData.value.speakingStyle || '未设定'}\n喜好: ${formData.value.likes || '未设定'}\n厌恶: ${formData.value.dislikes || '未设定'}`;
-        const prompt = `[System: Character Logic Generator]\n请根据以下角色设定，生成一段核心的【行为逻辑 (Behavior Logic)】指令。\n\n【角色设定】\n${roleInfo}\n\n【任务要求】\n1. 生成一段简练但具体的**指令段落**（简体中文）。\n2. 内容包含：初始态度、互动模式、语言特征、特殊机制。`;
+        
+        const prompt = `[System: Deep Personality Architect]
+请根据以下角色设定，构建一个具有心理深度的真实人格。
+
+【角色设定】
+${roleInfo}
+
+【任务要求】
+请分析该角色的潜意识，并生成以下三个核心字段（请输出纯 JSON 格式）：
+
+1. **core_drive** (核心驱力): 她做一切事情的根本动力是什么？(如：渴望被理解、追求刺激、寻求安全感、想要被支配)。限 20 字。
+2. **deep_fear** (深层恐惧): 她内心最害怕失去什么？(如：害怕被抛弃、害怕无聊、害怕暴露软弱)。限 20 字。
+3. **behavior_logic** (行为逻辑): 
+   - 不要写“友好的”、“温柔的”这种空泛形容词。
+   - 要写具体的互动原则：她如何处理冲突？她如何表达好感（是直球还是傲娇）？
+   - 包含“Show, Don't Tell”的指令：比如“当她害羞时，不要说‘我害羞了’，而是描述她躲闪的眼神和变红的耳根”。
+   - 限 150 字以内。
+
+【输出格式 JSON】
+{
+  "core_drive": "...",
+  "deep_fear": "...",
+  "behavior_logic": "..."
+}`;
+
         try {
             const config = getCurrentLlmConfig();
             if (!config || !config.apiKey) throw new Error('请配置 API');
+            
             const result = await LLM.chat({
-                config, messages: [{ role: 'user', content: prompt }], systemPrompt: "You are a helpful assistant for character design.", temperature: 0.7
+                config, 
+                messages: [{ role: 'user', content: prompt }], 
+                systemPrompt: "You are a psychologist specializing in character analysis. Output JSON only.", 
+                temperature: 0.7,
+                jsonMode: true 
             });
-            formData.value.personalityNormal = result;
-            uni.showToast({ title: '已生成', icon: 'success' });
+            
+            // 解析 JSON
+            let json = null;
+            try {
+                const cleanStr = result.replace(/```json|```/g, '').trim();
+                json = JSON.parse(cleanStr);
+            } catch (e) {
+                console.warn('JSON Parse failed, using raw text fallback');
+            }
+
+            if (json) {
+                formData.value.coreDrive = json.core_drive || '';
+                formData.value.deepFear = json.deep_fear || '';
+                formData.value.personalityNormal = json.behavior_logic || '';
+                uni.showToast({ title: '深度人格已生成', icon: 'success' });
+            } else {
+                formData.value.personalityNormal = result;
+                uni.showToast({ title: '已生成 (格式可能有误)', icon: 'none' });
+            }
+            
         } catch (e) {
             console.error(e);
             uni.showToast({ title: '生成失败', icon: 'none' });

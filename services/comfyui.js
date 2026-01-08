@@ -38,8 +38,8 @@ export const Comfy = {
             
             if (historyRes.statusCode === 200 && historyRes.data[promptId]) {
                 const outputs = historyRes.data[promptId].outputs;
-                if (outputs && outputs["46"] && outputs["46"].images.length > 0) {
-                    const imgInfo = outputs["46"].images[0];
+                if (outputs && outputs["16"] && outputs["16"].images.length > 0) {
+                    const imgInfo = outputs["16"].images[0];
                     return `${baseUrl}/view?filename=${imgInfo.filename}&subfolder=${imgInfo.subfolder}&type=${imgInfo.type}`;
                 }
             }

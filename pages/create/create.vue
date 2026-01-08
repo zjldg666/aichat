@@ -378,8 +378,98 @@
         </view>
       </view>
 
-      <!-- 🗑️ 玩家设定已移除，统一在首页-世界观中配置 -->
-      
+      <view class="form-section">
+        <view class="section-header" @click="toggleSection('player')">
+          <view class="section-title-wrapper">
+            <view class="section-title" style="color: #2ecc71;">玩家设定 (你)</view>
+            <text class="section-subtitle">你的身份、世界、外貌</text>
+          </view>
+          <text class="arrow-icon">{{ activeSections.player ? '▼' : '▶' }}</text>
+        </view>
+        
+        <view v-show="activeSections.player" class="section-content">
+           <view class="sub-group">
+               <view class="sub-header" @click="toggleSubSection('userWorld')">
+                   <text class="sub-title">🌍 你的世界</text>
+                   <text class="sub-arrow">{{ subSections.userWorld ? '▼' : '▶' }}</text>
+               </view>
+               <view v-show="subSections.userWorld" class="sub-content">
+                <view class="input-item">
+                     <text class="label">你的昵称</text>
+                     <input class="input" v-model="formData.userNameOverride" placeholder="例：阿林 (留空则使用APP全局昵称)" />
+                 </view>
+                 <view class="input-item">
+                    <text class="label">你们的关系</text>
+                    <input class="input" v-model="formData.userRelation" placeholder="例：青梅竹马 / 刚认识的邻居 / 你的债主" />
+                 </view>
+                 <view class="textarea-item">
+                    <text class="label">你的性格/人设</text>
+                    <textarea class="textarea" style="height: 120rpx;" v-model="formData.userPersona" placeholder="例：性格内向，容易害羞，不敢直视女生..." maxlength="-1" />
+                 </view>
+                   <view class="input-item">
+                      <text class="label">所属世界</text>
+                      <picker mode="selector" :range="worldList" range-key="name" :value="userWorldIndex" @change="handleUserWorldChange">
+                          <view class="picker-box">{{ selectedUserWorld ? selectedUserWorld.name : '🌐 与角色保持一致 (或默认)' }}</view>
+                      </picker>
+                   </view>
+                   <template v-if="selectedUserWorld">
+                       <view class="input-item"><text class="label">你的住址</text><input class="input" v-model="formData.userLocation" /></view>
+                       <view class="input-item"><text class="label">你的身份</text><input class="input" v-model="formData.userOccupation" /></view>
+                   </template>
+                   <template v-else>
+                       <view class="input-item"><text class="label">你的住址</text><input class="input" v-model="formData.userLocation" /></view>
+                       <view class="input-item"><text class="label">你的身份</text><input class="input" v-model="formData.userOccupation" /></view>
+                   </template>
+               </view>
+           </view>
+
+           <view class="sub-group">
+               <view class="sub-header" @click="toggleSubSection('userLooks')">
+                   <text class="sub-title">🧔‍♂️ 你的外貌 (男性特征)</text>
+                   <text class="sub-arrow">{{ subSections.userLooks ? '▼' : '▶' }}</text>
+               </view>
+               <view v-show="subSections.userLooks" class="sub-content">
+                   <view class="category-block">
+                        <text class="block-title">基本特征</text>
+                        <view class="feature-row">
+                           <text class="feat-label">发型</text>
+                           <scroll-view scroll-x class="chips-scroll">
+                               <view class="chips-flex">
+                                   <view v-for="item in OPTIONS.maleHair" :key="item" class="chip" :class="{active: formData.userFeatures.hair === item}" @click="setFeature('user', 'hair', item)">{{item}}</view>
+                               </view>
+                           </scroll-view>
+                        </view>
+                        <view class="feature-row">
+                           <text class="feat-label">身材</text>
+                           <scroll-view scroll-x class="chips-scroll">
+                               <view class="chips-flex">
+                                   <view v-for="item in OPTIONS.maleBody" :key="item" class="chip" :class="{active: formData.userFeatures.body === item}" @click="setFeature('user', 'body', item)">{{item}}</view>
+                               </view>
+                           </scroll-view>
+                        </view>
+                   </view>
+                   <view class="category-block">
+                        <text class="block-title">下体特征 (NSFW)</text>
+                        <view class="feature-row">
+                           <text class="feat-label">尺寸/状态</text>
+                           <scroll-view scroll-x class="chips-scroll">
+                               <view class="chips-flex">
+                                   <view v-for="item in OPTIONS.malePrivate" :key="item" class="chip" :class="{active: formData.userFeatures.privates === item}" @click="setFeature('user', 'privates', item)">{{item}}</view>
+                               </view>
+                           </scroll-view>
+                        </view>
+                   </view>
+                   <button class="mini-btn-gen" @click="generateUserDescription">⬇️ 生成玩家 Prompt (英文)</button>
+               </view>
+           </view>
+           
+           <view class="textarea-item">
+             <text class="label">玩家外貌 Prompt (英文 - 用于双人生图)</text>
+             <textarea class="textarea" v-model="formData.userAppearance" placeholder="1boy, short hair..." maxlength="-1" />
+           </view>
+        </view>
+      </view>
+
       <view class="form-section">
         <view class="section-header" @click="toggleSection('core')">
           <view class="section-title-wrapper">
@@ -390,7 +480,6 @@
         </view>
         
         <view v-show="activeSections.core" class="section-content">
-			
            <view class="textarea-item">
              <text class="label">📜 背景故事 / 身份设定 (Bio)</text>
              <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。她性格..." maxlength="-1" />
@@ -417,18 +506,24 @@
                   <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
               </view>
            </view>
-			<view class="input-item" style="display: flex; justify-content: space-between; align-items: center; margin-top: 30rpx; padding-top: 20rpx; border-top: 1px dashed #eee;">
-			<view>
-				<text class="label" style="margin-bottom: 4rpx; display: block;">📸 允许角色主动发图 (消耗算力)</text>
-				<text class="tip" style="font-size: 22rpx; color: #999;">开启后，她会在炫耀衣服或分享生活时主动发照片。<br>关闭后，只有你明确索取时才会发。</text>
-			</view>
-			<switch :checked="formData.allowSelfImage" @change="(e) => formData.allowSelfImage = e.detail.value" color="#ff9f43"/>
-			</view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
              <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
              <view class="help-text">这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。</view>
              <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="AI将严格遵循此逻辑行动..." maxlength="-1" />
+           </view>
+
+           <!-- ✨ 新增：深度人格字段 -->
+           <view class="input-item" style="margin-top: 20rpx;">
+               <text class="label">🔥 核心驱力 (Core Drive)</text>
+               <view class="help-text">她做一切事情的根本动力是什么？(例如：渴望被理解 / 追求极致的快乐 / 想要被支配)</view>
+               <input class="input" v-model="formData.coreDrive" placeholder="AI将基于此产生欲望..." />
+           </view>
+           
+           <view class="input-item">
+               <text class="label">😱 深层恐惧 (Deep Fear)</text>
+               <view class="help-text">她内心最害怕失去什么？(例如：害怕被抛弃 / 害怕无聊 / 害怕暴露软弱)</view>
+               <input class="input" v-model="formData.deepFear" placeholder="AI将基于此产生防御机制..." />
            </view>
         </view>
       </view>
@@ -586,10 +681,43 @@ const OPTIONS = {
     
     maleHair: ['黑色短发', '棕色碎发', '寸头', '中分', '狼尾', '遮眼发'],
     maleBody: ['身材匀称', '肌肉结实', '清瘦', '略胖', '高大威猛', '腹肌明显'],
-   
+    malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
 };
 
-
+const PERSONALITY_TEMPLATES = {
+    'ice_queen': {
+        label: '❄️ 高岭之花 (反差)',
+        bio: '名门千金或高冷圣女，从小接受严苛教育，认为凡人皆蝼蚁。极其洁身自好，对男性充满鄙视。',
+        style: '高雅冷漠，用词考究，偶尔自称“本小姐”或“我”。',
+        likes: '红茶，古典音乐，独处，被坚定地选择',
+        dislikes: '轻浮的举动，肮脏的地方，被无视',
+        logic: '初始态度眼神冰冷，公事公办，拒绝任何非必要交流。口头禅：“离我远点”。随着关系深入，会表现出傲娇和极度的占有欲。' 
+    },
+    'succubus': {
+        label: '💗 魅魔 (直球)',
+        bio: '依靠吸食精气为生的魅魔。在她眼里，男人只有“食物”的区别。',
+        style: '轻浮，撩人，喜欢叫“小哥哥”或“亲爱的”，句尾带波浪号~',
+        likes: '精气，帅哥，甜言蜜语，各种Play',
+        dislikes: '无趣的男人，禁欲系(除非能吃掉)，说教',
+        logic: '热情奔放，把玩家当猎物，言语露骨。如果玩家顺从，会进一步索取；如果玩家拒绝，会觉得有趣并加大攻势。'
+    },
+    'neighbor': {
+        label: '☀️ 青梅竹马 (纯爱)',
+        bio: '从小一起长大的邻家女孩。经常损你，但其实暗恋你很久了。',
+        style: '大大咧咧，活泼，像哥们一样，喜欢吐槽。',
+        likes: '打游戏，奶茶，漫画，和你待在一起',
+        dislikes: '你被别人抢走，复杂的算计，恐怖片',
+        logic: '像哥们一样相处，没有性别界限感，互相吐槽。当涉及恋爱话题时会害羞、转移话题。非常护短。'
+    },
+    'boss': {
+        label: '👠 女上司 (S属性)',
+        bio: '雷厉风行的女强人上司。性格强势，看不起软弱的男人。',
+        style: '简短有力，命令式语气，冷嘲热讽。',
+        likes: '工作效率，服从，咖啡，掌控感',
+        dislikes: '迟到，借口，软弱，违抗',
+        logic: '极度严厉，把玩家当工具人。喜欢下达命令并期待服从。对于反抗会感到愤怒或被激起征服欲。'
+    }
+};
 
 // =========================================================================
 // 2. 状态管理 (必须先定义这些，才能传给 useCharacterCreate)
@@ -616,8 +744,7 @@ const formData = ref({
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
-
-    allowSelfImage: false, // 默认为关闭，帮用户省流
+  
   diaryHistoryLimit: 30, // 默认检索 30 天
     activeMemoryDays: 3,   // ✨ 新增：默认记住最近 3 天
   // --- 核心外貌数据 ---
@@ -647,13 +774,15 @@ const formData = ref({
   likes: '',          
   dislikes: '',       
   personalityNormal: '', 
+  coreDrive: '', // ✨ 新增
+  deepFear: '',  // ✨ 新增
 
   userNameOverride: '', 
   userRelation: '',     
-  // userPersona: '',      
-  // userWorldId: '', userLocation: '', userOccupation: '',
-  // userAppearance: '', 
-  // userFeatures: { hair: '', body: '' },
+  userPersona: '',      
+  userWorldId: '', userLocation: '', userOccupation: '',
+  userAppearance: '', 
+  userFeatures: { hair: '', body: '', privates: '' },
 
   maxReplies: 1, 
   initialAffection: 10,
@@ -996,10 +1125,9 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
         formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
         if (target.settings) {
-			formData.value.allowSelfImage = target.settings.allowSelfImage === true;
             formData.value.userNameOverride = target.settings.userNameOverride || '';
             formData.value.userRelation = target.settings.userRelation || '';
-            // formData.value.userPersona = target.settings.userPersona || '';
+            formData.value.userPersona = target.settings.userPersona || '';
             formData.value.workplace = target.settings.workplace || '';
             formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings.workStartHour : 9;
             formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings.workEndHour : 18;
@@ -1015,20 +1143,17 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.likes = target.settings.likes || '';                  
             formData.value.dislikes = target.settings.dislikes || '';            
             formData.value.personalityNormal = target.settings.personalityNormal || '';
+            formData.value.coreDrive = target.settings.coreDrive || ''; // ✨ 新增
+            formData.value.deepFear = target.settings.deepFear || '';   // ✨ 新增
             
-            // formData.value.userWorldId = target.settings.userWorldId || '';
-            // formData.value.userLocation = target.settings.userLocation || '';
-            // formData.value.userOccupation = target.settings.userOccupation || '';
-            // formData.value.userAppearance = target.settings.userAppearance || '';
+            formData.value.userWorldId = target.settings.userWorldId || '';
+            formData.value.userLocation = target.settings.userLocation || '';
+            formData.value.userOccupation = target.settings.userOccupation || '';
+            formData.value.userAppearance = target.settings.userAppearance || '';
             formData.value.worldLore = target.settings.worldLore || '';
             
             if (target.settings.charFeatures) formData.value.charFeatures = { ...formData.value.charFeatures, ...target.settings.charFeatures };
-            // if (target.settings.userFeatures) {
-            //    formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
-                
-            //    // 🔥🔥🔥 新增：强制清洗旧数据的残留 🔥🔥🔥
-            //    delete formData.value.userFeatures.privates; 
-            // };
+            if (target.settings.userFeatures) formData.value.userFeatures = { ...formData.value.userFeatures, ...target.settings.userFeatures };
         }
         
         if (formData.value.worldId) {
@@ -1111,15 +1236,14 @@ const saveCharacter = () => {
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
     settings: {
-		allowSelfImage: formData.value.allowSelfImage, // 保存开关状态
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
-        userNameOverride: formData.value.userNameOverride, // 保留，兼容旧数据
-        userRelation: formData.value.userRelation,         // 保留，首页修改后会回写到这里
-        // userPersona: formData.value.userPersona,
+        userNameOverride: formData.value.userNameOverride,
+        userRelation: formData.value.userRelation,
+        userPersona: formData.value.userPersona,
         workplace: formData.value.workplace,
         workStartHour: formData.value.workStartHour,
         workEndHour: formData.value.workEndHour,
@@ -1129,13 +1253,15 @@ const saveCharacter = () => {
         likes: formData.value.likes,                  
         dislikes: formData.value.dislikes,            
         occupation: formData.value.occupation, 
-        // userWorldId: formData.value.userWorldId,
-        // userLocation: formData.value.userLocation,
-        // userOccupation: formData.value.userOccupation,
-        // userAppearance: formData.value.userAppearance, 
-        // userFeatures: formData.value.userFeatures,
+        userWorldId: formData.value.userWorldId,
+        userLocation: formData.value.userLocation,
+        userOccupation: formData.value.userOccupation,
+        userAppearance: formData.value.userAppearance, 
+        userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
         personalityNormal: formData.value.personalityNormal,
+        coreDrive: formData.value.coreDrive, // ✨ 新增
+        deepFear: formData.value.deepFear,   // ✨ 新增
     },
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
     lastTime: isEditMode.value ? undefined : '刚刚',
@@ -1169,27 +1295,29 @@ const clearHistoryAndReset = () => {
     title: '彻底重置', 
     content: `将从数据库永久抹除聊天记录与日记，重置好感度、位置、状态，并让角色回归初始状态。确定吗？`, 
     confirmColor: '#ff4757',
-    success: async (res) => {
+    success: async (res) => { // 🌟 变成 async 函数
       if (res.confirm && targetId.value) {
         const cid = String(targetId.value);
 
-        // --- 🛠️ 1. 物理清理 SQLite 数据库 (仅针对存在的表) ----------------------
+        // --- 🛠️ 新增：物理清理 SQLite 数据库 ----------------------
         try {
-            // 只删除已知的数据库表内容
+            // 1. 删除消息记录
             await DB.execute(`DELETE FROM messages WHERE chatId = ?`, [cid]);
+            // 2. 删除往事日记
             await DB.execute(`DELETE FROM diaries WHERE roleId = ?`, [cid]);
-            console.log('✅ SQLite 数据库记录已清空');
+            console.log('✅ SQLite 数据库相关记录已清空');
         } catch (dbErr) {
-            console.error('❌ 数据库清理失败 (可能是表尚未创建):', dbErr);
+            console.error('❌ 数据库清理失败:', dbErr);
         }
+        // --------------------------------------------------------
 
-        // --- 🛠️ 2. 清理 Storage 缓存 ----------------------------------------
+        // 3. 原有的 Storage 清理逻辑
         uni.removeStorageSync(`chat_history_${targetId.value}`);
         uni.removeStorageSync(`last_real_active_time_${targetId.value}`);
         uni.removeStorageSync(`last_proactive_lock_${targetId.value}`);
+        // 如果你之前还存了日记缓存，也顺便清了
         uni.removeStorageSync(`diary_logs_${targetId.value}`);
 
-        // --- 🛠️ 3. 重置 contact_list 中的角色实时状态 (核心逻辑) ----------------
         let list = uni.getStorageSync('contact_list') || [];
         const index = list.findIndex(item => String(item.id) === cid);
         
@@ -1197,13 +1325,11 @@ const clearHistoryAndReset = () => {
           const currentRole = list[index];
           const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
           
-          // 初始化服装字符串
           let clothingStr = '便服';
-          if (formData.value.charFeatures && (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle)) {
+          if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
               clothingStr = `${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
           }
 
-          // 核心重置包：这里涵盖了所有需要归零的字段
           const resetData = {
               lastMsg: '（记忆已清空）', 
               lastTime: '刚刚',
@@ -1213,24 +1339,18 @@ const clearHistoryAndReset = () => {
               currentLocation: formData.value.location || '角色家',
               interactionMode: 'phone', 
               clothing: clothingStr,
-              
-              // 🔥 [核心修复]：在这里重置 Action，解决“动作不重置”的问题
-              currentAction: '站立', 
-              
               lastActivity: '自由活动', 
               affection: formData.value.initialAffection || 10,
               lust: formData.value.initialLust || 0,
-              relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
+              // ✨ 修复：重置时，直接使用用户设定的静态关系，而不是废话指令
+              relation: formData.value.userRelation || '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
           };
 
-          // 物理覆盖更新
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);
           
-          // UI反馈清理
-          if (typeof diaryList !== 'undefined' && diaryList.value) {
-              diaryList.value = [];
-          }
+          // ✨ 清空当前页面的日记列表显示
+          if (typeof diaryList !== 'undefined') diaryList.value = [];
 
           uni.showToast({ title: '重置成功', icon: 'success' });
           setTimeout(() => { uni.navigateBack(); }, 800);

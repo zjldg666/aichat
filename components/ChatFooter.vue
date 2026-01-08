@@ -14,48 +14,54 @@
     <view class="input-container" v-else>
       
       <view class="toolbar-compact" v-if="isToolbarOpen">
-              <view class="tool-grid">
-                <view class="tool-item" @click="$emit('clickTime')" v-if="!isEmbedded">
-                  <view class="tool-icon">⏳</view>
-                  <text class="tool-text">时间</text>
-                </view>
-                
-                <view class="tool-item" @click="$emit('clickLocation')" v-if="!isEmbedded">
-                  <view class="tool-icon">🗺️</view>
-                  <text class="tool-text">移动</text>
-                </view>
-                
-                <picker 
-                  v-if="!isEmbedded"  
-                  mode="time" 
-                  :value="wakeTime" 
-                  start="00:00" 
-                  end="23:59" 
-                  @change="onPickerChange" 
-                  style="width: 100%;" 
-                >
-                  <view class="tool-item">
-                    <view class="tool-icon">🛌</view>
-                    <text class="tool-text">睡到...</text>
-                  </view>
-                </picker>
-                
-                <view class="tool-item" @click="$emit('clickCamera')" v-if="!isEmbedded">
-                  <view class="tool-icon">📸</view>
-                  <text class="tool-text">拍照</text>
-                </view>
-                
-                <view class="tool-item" @click="$emit('clickContinue')">
-                  <view class="tool-icon">👉</view>
-                  <text class="tool-text">继续</text>
-                </view>
-                
-                <view class="tool-item" @click="$emit('toggleThought')">
-                  <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
-                  <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
-                </view>
-              </view>
+        <scroll-view class="tool-scroll" scroll-x="true" show-scrollbar="false">
+          <view class="tool-flex">
+            <view class="tool-item" @click="$emit('clickTime')" v-if="!isEmbedded">
+              <view class="tool-icon">⏳</view>
+              <text class="tool-text">时间</text>
             </view>
+            
+            <view class="tool-item" @click="$emit('clickLocation')" v-if="!isEmbedded">
+              <view class="tool-icon">🗺️</view>
+              <text class="tool-text">移动</text>
+            </view>
+            
+            <picker 
+              v-if="!isEmbedded"  
+              mode="time" 
+              :value="wakeTime" 
+              start="00:00" 
+              end="23:59" 
+              @change="onPickerChange" 
+            >
+              <view class="tool-item">
+                <view class="tool-icon">🛌</view>
+                <text class="tool-text">睡到...</text>
+              </view>
+            </picker>
+            
+            <view class="tool-item" @click="$emit('clickCamera')" v-if="!isEmbedded">
+              <view class="tool-icon">📸</view>
+              <text class="tool-text">拍照</text>
+            </view>
+
+            <view class="tool-item" @click="$emit('clickWardrobe')" v-if="!isEmbedded">
+              <view class="tool-icon">👕</view>
+              <text class="tool-text">衣柜</text>
+            </view>
+            
+            <view class="tool-item" @click="$emit('clickContinue')">
+              <view class="tool-icon">👉</view>
+              <text class="tool-text">继续</text>
+            </view>
+            
+            <view class="tool-item" @click="$emit('toggleThought')">
+              <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
+              <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
 
       <view class="input-area">
         <view class="action-btn" @click="$emit('toggleToolbar')">
@@ -92,7 +98,7 @@ const emit = defineEmits([
   'cancelEdit', 'confirmDelete', 
   'toggleToolbar', 'update:modelValue', 'send',
   'clickTime', 'clickLocation', 'sleepTimeChange',
-  'clickCamera', 'clickContinue', 'toggleThought'
+  'clickCamera', 'clickContinue', 'toggleThought', 'clickWardrobe'
 ]);
 
 // 处理 picker 的 change 事件并转发
@@ -151,13 +157,26 @@ const onPickerChange = (e) => {
 .toolbar-compact { 
     background: var(--tool-bg); 
     border-bottom: 1px solid var(--border-color); 
-    padding: 16rpx 10rpx; 
+    padding: 16rpx 0; 
 }
 
-.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
+.tool-scroll {
+    width: 100%;
+    white-space: nowrap;
+}
+
+.tool-flex {
+    display: flex;
+    flex-wrap: nowrap;
+    padding: 0 10rpx;
+    align-items: center;
+}
+
 .tool-item { 
     display: flex; flex-direction: column; align-items: center; justify-content: center; 
     padding: 10rpx 0; border-radius: 12rpx; 
+    flex-shrink: 0;
+    width: 120rpx; /* 固定宽度，确保易点且能横向排布 */
 }
 .tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
 .tool-text { font-size: 20rpx; color: var(--text-sub); }

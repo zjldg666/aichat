@@ -22,10 +22,10 @@ export const STYLE_PROMPT_MAP = {
 // 2. 负面提示词 (Negative Prompt)
 export const NEGATIVE_PROMPTS = {
     // 单人模式
-    SOLO: " worst quality, low quality, blurry, bad anatomy, deformed, extra limbs, shiny skin, glossy skin, skin reflection, skin highlight, specular highlight, realistic, photorealistic, 3d render, sweat, wet skin, oil, grease",
+    SOLO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, 2girls, 2boys, multiple girls, multiple boys, couple, multiple views, split screen, censor, mosaic, bar, blurry",
     
     // 双人模式 (允许出现 boy/couple，但依然禁止 child/loli 和 马赛克)
-    DUO: "worst quality, low quality, blurry, bad anatomy, deformed, extra limbs, shiny skin, glossy skin, skin reflection, skin highlight, specular highlight, realistic, photorealistic, 3d render, sweat, wet skin, oil, grease"
+    DUO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, multiple views, grid, collage, split screen, censor, mosaic, bar, blurry"
 };
 
 // 3. ComfyUI 工作流模板
@@ -54,7 +54,7 @@ export const COMFY_WORKFLOW_TEMPLATE = {
   },
   "3": {
     "inputs": {
-      "text": "",
+      "text": "", 
       "clip": [
         "2",
         0
@@ -62,12 +62,13 @@ export const COMFY_WORKFLOW_TEMPLATE = {
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
-      "title": "CLIP文本编码"
+      "title": "CLIP文本编码 (正向)"
     }
   },
   "4": {
+    // 这里保留默认也没事，因为 chat.vue 会用 NEGATIVE_PROMPTS 覆盖它
     "inputs": {
-      "text": "",
+      "text": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers, censor, mosaic",
       "clip": [
         "2",
         0
@@ -75,16 +76,16 @@ export const COMFY_WORKFLOW_TEMPLATE = {
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
-      "title": "CLIP文本编码"
+      "title": "CLIP文本编码 (负向)"
     }
   },
   "5": {
     "inputs": {
       "seed": 0,
-      "steps": 35,
+      "steps": 28, // 稍微降低步数提高速度，Illustrious 28步足够
       "cfg": 7,
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "sampler_name": "euler", // 推荐使用 euler 或 dpmpp_2m
+      "scheduler": "normal",   // Illustrious 推荐 normal 或 karras
       "denoise": 1,
       "model": [
         "1",
@@ -128,28 +129,16 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "title": "VAE解码（分块）"
     }
   },
-  "36": {
-    "inputs": {
-      "resolution": "1024x1024 (1.0)",
-      "batch_size": 1,
-      "width_override": 0,
-      "height_override": 0
-    },
-    "class_type": "SDXLEmptyLatentSizePicker+",
-    "_meta": {
-      "title": "SDXL空Latent尺寸选择"
-    }
-  },
-  "46": {
+  "16": {
     "inputs": {
       "output_path": "[time(%Y-%m-%d)]",
-      "filename_prefix": "ComfyUI",
+      "filename_prefix": "AiChat_Gen", 
       "filename_delimiter": "_",
       "filename_number_padding": 4,
       "filename_number_start": "false",
       "extension": "webp",
       "dpi": 300,
-      "quality": 90,
+      "quality": 85,
       "optimize_image": "true",
       "lossless_webp": "false",
       "overwrite_mode": "false",
@@ -158,16 +147,28 @@ export const COMFY_WORKFLOW_TEMPLATE = {
       "embed_workflow": "true",
       "show_previews": "true",
       "images": [
-        "9",
+        "9", 
         0
       ]
     },
-    "class_type": "Image Save",
+    "class_type": "Image Save", 
     "_meta": {
-      "title": "图像保存"
+      "title": "图像保存 (WebP)"
+    }
+  },
+  "36": {
+    "inputs": {
+      "resolution": "832x1216 (0.68)", 
+      "batch_size": 1,
+      "width_override": 0,
+      "height_override": 0
+    },
+    "class_type": "SDXLEmptyLatentSizePicker+", 
+    "_meta": {
+      "title": "SDXL空Latent尺寸选择"
     }
   }
-}
+};
 // ... 原有的代码保持不变 ...
 
 // 4. 捏人界面的画风预设 (Create Page)

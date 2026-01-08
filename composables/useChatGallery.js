@@ -117,6 +117,12 @@ export function useChatGallery(context) {
         parts.push(appearanceSafe);
     
         if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
+        
+        // ✨ 新增：衣柜英文 Tags 注入
+        if (settings.clothingTags) {
+            parts.push(`(${settings.clothingTags})`); // 强制使用衣柜指定的衣服
+        }
+
         if (aiTags) parts.push(`(${aiTags}:1.2)`);
         
         let rawPrompt = parts.join(', ');

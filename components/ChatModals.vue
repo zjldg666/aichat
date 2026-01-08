@@ -84,18 +84,32 @@
         </view>
       </view>
     </view>
+
+    <!-- 衣柜弹窗 -->
+    <view class="time-panel-mask" v-if="visibleModal === 'wardrobe'" @click="close">
+      <ChatWardrobe 
+        :list="wardrobeList"
+        :currentRole="currentRole || {}"
+        @update:list="(val) => $emit('update:wardrobeList', val)"
+        @apply="(val) => $emit('applyOutfit', val)"
+        @close="close"
+      />
+    </view>
+
   </view>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
+import ChatWardrobe from './ChatWardrobe.vue';
 
 const props = defineProps({
-  // 控制显示哪个弹窗: '' | 'timeSkip' | 'timeSetting' | 'location' | 'forceLocation'
+  // 控制显示哪个弹窗: '' | 'timeSkip' | 'timeSetting' | 'location' | 'forceLocation' | 'wardrobe'
   visibleModal: { type: String, default: '' },
   
   // 数据源
   locationList: { type: Array, default: () => [] },
+  wardrobeList: { type: Array, default: () => [] }, // 新增
   tempDateStr: { type: String, default: '' },
   tempTimeStr: { type: String, default: '' },
   tempTimeRatio: { type: [Number, String], default: 1 }
@@ -110,8 +124,9 @@ const emit = defineEmits([
   'update:tempDateStr', 
   'update:tempTimeStr', 
   'update:tempTimeRatio',
-  // 如果需要回传自定义输入值，也可以用 emit
-  'update:customMinutes' 
+  'update:customMinutes',
+  'update:wardrobeList', // 新增
+  'applyOutfit'          // 新增
 ]);
 
 // 内部状态 (将临时输入框状态移入组件，净化父组件)

@@ -23,7 +23,6 @@ export function buildSystemPrompt({
     summary,
     formattedTime,
     location,
-	playerLocation, // 🔥 1. 新增：接收玩家位置
     mode,
     activity,
     clothes,
@@ -63,39 +62,33 @@ export function buildSystemPrompt({
     // 如果有长期记忆，注入到 Prompt 中
     const memoryBlock = summary ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${summary}` : "";
     
-    // =================================================================
-        // 🔥 2. 核心修改：生成物理距离/互动模式的强指令
-        // =================================================================
-        let modeInstruction = "";
-        if (mode === 'phone') {
-            // 手机模式：强行灌输“异地”概念
-            modeInstruction = `
-    \n【⚠️ 物理状态：异地通讯 (PHONE MODE)】
-    - **你的位置**: ${location}
-    - **玩家位置**: ${playerLocation || '未知远方'} (你们不在一起！)
-    - **强制约束**:
-      1. 严禁描写任何当面动作（如：抬头看、眼神接触、肢体触碰）。
-      2. 严禁描写玩家的动作（你看不见他）。
-      3. 只能通过文字/语音/自拍进行交流。`;
-        } else {
-            // 当面模式：确认在同一地点
-            modeInstruction = `
-    \n【✅ 物理状态：当面互动 (FACE-TO-FACE)】
-    - **共同位置**: ${location}
-    - **说明**: 你们在同一个空间，可以进行眼神、肢体和神态的直接交互。`;
-        }
-        // =================================================================
+    // 拼接动态逻辑块：包含人设逻辑 + 往事目录 + 记忆 + 当前心理状态
+    // 这里把 diaryIndexText 插在了 logic 和 memory 之间
+    // ✨ 关系锚点注入 (Hard Fact)
+    // 逻辑升级：
+    // 1. 如果 relation 存在且不是默认废话，优先使用 relation (动态演变后的关系)。
+    // 2. 如果 relation 是默认值或空，则回退到 s.userRelation (设定的静态关系，如"姐姐")。
+    // 3. 如果都没填，才用 "初相识"。
+    const defaultRelationText = '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。';
+    const isRelationValid = relation && relation !== defaultRelationText && relation.length > 2;
     
-        // 拼接动态逻辑块
-        // 🔥 把 modeInstruction 加进去，让 AI 能够看到这段物理约束
-        const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${modeInstruction}\n\n【当前心理状态与对玩家印象】\n${relation || '初相识，还没有具体印象'}`;
+    const finalRelation = isRelationValid ? relation : (s.userRelation || '初相识，还没有具体印象');
+    const relationAnchor = `\n\n【RELATIONSHIP STATUS (HARD FACT)】\nCURRENT STATUS: ${finalRelation}`;
+    
+    const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${relationAnchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${finalRelation}`;
+
+    // 默认深度人格 (Fallback)
+    const defaultDrive = "渴望被理解与建立深度连接";
+    const defaultFear = "害怕被忽视或变得不再重要";
 
     // 5. 模板替换 (使用正则全局替换) - 保持与您原始代码完全一致
     let prompt = CORE_INSTRUCTION_LOGIC_MODE
-	.replace('{{work_start}}', workStart)
-	        .replace('{{work_end}}', workEnd)
+        .replace('{{work_start}}', workStart)
+        .replace('{{work_end}}', workEnd)
         .replace(/{{char}}/g, charName)
         .replace(/{{bio}}/g, charBio)
+        .replace(/{{core_drive}}/g, s.coreDrive || defaultDrive)
+        .replace(/{{deep_fear}}/g, s.deepFear || defaultFear)
         .replace(/{{logic}}/g, dynamicLogic)
         .replace(/{{likes}}/g, s.likes || "Unknown")
         .replace(/{{dislikes}}/g, s.dislikes || "Unknown")
