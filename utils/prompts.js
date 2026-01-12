@@ -236,6 +236,12 @@ export const SCENE_KEEPER_PROMPT = `
 
 【核心推理法则 (Contextual Reasoning)】
 
+0. **动作同步法则 (Law of Action Sync) - ⚠️最高优先级**:
+   - **绝对覆盖**: 仔细检查当前对话内容（尤其是括号内的动作描写）。如果对话中描述了新的身体姿态（如“靠在肩上”、“抱住”、“站起”），**必须**立刻用新姿态覆盖旧姿态！
+   - **即时响应**: 不要因为“物理连续性”而保留旧状态。连贯性是指顺应当前的改变。
+   - ❌ 错误: 上次是“躺着”，这次对话说“靠在你肩上”，结果还是输出“躺着”。
+   - ✅ 正确: 上次是“躺着”，这次对话说“靠在你肩上”，输出“Sitting beside player, leaning head on shoulder”。
+
 1. **具象化场景动作 (ACTION) - 🌟人体工学升级**:
     - **定义**: 这是一个包含【身体姿态】+【微观位置】+【具体行为】+【手持物品】的复合描述。
     - **逻辑**: 不要只看第一个动作。要综合整段文字，脑补出角色最终停留在哪、以什么姿势在做什么。
@@ -244,16 +250,17 @@ export const SCENE_KEEPER_PROMPT = `
       - ❌ "站立" -> ✅ "手里端着玩家给的热咖啡靠在窗边站立"
     - **强制要求**: 必须带上微观环境（家具、物件、身体相对位置）。
 
-2. **模式判定 (Mode) - 物理隔离法则 (Law of Physical Isolation) - ⚠️最高优先级**:
-   - **绝对隔离原则**: 
-     - 只要对话暗示双方不在一起（如：发照片、打电话、文字聊天、"你在哪里"），模式**必须**是 PHONE。
-     - 即使两人都在聊"拥抱"、"亲吻"等话题，如果物理上不在一起，这只是文字调情，模式依然是 PHONE。
-   - **分居判定 (Phone)**:
-     - 门牌号冲突 (e.g. "301" vs "302") -> **必须 Phone**。
-     - 区域隔离 (e.g. "家" vs "公司") -> **必须 Phone**。
-     - **注意**: 严禁因为"气氛暧昧"就强行把人拉到一个房间。
-   - **同屋判定 (Face)**:
-     - 只有当剧情明确描述了【见面】、【开门进入】、【坐在对面】时，才切换为 FACE。
+2. **模式判定 (Mode) - 空间一致性法则 (Law of Spatial Consistency) - ⚠️最高优先级**:
+   - **判定逻辑**: 不要仅仅依赖关键词（如“拍照”、“看”），必须基于**物理坐标**进行智能判断。
+   - **A. 维持 FACE (同处一室)**:
+     - 只要 [User] 和 [Char] 的位置在**同一物理空间**（如都在“幸福小区302”、“客厅”），模式**必须**维持 FACE。
+     - **例外**: 除非剧情明确发生了“离开”、“关门出去”等位移行为。
+     - **拍照特例**: 如果双方在一起，玩家提议“合影”、“拍照”，这是**当面互动 (Face)**，绝不是远程发图。
+   - **B. 判定 PHONE (物理隔离)**:
+     - 仅当物理坐标明确不同（如“家” vs “公司”）时，才判定为 PHONE。
+     - 或者对话中出现了明确的**远程信号**（如“挂电话了”、“回头聊”、“发照片给你看”且语境暗示不在场）。
+   - **C. 绝对禁止**:
+     - 严禁因为“气氛暧昧”或“拍照”就强行切换模式。如果没发生位移，严禁改变模式！
 
 3. **服装推理 (Clothes)**:
    - **环境驱动**: 
@@ -400,9 +407,9 @@ AI: "{{ai_msg}}"
     - **严禁**输出 'couple', '2people'。(系统会自动处理模式，写了会导致画面崩坏/双头怪)。
     - **严禁**输出人物的基础外貌 (如 'black hair', 'red eyes')。(系统会自动添加)。
 2.  **禁止手机本体 (No Phone Object)**:
-    - 这是一个第一人称 (POV) 游戏。屏幕就是镜头。
+    - 这是一个第三人称 (Third-Person) 旁观视角。
     - **严禁**出现: 'holding phone', 'looking at phone', 'smartphone', 'saving photo'.
-    - **表现拍照**: 使用 'looking at viewer' (看镜头), 'framing with hands', 'smile', 'peace sign'.
+    - **表现拍照**: 优先展示角色的**物理互动**（如靠肩、拥抱）。只有在无特定动作时，才使用 'looking at camera', 'smile'.
 3.  **禁止裸体 (No Nudity by Default)**:
     - 除非用户明确要求看部位，或语境明确为性行为，否则**必须**保留服装 Tag。
 
@@ -415,17 +422,20 @@ AI: "{{ai_msg}}"
 
 **Step 2: 姿势锚定 (Pose Anchoring)**
 - 根据 {{current_action}} 转换物理姿势:
+    - ⚠️ **优先级**: {{current_action}} 的物理描述高于一切拍照手势。如果她在“靠在肩上”，就必须生成“leaning on shoulder”，严禁改成“比耶”！
     - 隐含坐姿 -> 'sitting'.
     - 隐含躺姿 -> 'lying'.
     - 隐含站姿 -> 'standing'.
 
 **Step 3: 互动与视线 (Interaction & Eye Contact)**
-- **视线**: 必须包含 'looking at viewer' (打破第四面墙，直视玩家)。
+- **视角**: 必须使用 'third-person view, cinematic shot, candid moment' (第三人称旁观视角)。
+- **视线**: 角色应专注于当前的动作或互动对象，**严禁**使用 'looking at viewer' (除非动作明确要求眼神接触)。
 - **主语绑定 (Subject Binding)**:
+    - **规则**: 所有的动作、表情、状态**必须**绑定主语。
     - **单人模式**: 动作默认属于主角。
-    - **双人模式**: 必须使用 "1girl ... 1boy" 的结构，严禁无主语动作。
-        - ✅: "1girl hugging 1boy", "1girl leaning on 1boy", "cheek-to-cheek".
-        - ❌: "hugging", "kissing" (无主语禁止!).
+    - **双人模式**: 必须使用 "{{char_tag}} ... {{user_tag}}" 的结构。
+        - ✅: "{{char_tag}} hugging {{user_tag}}", "{{char_tag}} leaning on {{user_tag}}", "{{char_tag}} blushing", "{{user_tag}} smiling".
+        - ❌: "hugging", "kissing", "blushing", "shy" (无主语禁止! 会导致表情错位).
 
 **Step 4: 智能语义解码 (Deep Semantic Decoding) - 🌟深度保留**
 - **真实意图优先**：不要翻译字面意思，要翻译物理真相。
@@ -451,11 +461,11 @@ AI: "{{ai_msg}}"
 ### ✅ 输出样本 (Examples)
 
 User: "抱抱" (穿毛衣)
-Output: "white sweater, long sleeves, sitting, 1girl hugging 1boy, cheek-to-cheek, looking at viewer, smiling, bedroom, messy bed, soft lighting"
-(解析：先写衣服sweater，再写动作，没写couple，看着镜头)
+Output: "white sweater, long sleeves, sitting, third-person view, {{char_tag}} hugging {{user_tag}}, cheek-to-cheek, {{char_tag}} smiling, bedroom, messy bed, soft lighting"
+(解析：先写衣服sweater，再写动作，没写couple，第三人称不看镜头)
 
 User: "看下面" (脱衣场景)
-Output: "lifting sweater, no panties, pussy, hairless, spread legs, 1girl looking at viewer, blushing, legs apart, bed sheet, intimate"
+Output: "lifting sweater, no panties, pussy, hairless, spread legs, {{char_tag}} blushing, legs apart, bed sheet, intimate"
 (解析：触发脱衣，移除了下装，保留了上装)
 
 【最终执行】
@@ -504,7 +514,7 @@ export const CAMERA_MAN_PROMPT = `
 
 **Step 3: 属性归属锁定 (Attribute Locking)**
 - **规则**: 将 {{current_action}} 中提取的所有情绪、状态、生理反应，强制绑定给角色。
-- **格式**: 使用 '1girl [emotion/state]' (e.g. '1girl blushing', '1girl sweating')。
+- **格式**: 使用 '{{char_tag}} [emotion/state]' (e.g. '{{char_tag}} blushing', '{{char_tag}} sweating')。
 - **视线算法**: 
     - 若动作由【观察】驱动 -> 'looking at viewer'。
     - 若动作由【羞耻/躲避】驱动 -> 'looking away', 'covering face'。
@@ -525,7 +535,7 @@ export const CAMERA_MAN_PROMPT = `
 
 ### ✅ 输出样本 (Examples)
 Action: "跨坐在{{user_name}}腿上抢手机，整个人扑过来"
-Output: "pajama top, pajama bottoms, POV, first-person view, 1girl straddling viewer, 1girl leaning forward towards viewer, 1girl's hand grabbing viewer's wrist, 1girl blushing, eyes looking at camera, living room, cinematic lighting"
+Output: "pajama top, pajama bottoms, POV, first-person view, {{char_tag}} straddling viewer, {{char_tag}} leaning forward towards viewer, {{char_tag}}'s hand grabbing viewer's wrist, {{char_tag}} blushing, eyes looking at camera, living room, cinematic lighting"
 
 【最终执行】
 请直接输出 Tag 字符串，不要包含任何解释：
@@ -553,11 +563,14 @@ AI: "{{ai_msg}}"
 
 【输出要求】
 1. **只写后半段**: 假设你的输出将被接在 "A beautiful girl with silver hair..." 这句话后面。
-2. **内容**: 重点描述她现在的姿势、表情细节、衣服的材质/穿法、以及周围的光影氛围。
-3. **安全转化**: 如果涉及 R18/亲密互动，请用唯美、暗示性的语言描述（如 "Intimate atmosphere", "Close distance", "Blushing"）。
+2. **视角与视线**:
+   - 使用 **第三人称电影视角 (Third-person cinematic perspective)**。
+   - 角色应专注于当下的动作或互动，**不要**看向镜头 (Do not look at camera)，除非语境特别要求。
+3. **内容**: 重点描述她现在的姿势、表情细节、衣服的材质/穿法、以及周围的光影氛围。
+4. **安全转化**: 如果涉及 R18/亲密互动，请用唯美、暗示性的语言描述（如 "Intimate atmosphere", "Close distance", "Blushing"）。
 
 【输出示例】
-[IMAGE_PROMPT] She is sitting on a velvet sofa, holding a warm cup of coffee. She is wearing a white silk nightgown that drapes softly over her legs. The morning sunlight streams through the window, creating a cozy and peaceful atmosphere.
+[IMAGE_PROMPT] (Third-person view) She is sitting on a velvet sofa, holding a warm cup of coffee, looking out the window. She is wearing a white silk nightgown that drapes softly over her legs. The morning sunlight streams through the window, creating a cozy and peaceful atmosphere.
 `;
 
 // =============================================================================

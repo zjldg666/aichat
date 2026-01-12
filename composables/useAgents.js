@@ -14,6 +14,7 @@ import {
     IMAGE_GENERATOR_OPENAI_PROMPT,
     CAMERA_MAN_OPENAI_PROMPT, 
 } from '@/utils/prompts.js';
+import { STYLE_PROMPT_MAP } from '@/utils/constants.js'; // ✨ 引入画风映射表
 
 const lastImageGenerationTime = ref(0);
 const IMAGE_COOLDOWN_MS = 60 * 1000;
@@ -364,9 +365,18 @@ export function useAgents(context) {
         const imgConfig = uni.getStorageSync('app_image_config') || {};
         const isOpenAI = imgConfig.provider === 'openai';
         
-        // 🟢 1. 获取固定样貌 (积木A)
+        // 🟢 1. 获取性别与样貌
         const settings = currentRole.value?.settings || {};
-        let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
+        const gender = settings.gender || '女';
+        const userGender = settings.userGender || '男';
+
+        // 变量映射
+        const charTag = gender === '女' ? '1girl' : '1boy';
+        const userTag = userGender === '男' ? '1boy' : '1girl';
+        const pronoun = gender === '女' ? 'She' : 'He';
+        const possessive = gender === '女' ? 'Her' : 'His';
+
+        let fullAppearance = settings.appearance || settings.appearanceSafe || (gender === '女' ? "a beautiful girl" : "a handsome boy");
         if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
         
         // 🟢 2. 构建 Prompt 给 AI (只问动作 积木B)
@@ -381,7 +391,11 @@ export function useAgents(context) {
             .replace('{{time}}', formattedTime.value)
             .replace('{{user_msg}}', promptUserMsg)
             .replace('{{ai_msg}}', promptAiMsg)
-            .replace('{{current_action}}', currentAction.value || "Standing");
+            .replace('{{current_action}}', currentAction.value || "Standing")
+            .replace(/{{char_tag}}/g, charTag) // ✨ 注入
+            .replace(/{{user_tag}}/g, userTag) // ✨ 注入
+            .replace(/{{pronoun}}/g, pronoun)   // ✨ 注入
+            .replace(/{{possessive}}/g, possessive); // ✨ 注入
         
         try {
             const dirRes = await safeTagChat({
@@ -406,11 +420,26 @@ export function useAgents(context) {
                     finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
                 } else {
                     // ComfyUI: 样貌Tags + 动态Tags
-                    if (!dynamicPart.includes(fullAppearance)) {
-                        finalPrompt = `${fullAppearance}, ${dynamicPart}`;
-                    } else {
-                        finalPrompt = dynamicPart;
-                    }
+                const customPrompt = imgConfig.prompt || ""; 
+                const styleKey = imgConfig.style || 'anime';
+                const stylePrompt = STYLE_PROMPT_MAP[styleKey] || "";
+                
+                let stylePart = stylePrompt;
+                if (customPrompt) {
+                    stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
+                }
+
+                let base = `${stylePart}, ${fullAppearance}`;
+                
+                if (!dynamicPart.includes(fullAppearance)) {
+                    finalPrompt = `${base}, ${dynamicPart}`;
+                } else {
+                    // 如果动态部分已经包含样貌，只补画风
+                    finalPrompt = `${stylePart}, ${dynamicPart}`;
+                }
+                
+                // 清理多余逗号
+                finalPrompt = finalPrompt.replace(/^,/, '').replace(/,,/g, ',').trim();
                 }
                 
                 console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
@@ -477,7 +506,16 @@ export function useAgents(context) {
         
         // 🟢 3. 获取固定样貌 (积木A)
         const settings = currentRole.value?.settings || {};
-        let fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
+        const gender = settings.gender || '女';
+        const userGender = settings.userGender || '男';
+
+        // 变量映射
+        const charTag = gender === '女' ? '1girl' : '1boy';
+        const userTag = userGender === '男' ? '1boy' : '1girl';
+        const pronoun = gender === '女' ? 'She' : 'He';
+        const possessive = gender === '女' ? 'Her' : 'His';
+
+        let fullAppearance = settings.appearance || settings.appearanceSafe || (gender === '女' ? "a beautiful girl" : "a handsome boy");
         if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
         
         // 构图模式
@@ -498,7 +536,9 @@ export function useAgents(context) {
                 .replace('{{location}}', currentLocation.value || "Indoor") 
                 .replace('{{time}}', formattedTime.value)
                 .replace('{{current_action}}', currentAction.value || "Standing")
-                .replace('{{ai_msg}}', targetAction);
+                .replace('{{ai_msg}}', targetAction)
+                .replace(/{{pronoun}}/g, pronoun) // ✨ 注入
+                .replace(/{{possessive}}/g, possessive); // ✨ 注入
         } else {
             // ComfyUI 保持原样
             prompt = CAMERA_MAN_PROMPT
@@ -506,7 +546,9 @@ export function useAgents(context) {
                 .replace('{{ai_response}}', targetAction)
                 .replace('{{clothes}}', clothingDesc)
                 .replace('{{location}}', currentLocation.value || "Indoor")
-                .replace('{{time}}', formattedTime.value);
+                .replace('{{time}}', formattedTime.value)
+                .replace(/{{char_tag}}/g, charTag) // ✨ 注入
+                .replace(/{{user_tag}}/g, userTag); // ✨ 注入
         }
         
         // 5. 占位符
@@ -539,11 +581,27 @@ export function useAgents(context) {
                     finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
                 } else {
                     // ComfyUI: 样貌 + 动态
-                    if (!dynamicPart.includes(fullAppearance)) {
-                        finalPrompt = `${fullAppearance}, ${dynamicPart}`;
-                    } else {
-                        finalPrompt = dynamicPart;
-                    }
+                const customPrompt = imgConfig.prompt || ""; 
+                const styleKey = imgConfig.style || 'anime';
+                // 优先查表获取长 Prompt，如果查不到(如custom)则为空
+                const stylePrompt = STYLE_PROMPT_MAP[styleKey] || "";
+                
+                // 最终画风部分 = 预设画风词 + 用户自定义词
+                let stylePart = stylePrompt;
+                if (customPrompt) {
+                    stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
+                }
+
+                let base = `${stylePart}, ${fullAppearance}`;
+
+                if (!dynamicPart.includes(fullAppearance)) {
+                    finalPrompt = `${base}, ${dynamicPart}`;
+                } else {
+                     // 如果动态部分已经包含样貌，只补画风
+                     finalPrompt = `${stylePart}, ${dynamicPart}`;
+                }
+                 // 清理多余逗号
+                 finalPrompt = finalPrompt.replace(/^,/, '').replace(/,,/g, ',').trim();
                 }
                 
                 console.log(`🧩 [最终拼接Prompt]`, finalPrompt);

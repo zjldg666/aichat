@@ -15,115 +15,132 @@ export function useCharacterCreate(formData, targetId) {
     };
 
     // 1. 优化/翻译角色 Prompt
-    const generateEnglishPrompt = async () => {
-       
-        const f = formData.value.charFeatures;
-        
-        // 判断当前是否是暴露模式
-        const isExposed = f.wearStatus === '暴露/H';
-
-        const selectedFaceStyle = formData.value.faceStyle;
-        const faceTags = FACE_STYLES_MAP[selectedFaceStyle] || selectedFaceStyle || '';
-        
-        // 1.1 拼接中文描述 - 安全部分 (身体/脸)
-        let safeParts = [];
-        if (f.hairColor || f.hairStyle) safeParts.push(`${f.hairColor || ''}${f.hairStyle || ''}`);
-        if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
-        if (f.skinGloss) safeParts.push(`皮肤${f.skinGloss}`);
-        if (f.chestSize) safeParts.push(`胸部${f.chestSize}`); // "大胸"是安全的，但不要描述细节
-        if (f.waist) safeParts.push(f.waist);
-        if (f.hips) safeParts.push(f.hips);
-        if (f.legs) safeParts.push(f.legs);
-        const safeChinese = safeParts.join('，');
-    
-        // 1.2 拼接中文描述 - NSFW部分 (关键修改！🔒)
-        let nsfwParts = [];
-        // ⚠️ 只有在【暴露模式】下，才把这些特征发给 LLM
-        // 如果是正常穿戴，我们直接隐藏这些信息，防止 LLM 把它们写进 safeTags 里
-        if (isExposed) {
-            if (f.nippleColor) nsfwParts.push(`乳头${f.nippleColor}`);
-            if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
-        }
-        const nsfwChinese = nsfwParts.join('，');
-    
-        // 1.3 拼接中文描述 - 服装部分
-        let clothesParts = [];
-        if (f.topStyle) clothesParts.push(`上身穿着${f.topColor || ''}${f.topStyle}`);
-        if (f.bottomStyle) clothesParts.push(`下身穿着${f.bottomColor || ''}${f.bottomStyle}`);
-        if (f.legWear) clothesParts.push(`穿着${f.legWear}`);
-        
-        // 兜底逻辑：如果没填服装且是正常模式，强制加衣服
-        if (clothesParts.length === 0 && !isExposed) {
-            clothesParts.push('穿着时尚的日常便服'); 
-        }
-        const clothesChinese = clothesParts.join('，');
-        
-        
-
-        if (!safeChinese && !clothesChinese) {
-            return uni.showToast({ title: '请先选择特征', icon: 'none' });
-        }
-    
-        uni.showLoading({ title: 'AI 正在优化 Prompt...', mask: true });
-    
-        try {
-            const config = getCurrentLlmConfig();
-            if (!config || !config.apiKey) throw new Error('请先在“我的”页面配置 API');
-    
-            // 构造 Prompt
-            const prompt = `You are an expert AI Art Prompt Engineer specializing in Anime/Danbooru styles.
-            
-            【Input Data】
-            1. Body Features: "${safeChinese}"
-            2. Private Details: "${nsfwChinese}"  (If empty, output empty string)
-            3. Clothing: "${clothesChinese}"
-    
-            【Optimization Rules】
-            1. **Translate & Refine**: Convert to high-quality Danbooru tags.
-            2. **Safety First**: If "Clothing" is present, absolutely NO nudity tags (like nipples, pussy) in the "Body Tags" section.
-            3. **Be Specific**: "shirt" -> "white t-shirt", "skirt" -> "pleated skirt".
-            4. **Format Constraint**: Output EXACTLY three parts separated by "|||".
-    
-            【Output Format】
-            <Body Tags> ||| <Private Tags> ||| <Clothing Tags>`;
-    
-            const result = await LLM.chat({
-                config,
-                messages: [{ role: 'user', content: prompt }],
-                systemPrompt: "You are a professional Prompt Generator. Output only the requested format.",
-                temperature: 0.3 // 降低温度，让它更听话
-            });
-            
-            const parts = result.split('|||');
-            const safeTags = parts[0] ? parts[0].trim().replace(/\n/g, '') : '';
-            const nsfwTags = parts[1] ? parts[1].trim().replace(/\n/g, '') : '';
-            const clothingTags = parts[2] ? parts[2].trim().replace(/\n/g, '') : ''; 
-            
-            // 组合最终结果
-            formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
-            formData.value.appearanceNsfw = nsfwTags;
-            
-            if (isExposed) {
-                 formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
-            } else {
-                 formData.value.appearance = `${formData.value.appearanceSafe}`;
-            }
-    
-            tempClothingTagsForAvatar.value = clothingTags;
-            
+    // 1. 优化/翻译角色 Prompt (完整修复版)
+        const generateEnglishPrompt = async () => {
            
-            uni.showToast({ title: 'Prompt已优化生成', icon: 'success' });
+            const f = formData.value.charFeatures;
+            
+            // 判断当前是否是暴露模式
+            const isExposed = f.wearStatus === '暴露/H';
     
-        } catch (e) {
-            console.error("❌ [Debug] 生成过程报错:", e);
-            formData.value.appearance = `${faceTags}, ${safeChinese}`; 
-            formData.value.appearanceSafe = `${faceTags}, ${safeChinese}`; 
-            tempClothingTagsForAvatar.value = clothesChinese;
-            uni.showToast({ title: 'AI优化失败，使用原文', icon: 'none' });
-        } finally {
-            uni.hideLoading();
-        }
-    };
+            const selectedFaceStyle = formData.value.faceStyle;
+            const faceTags = FACE_STYLES_MAP[selectedFaceStyle] || selectedFaceStyle || '';
+            
+            // 1.1 拼接中文描述 - 安全部分 (身体/脸)
+            let safeParts = [];
+            
+            // [修复点1]: 优化头发拼接，确保即使只有颜色或发型也能正常组合
+            const hairColor = f.hairColor || '';
+            const hairStyle = f.hairStyle || '';
+            if (hairColor || hairStyle) {
+                 safeParts.push(`${hairColor}${hairStyle}`);
+            }
+            
+            if (f.eyeColor) safeParts.push(`${f.eyeColor}眼睛`);
+            if (f.skinGloss) safeParts.push(`皮肤${f.skinGloss}`);
+            if (f.chestSize) safeParts.push(`胸部${f.chestSize}`); // "大胸"是安全的，但不要描述细节
+            
+            // [修复点2]: 显式补全部位名词，防止 LLM 不知道"丰满圆润"指的是什么
+            if (f.waist) {
+                safeParts.push(f.waist.includes('腰') ? f.waist : `${f.waist}腰`); 
+            }
+            if (f.hips) {
+                safeParts.push(f.hips.includes('臀') ? f.hips : `${f.hips}臀部`); 
+            }
+            if (f.legs) {
+                safeParts.push(f.legs.includes('腿') ? f.legs : `${f.legs}双腿`); 
+            }
+            
+            const safeChinese = safeParts.join('，');
+        
+            // 1.2 拼接中文描述 - NSFW部分 (关键修改！🔒)
+            let nsfwParts = [];
+            // ⚠️ 只有在【暴露模式】下，才把这些特征发给 LLM
+            // 如果是正常穿戴，我们直接隐藏这些信息，防止 LLM 把它们写进 safeTags 里
+            if (isExposed) {
+                if (f.nippleColor) nsfwParts.push(`乳头${f.nippleColor}`);
+                if (f.pubicHair || f.vulvaType) nsfwParts.push(`私处${f.pubicHair || ''}，${f.vulvaType || ''}`);
+            }
+            const nsfwChinese = nsfwParts.join('，');
+        
+            // 1.3 拼接中文描述 - 服装部分
+            let clothesParts = [];
+            if (f.topStyle) clothesParts.push(`上身穿着${f.topColor || ''}${f.topStyle}`);
+            if (f.bottomStyle) clothesParts.push(`下身穿着${f.bottomColor || ''}${f.bottomStyle}`);
+            if (f.legWear) clothesParts.push(`穿着${f.legWear}`);
+            
+            // 兜底逻辑：如果没填服装且是正常模式，强制加衣服
+            if (clothesParts.length === 0 && !isExposed) {
+                clothesParts.push('穿着时尚的日常便服'); 
+            }
+            const clothesChinese = clothesParts.join('，');
+            
+            if (!safeChinese && !clothesChinese) {
+                return uni.showToast({ title: '请先选择特征', icon: 'none' });
+            }
+        
+            uni.showLoading({ title: 'AI 正在优化 Prompt...', mask: true });
+        
+            try {
+                const config = getCurrentLlmConfig();
+                if (!config || !config.apiKey) throw new Error('请先在“我的”页面配置 API');
+        
+                // [修复点3]: 更新 Prompt，增加 "Tag Integrity" 规则
+                const prompt = `You are an expert AI Art Prompt Engineer specializing in Anime/Danbooru styles.
+                
+                【Input Data】
+                1. Body Features: "${safeChinese}"
+                2. Private Details: "${nsfwChinese}"  (If empty, output empty string)
+                3. Clothing: "${clothesChinese}"
+        
+                【Optimization Rules】
+                1. **Translate & Refine**: Convert to high-quality Danbooru tags.
+                2. **Safety First**: If "Clothing" is present, absolutely NO nudity tags (like nipples, pussy) in the "Body Tags" section.
+                3. **Be Specific**: "shirt" -> "white t-shirt", "skirt" -> "pleated skirt".
+                4. **Tag Integrity**: Keep adjectives and nouns together as a single tag (e.g., use "black hair", "plump hips", NOT "black, hair" or "plump, hips").
+                5. **Format Constraint**: Output EXACTLY three parts separated by "|||".
+        
+                【Output Format】
+                <Body Tags> ||| <Private Tags> ||| <Clothing Tags>`;
+        
+                const result = await LLM.chat({
+                    config,
+                    messages: [{ role: 'user', content: prompt }],
+                    systemPrompt: "You are a professional Prompt Generator. Output only the requested format.",
+                    temperature: 0.3 // 降低温度，让它更听话
+                });
+                
+                const parts = result.split('|||');
+                const safeTags = parts[0] ? parts[0].trim().replace(/\n/g, '') : '';
+                const nsfwTags = parts[1] ? parts[1].trim().replace(/\n/g, '') : '';
+                const clothingTags = parts[2] ? parts[2].trim().replace(/\n/g, '') : ''; 
+                
+                // 组合最终结果
+                formData.value.appearanceSafe = `${faceTags}, ${safeTags}`.replace(/,\s*,/g, ',').trim();
+                formData.value.appearanceNsfw = nsfwTags;
+                
+                if (isExposed) {
+                     formData.value.appearance = `${formData.value.appearanceSafe}, ${nsfwTags}`;
+                } else {
+                     formData.value.appearance = `${formData.value.appearanceSafe}`;
+                }
+        
+                tempClothingTagsForAvatar.value = clothingTags;
+                
+                uni.showToast({ title: 'Prompt已优化生成', icon: 'success' });
+        
+            } catch (e) {
+                console.error("❌ [Debug] 生成过程报错:", e);
+                // 失败时的兜底逻辑也同步优化一下，补全名词
+                let fallbackSafe = safeChinese; // 这里其实已经是补全过名词的中文了，勉强能用
+                formData.value.appearance = `${faceTags}, ${fallbackSafe}`; 
+                formData.value.appearanceSafe = `${faceTags}, ${fallbackSafe}`; 
+                tempClothingTagsForAvatar.value = clothesChinese;
+                uni.showToast({ title: 'AI优化失败，使用原文', icon: 'none' });
+            } finally {
+                uni.hideLoading();
+            }
+        };
 
     // 2. 生成玩家 Prompt
     const generateUserDescription = async () => {
