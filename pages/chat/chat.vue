@@ -470,7 +470,7 @@ const {
     interactionMode, currentRelation, currentAffection, // ✨ 确保这里传了好感度 Ref
     currentActivity, formattedTime, playerLocation,
     enableSummary, summaryFrequency, currentSummary,
-    saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration
+    saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration,userAppearance 
 });
 
 const handleTimeSkip = async (type, customVal) => {
@@ -681,7 +681,37 @@ const processAIResponse = async (rawText) => {
         console.log(`📅 时间: ${formattedTime.value}`);
         console.log(`📱 模式: ${interactionMode.value === 'phone' ? '手机聊天' : '当面互动'}`);
         console.log('-----------------------------------------------------------');
-
+		// 👇👇👇 【新增】纯净版剧本日志 👇👇👇
+		console.log('\n📖 ================= [ 当前剧本回放 ] ================= 📖');
+		messageList.value.forEach((msg, index) => {
+		    // 1. 跳过不想看的系统提示（比如生图的loading，或者时间流逝提示），只看对话
+		    // 如果你想看所有系统消息，注释掉下面这行
+		    // if (msg.isSystem && msg.content.includes('显影中')) return;
+		
+		    // 2. 格式化角色名
+		    let roleName = '';
+		    let emoji = '';
+		    
+		    if (msg.role === 'user') {
+		        roleName = '我';
+		        emoji = '🗣️';
+		    } else if (msg.role === 'model' || msg.role === 'assistant') {
+		        roleName = chatName.value; // AI名字
+		        emoji = '🌸';
+		    } else {
+		        roleName = '系统';
+		        emoji = '⚙️';
+		    }
+		
+		    // 3. 格式化内容 (去除 <think> 标签，让阅读更流畅)
+		    let cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+		    if (!cleanContent) cleanContent = "(心理活动/空)";
+		
+		    // 4. 打印一行
+		    console.log(`${emoji} [${roleName}]: ${cleanContent}`);
+		});
+		console.log('📖 ======================================================\n');
+		// 👆👆👆 【新增结束】 👆👆👆
         // 4. 触发 Agent 检查 (混合并行策略)
         // ... (保留上面的 console.log 代码)
         
@@ -846,13 +876,32 @@ const triggerNextStep = () => {
     sendMessage(true, `[System Command: NARRATIVE_CONTINUATION]\n**Status**: User waiting.\n**Task**: Finish msg or initiate action.\n**Rules**: No repeat.`);
 };
 
-const handleCameraSend = () => {
-    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+const handleCameraSend = async () => {
+    // 1. 基础校验：必须是当面模式
+    if (interactionMode.value !== 'face') {
+        return uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+    }
     
-    // 🛠️ 修改这里的 Prompt，从系统指令改为描述性动作
-    // 这样 AI 会根据当前氛围决定是“发现你拍照并害羞/配合”还是“完全没发现继续手头的动作”
-    const cameraPrompt = `(你举起手机，寻找一个合适的角度，按下了快门。由于是在这种氛围下，她可能会注意到你的镜头并给出反应，也可能正专注于自己的事而完全没察觉。请根据当前情境自然衔接剧情。)`;
+    // 2. ⚡️【核心修改】立即触发快门 (抓拍当前状态)
+    console.log('📸 [Camera] 玩家按下快门，执行抓拍...');
     
+    // 我们手动调用 runCameraManCheck
+    // 参数1 (lastUserMsg): 模拟一个系统事件名称
+    // 参数2 (aiResponseText): 传入【当前动作】，让摄影师基于角色此刻的状态（如"站立/发呆"）去生图
+    // 这样生成的图片就是"呆站着"的样子，而不是AI回复后的样子
+    runCameraManCheck("System: Shutter Pressed", currentAction.value || "Standing naturally");
+
+    // 3. 构造剧情提示词 (告诉 AI 发生了什么)
+    // 这一步是为了让 AI 做出反应。注意：我们不使用包含"SNAPSHOT"等关键词的系统指令，
+    // 以免 processAIResponse 再次触发一遍生图逻辑。
+    const cameraPrompt = `
+    [System Event: User took a photo]
+    (只听到“咔嚓”一声，用户刚刚突然抓拍了一张你的照片。
+    你此时正在"${currentAction.value}"。
+    请根据这个突发状况做出反应，是惊讶、害羞、生气还是无所谓？)
+    `;
+    
+    // 4. 发送给 AI (false 代表这不是 continue，而是新的一轮)
     sendMessage(false, cameraPrompt);
 };
 

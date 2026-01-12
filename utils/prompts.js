@@ -390,7 +390,7 @@ export const SNAPSHOT_TRIGGER_FACE = `
 export const IMAGE_GENERATOR_PROMPT = `
 [System Command: VISUAL_DIRECTOR]
 任务：你是 Stable Diffusion 的核心提示词导演。
-**重要原则**：你的输出将直接拼接在人物身体特征（Body Features）之后。你必须补全服装、动作、表情和环境。
+**重要原则**：你的输出将作为【场景与动作层】，置于人物身体特征（Body Features）之前（通过 BREAK 分隔）。你必须补全服装、动作、表情和环境。
 
 【输入数据】
 - 服装 (CLOTHES): {{clothes}} (⚠️ CRITICAL: Must translate and keep! Unless undressing logic triggers.)
