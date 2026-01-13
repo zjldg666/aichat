@@ -716,22 +716,20 @@ const processAIResponse = async (rawText) => {
         // ... (保留上面的 console.log 代码)
         
         // 4. 触发 Agent 检查 (混合并行策略)
-        setTimeout(() => {
-            console.log('🚦 [后台导演] 全并行策略启动...');
-        
+        setTimeout(async () => {
+            console.log('🚦 [后台导演] 串行同步策略启动 (已修复动作不同步问题)...');
+
             // 轨道 A: 关系与记忆 (保持不变)
             runRelationCheck(lastUserMsg, rawText); 
             checkAndRunSummary(); 
-        
-            // 轨道 B: 场景与生图 (🔥🔥 改为并行 🔥🔥)
-            // 原逻辑：runSceneCheck(...).then(...) -> 导致了等待
-            // 新逻辑：同时触发，互不阻塞
+
+            // 轨道 B: 场景与生图 (🔥🔥 改为串行 🔥🔥)
+            // 为了确保生图时能获取到最新的 Action/Location，必须等待 SceneCheck 完成
             
-            // 1. 启动场景分析 (让它自己在后台跑，更新地点/衣服)
-            runSceneCheck(lastUserMsg, rawText);
-        
-            // 2. 立即启动生图判定 (不再等待场景分析结束)
-            // 这样只要门卫 Agent (Visual Consent Check) 返回 true，UI 就会立刻显示“正在构图”
+            // 1. 启动场景分析 (等待更新完成)
+            await runSceneCheck(lastUserMsg, rawText);
+
+            // 2. 启动生图判定 (此时 currentAction 已更新)
             let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('SHUTTER') || lastUserMsg.includes('快门');
             
             if (isCameraAction) {
