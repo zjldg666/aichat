@@ -44,7 +44,10 @@
               <view class="tool-icon">📸</view>
               <text class="tool-text">拍照</text>
             </view>
-
+			<view class="tool-item" @click="$emit('clickStealthCamera')">
+			    <view class="icon-box">👁️</view> 
+				<text class="tool-text">偷拍</text>
+			</view>
             <view class="tool-item" @click="$emit('clickWardrobe')" v-if="!isEmbedded">
               <view class="tool-icon">👕</view>
               <text class="tool-text">衣柜</text>

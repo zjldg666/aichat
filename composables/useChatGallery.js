@@ -2,6 +2,7 @@
 import { Comfy } from '@/services/comfyui.js';
 import { saveToGallery } from '@/utils/gallery-save.js';
 import { STYLE_PROMPT_MAP } from '@/utils/constants.js';
+import { DB } from '@/utils/db.js';
 
 export function useChatGallery(context) {
     const { 
@@ -153,26 +154,36 @@ export function useChatGallery(context) {
     // ✅ 4. 异步处理 (新增参数)
     const handleAsyncImageGeneration = async (imgDesc, placeholderId, compositionType = 'SOLO') => {
             try {
-                // 🔥 核心修复一：强制使用 1024x1024，彻底解决国内 API 敏感报错问题
-                // (注意：这里我们虽然是在 generateChatImage 里改的，但为了保险，
-                //  请确保你去 generateOpenAIImage 里把 size: "2048x2048" 改成了 "1024x1024")
-                
                 const imgUrl = await generateChatImage(imgDesc, compositionType);
                 const idx = messageList.value.findIndex(m => m.id === placeholderId);
                 
                 if (idx !== -1 && imgUrl) {
                     // 成功逻辑
                     const localPath = await saveToGallery(imgUrl, chatId.value, chatName.value, imgDesc);
+                    
+                    // 1. 更新内存状态
                     messageList.value[idx] = { 
                         role: 'model', 
                         type: 'image', 
                         content: localPath, 
                         id: placeholderId 
                     };
-                    saveHistory(); 
+                    
+                    // 2. 🔥【核心修复】强制更新数据库中该条消息的内容和类型
+                    // 如果只调用 saveHistory()，它通常是 INSERT 操作，可能会导致主键冲突或存不进去
+                    // 所以我们直接执行 SQL UPDATE
+                    try {
+                        await DB.execute(
+                            `UPDATE messages SET content = ?, type = ?, isSystem = 0 WHERE id = ?`,
+                            [localPath, 'image', placeholderId]
+                        );
+                        console.log(`💾 [DB] 图片消息已持久化: ${placeholderId}`);
+                    } catch (dbErr) {
+                        console.error('❌ 图片存库失败:', dbErr);
+                    }
+    
                     scrollToBottom();
                 } else if (idx !== -1) {
-                    // 失败逻辑（但不是异常，是没返回图）
                     throw new Error("API未返回有效图片");
                 }
             } catch(e) {
@@ -192,9 +203,7 @@ export function useChatGallery(context) {
                         originalPrompt: imgDesc, // 🌟 关键：把提示词藏在这里！
                         id: placeholderId 
                      };
-                     // 注意：saveHistory 默认只存 SQLite 的 content 字段。
-                     // 如果重启 App，originalPrompt 会丢失（因为没存数据库）。
-                     // 但在当前会话中，你点击重试是绝对好用的。
+                     
                      saveHistory();
                 }
             }

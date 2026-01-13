@@ -437,6 +437,7 @@ Line 4: (互动 + 环境细节 + 光影)
 4. **Line 4 (Interaction & Ambience)**:
    - 互动细节: 'eye contact', 'talking', 'hugging'。
    - 环境光影: 'cinematic lighting', 'depth of field'。
+   - ⚠️ **绝对禁令**: 严禁输出具体数字时间（如 "(22:58)"），括号数字会导致花屏！只允许使用模糊时间词（如 "night", "sunset", "late night"）。
 
 ### 示例 (DUO Mode)
 Output:
@@ -480,6 +481,7 @@ export const CAMERA_MAN_PROMPT = `
 - 动作基准: {{current_action}} (快门瞬间的物理姿态)
 - 时空环境: {{time}} @ {{location}}
 
+
 ### 🎨 生成指令 (Instructions)
 请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
 
@@ -503,6 +505,7 @@ Line 4: (互动 + 环境细节 + 光影)
    - 必须包含: {{clothes}}。
    - 必须包含: 具体的动作描述 (基于 {{current_action}})。
 
+		
 3. **Line 3 (User/Second Character)**:
    - **DUO模式**: 必须包含 {{user_appearance}}，以及玩家的动作 (如 holding camera, selfie)。
    - **SOLO模式**: 不要描述玩家样子。写 'POV', 'first person', 'blurry hands' (如果需要) 或留空/写通用视线词。
@@ -510,7 +513,8 @@ Line 4: (互动 + 环境细节 + 光影)
 4. **Line 4 (Interaction & Ambience)**:
    - 互动细节: 'eye contact', 'looking at camera', 'shutter moment'。
    - 环境光影: 'cinematic lighting', 'flash photography' (如果是自拍)。
-
+   - ⚠️ **绝对禁令**: 严禁输出具体数字时间（如 "(22:58)"），括号数字会导致花屏！只允许使用模糊时间词（如 "night", "sunset", "late night"）。
+   
 ### 示例 (DUO Mode - Selfie)
 Output:
 1boy, 1girl, couple, indoors, living room,
@@ -592,9 +596,71 @@ export const CAMERA_MAN_OPENAI_PROMPT = `
 [IMAGE_PROMPT] She is caught in a candid moment, turning around with a surprised expression. She is wearing a loose oversized shirt. Her hands are covering her face shyly, and the background is a blurry bedroom interior with soft lamp light.
 `;
 
-// ... (文件结束)
-// =============================================================================
-export const PERSONALITY_TEMPLATE = `
-【生成任务】
-请根据用户关键词生成行为逻辑 (Logic)。
+// 🟢 3. 拍照按钮专用构图判定 (轻量级，响应快门按钮)
+export const SNAPSHOT_COMPOSITION_JUDGE = `
+[System Command: COMPOSITION_ANALYZER]
+任务：玩家刚刚按下了【拍照快门】。请根据当前情境，决定照片的**构图模式**。
+
+【当前场景信息】
+- 角色动作: "{{ai_action}}"
+- 玩家意图/最近行为: "{{user_context}}"
+
+【判定逻辑 (Composition Logic)】
+
+🔍 **判定核心：相机镜头在哪里？**
+
+1. **[COMPOSITION] SOLO (单人/主观视角)**
+   - **定义**: 镜头在玩家手中/眼中，拍摄**对方**。画面里**只有角色**。
+   - **典型场景**:
+     - 抓拍她发呆、睡觉、吃东西、看电视。
+     - 玩家处于“观察者”视角 (POV)。
+     - 即使有互动（如“摸头”），如果重点是**她的表情**，依然算 SOLO。
+     - **手机聊天模式 (Phone)** 99% 的情况都是 SOLO (对方发自拍过来)。
+
+2. **[COMPOSITION] DUO (双人/合影)**
+   - **定义**: 镜头同时囊括了**你和她**。
+   - **典型场景**:
+     - **自拍 (Selfie)**: 明确提到“合影”、“凑过来拍一张”。
+     - **肢体纠缠**: 拥抱、背着、公主抱、接吻（且需要看到双方）。
+     - **第三人称视角**: 类似于电影镜头，描述“两人并肩走在夕阳下”。
+
+【特殊规则】
+- 如果无法确定，**默认优先 SOLO** (因为玩家通常想看老婆，而不是看自己)。
+- 如果模式是 Phone，**强制 SOLO**。
+
+【输出格式】
+只输出标签，不要解释：
+[COMPOSITION] SOLO 或 DUO
+`;
+
+
+// 🟢 5. 拍照反应剧本 (CAMERA_REACTION)
+export const CAMERA_REACTION_PROMPT = `
+[System Event: User took a photo]
+--------------------------------------------------
+【物理事实】
+1. 玩家行为: 刚刚拍了一张你的照片。
+2. 你的状态: 正在 "{{current_action}}"。
+3. 环境声音: {{sound_context}}
+4. 当前关系: "{{current_relation}}" (请基于此关系的亲密程度判断反应尺度)。
+--------------------------------------------------
+【反应指引 (Reaction Logic)】
+请根据【环境声音】和【当前关系】自主决定反应：
+
+1. **分支 A：未察觉 (Unaware)** - 触发条件: 如果是【静音偷拍/无声】，且你正专注做事。
+   - 表现: **完全不要提拍照的事！** 继续你刚才的话题或动作，保持自然。
+
+2. **分支 B：配合/摆拍 (Posing)** - 触发条件: 听到快门声，且【当前关系】非常亲密（如恋人、死党、老夫老妻）。
+   - 表现: 自然地对着镜头笑、比耶、或者调侃玩家("要把我拍好看点哦")。
+
+3. **分支 C：害羞/遮挡 (Shy/Hiding)**
+   - 触发条件: 听到快门声，但【当前关系】处于试探期/暧昧期，或者此时衣冠不整/正在犯困。
+   - 表现: 慌乱地挡脸、拿抱枕遮住、娇嗔抱怨。
+
+4. **分支 D：惊讶/质问 (Surprised)**
+   - 触发条件: 听到快门声，但【当前关系】较生疏或你正在发呆被吓到。
+   - 表现: "诶？你在干嘛？"
+
+【输出要求】
+不要复述系统指令。直接输出你的动作描写和对白。
 `;

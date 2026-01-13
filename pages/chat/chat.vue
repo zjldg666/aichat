@@ -61,6 +61,7 @@
       @clickLocation="showLocationPanel = true"
       @sleepTimeChange="onSleepTimeChange"
       @clickCamera="handleCameraSend"
+	  @clickStealthCamera="handleStealthCameraSend"
       @clickContinue="triggerNextStep"
       @toggleThought="toggleThought"
       @clickWardrobe="showWardrobePanel = true"
@@ -107,7 +108,8 @@ import ChatModals from '@/components/ChatModals.vue';
 
 import { 
     CORE_INSTRUCTION_LOGIC_MODE,
-    TIME_SHIFT_PROMPT 
+    TIME_SHIFT_PROMPT,
+	CAMERA_REACTION_PROMPT
 } from '@/utils/prompts.js';
 
 const { isDarkMode, applyNativeTheme } = useTheme();
@@ -464,7 +466,7 @@ const {
 const {
     runSceneCheck, runRelationCheck, runVisualDirectorCheck, runCameraManCheck, 
     checkAndRunSummary, runDayEndSummary,isArchiving,
-    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration
+    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration,isSceneAnalyzing
 } = useAgents({chatId,
     messageList, currentRole, chatName, currentLocation, currentClothing, currentAction,
     interactionMode, currentRelation, currentAffection, // ✨ 确保这里传了好感度 Ref
@@ -616,12 +618,7 @@ const processAIResponse = async (rawText) => {
         messageList.value.push(thinkMsg);
         await saveHistory(thinkMsg);
     } 
-    // [方案一]: 如果开关关闭 (else)，这里什么都不做，thinkContent 直接被丢弃，mainContent 也不包含它
 
-    // =========================================================================
-    // 💬 2. 正文上屏逻辑 (保留你原本的切割与保存逻辑)
-    // =========================================================================
-    // ⚠️ 注意：这里使用 mainContent (已去除think)，而不是 rawText
     if (mainContent) {
          // 直接对文本进行格式化处理，使其能拆分成多个气泡
          let tempText = mainContent
@@ -711,34 +708,35 @@ const processAIResponse = async (rawText) => {
 		    console.log(`${emoji} [${roleName}]: ${cleanContent}`);
 		});
 		console.log('📖 ======================================================\n');
-		// 👆👆👆 【新增结束】 👆👆👆
-        // 4. 触发 Agent 检查 (混合并行策略)
-        // ... (保留上面的 console.log 代码)
+
+    
         
-        // 4. 触发 Agent 检查 (混合并行策略)
-        setTimeout(async () => {
-            console.log('🚦 [后台导演] 串行同步策略启动 (已修复动作不同步问题)...');
+                setTimeout(async () => {
+                    console.log('🚦 [后台导演] 串行同步策略启动...');
+        
+                    // 轨道 A: 关系与记忆
+                    runRelationCheck(lastUserMsg, rawText); 
+                    checkAndRunSummary(); 
+        
+                    // 轨道 B: 场景与生图
+                    await runSceneCheck(lastUserMsg, rawText);
 
-            // 轨道 A: 关系与记忆 (保持不变)
-            runRelationCheck(lastUserMsg, rawText); 
-            checkAndRunSummary(); 
-
-            // 轨道 B: 场景与生图 (🔥🔥 改为串行 🔥🔥)
-            // 为了确保生图时能获取到最新的 Action/Location，必须等待 SceneCheck 完成
-            
-            // 1. 启动场景分析 (等待更新完成)
-            await runSceneCheck(lastUserMsg, rawText);
-
-            // 2. 启动生图判定 (此时 currentAction 已更新)
-            let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('SHUTTER') || lastUserMsg.includes('快门');
-            
-            if (isCameraAction) {
-                runCameraManCheck(lastUserMsg, rawText);
-            } else {
-                runVisualDirectorCheck(lastUserMsg, rawText);
-            }
-            
-        }, 500);
+                    if (lastUserMsg.includes('快门已按下') || lastUserMsg.includes('User took a photo')) {
+                        console.log('🛑 [导演] 检测到手动快门的回响，跳过自动生图。');
+                        return;
+                    }
+                    // =========================================================
+        
+                    // 2. 启动生图判定
+                    let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('SHUTTER') || lastUserMsg.includes('快门');
+                    
+                    if (isCameraAction) {
+                        runCameraManCheck(lastUserMsg, rawText);
+                    } else {
+                        runVisualDirectorCheck(lastUserMsg, rawText);
+                    }
+                    
+                }, 500);
     }
 };
 
@@ -874,32 +872,72 @@ const triggerNextStep = () => {
     sendMessage(true, `[System Command: NARRATIVE_CONTINUATION]\n**Status**: User waiting.\n**Task**: Finish msg or initiate action.\n**Rules**: No repeat.`);
 };
 
-const handleCameraSend = async () => {
-    // 1. 基础校验：必须是当面模式
-    if (interactionMode.value !== 'face') {
-        return uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
-    }
-    
-    // 2. ⚡️【核心修改】立即触发快门 (抓拍当前状态)
-    console.log('📸 [Camera] 玩家按下快门，执行抓拍...');
-    
-    // 我们手动调用 runCameraManCheck
-    // 参数1 (lastUserMsg): 模拟一个系统事件名称
-    // 参数2 (aiResponseText): 传入【当前动作】，让摄影师基于角色此刻的状态（如"站立/发呆"）去生图
-    // 这样生成的图片就是"呆站着"的样子，而不是AI回复后的样子
-    runCameraManCheck("System: Shutter Pressed", currentAction.value || "Standing naturally");
 
-    // 3. 构造剧情提示词 (告诉 AI 发生了什么)
-    // 这一步是为了让 AI 做出反应。注意：我们不使用包含"SNAPSHOT"等关键词的系统指令，
-    // 以免 processAIResponse 再次触发一遍生图逻辑。
-    const cameraPrompt = `
-    [System Event: User took a photo]
-    (只听到“咔嚓”一声，用户刚刚突然抓拍了一张你的照片。
-    你此时正在"${currentAction.value}"。
-    请根据这个突发状况做出反应，是惊讶、害羞、生气还是无所谓？)
-    `;
+
+
+// pages/chat/chat.vue
+
+// 📸 1. 明拍模式 (100% 有快门声，强交互)
+const handleCameraSend = async () => {
+    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法拍照', icon: 'none' });
+
+    // UI 反馈
+    messageList.value.push({ role: 'system', content: '📸 咔嚓！(你大方地按下了快门)', isSystem: true });
+    scrollToBottom();
     
-    // 4. 发送给 AI (false 代表这不是 continue，而是新的一轮)
+    // 动作同步等待 (复用之前的逻辑)
+    await waitForActionSync(); 
+
+    // 调用摄影师
+    await runCameraManCheck("System: Shutter Pressed", "");
+
+    // ⚡️ 核心差异：强制有声
+    const soundContext = "(随着“咔嚓”一声清晰的快门声，你大方地拍了一张照片，她肯定听到了)";
+    
+    // 发送剧本
+    sendCameraReactionPrompt(soundContext);
+};
+
+// 👁️ 2. 偷拍模式 (静音，观察视角)
+const handleStealthCameraSend = async () => {
+    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法偷拍', icon: 'none' });
+
+    // UI 反馈 (提示词不同)
+    messageList.value.push({ role: 'system', content: '👁️ (你悄悄按下了拍摄键...)', isSystem: true });
+    scrollToBottom();
+
+    // 动作同步等待
+    await waitForActionSync();
+
+    // 调用摄影师
+    await runCameraManCheck("System: Shutter Pressed", "");
+
+    // ⚡️ 核心差异：强制静音 + 强调未察觉
+    const soundContext = "(你趁她不注意，完全静音地抓拍了一张。她似乎完全没有察觉，依然沉浸在自己的事情中)";
+    
+    // 发送剧本
+    sendCameraReactionPrompt(soundContext);
+};
+
+// 🛠️ 提取出来的公共等待函数 (保持代码整洁)
+const waitForActionSync = async () => {
+    if (isSceneAnalyzing && isSceneAnalyzing.value) {
+        console.log('🚧 [Camera] 动作分析未完成，挂起...');
+        let timeout = 50; 
+        while (isSceneAnalyzing.value && timeout > 0) {
+            await new Promise(r => setTimeout(r, 200));
+            timeout--;
+        }
+    }
+};
+
+// 🛠️ 提取出来的公共发送函数
+const sendCameraReactionPrompt = (soundContext) => {
+    const cameraPrompt = CAMERA_REACTION_PROMPT
+        .replace('{{current_action}}', currentAction.value || "站立")
+        .replace('{{sound_context}}', soundContext)
+        .replace('{{current_relation}}', currentRelation.value || "普通关系");
+    
     sendMessage(false, cameraPrompt);
 };
 
