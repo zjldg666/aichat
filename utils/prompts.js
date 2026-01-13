@@ -389,87 +389,77 @@ export const SNAPSHOT_TRIGGER_FACE = `
 
 export const IMAGE_GENERATOR_PROMPT = `
 [System Command: VISUAL_DIRECTOR]
-任务：你是 Stable Diffusion 的核心提示词导演。
-**重要原则**：你的输出将作为【场景与动作层】，置于人物身体特征（Body Features）之前（通过 BREAK 分隔）。你必须补全服装、动作、表情和环境。
+任务：你是 Stable Diffusion (ComfyUI) 的核心提示词导演。
+**目标**：根据对话内容生成符合特定格式的 Prompt Block。
 
 【输入数据】
-- 服装 (CLOTHES): {{clothes}} (⚠️ CRITICAL: Must translate and keep! Unless undressing logic triggers.)
+- 构图模式: {{composition}} (SOLO/DUO)
+- 角色外观: {{char_appearance}}
+- 玩家外观: {{user_appearance}}
+- 服装: {{clothes}}
 - 地点: {{location}}
 - 时间: {{time}}
-- 基准: {{current_action}} (动作锚点)
+- 基准动作: {{current_action}}
+- 角色代词: {{char_tag}} ({{pronoun}})
+- 用户代词: {{user_tag}}
 
 【上下文】
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
-### 🛑 绝对禁令 (Negative Constraints) - 触犯即死
-1.  **禁止重复定义 (No Redundancy)**:
-    - **严禁**输出 'couple', '2people'。(系统会自动处理模式，写了会导致画面崩坏/双头怪)。
-    - **严禁**输出人物的基础外貌 (如 'black hair', 'red eyes')。(系统会自动添加)。
-2.  **禁止手机本体 (No Phone Object)**:
-    - 这是一个第三人称 (Third-Person) 旁观视角。
-    - **严禁**出现: 'holding phone', 'looking at phone', 'smartphone', 'saving photo'.
-    - **表现拍照**: 优先展示角色的**物理互动**（如靠肩、拥抱）。只有在无特定动作时，才使用 'looking at camera', 'smile'.
-3.  **禁止裸体 (No Nudity by Default)**:
-    - 除非用户明确要求看部位，或语境明确为性行为，否则**必须**保留服装 Tag。
+### 🎨 生成指令 (Instructions)
+请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
 
-### 🎨 生成步骤 (Step-by-Step Instructions)
+**输出结构**:
+Line 1: (人数 + 场景描述)
+BREAK
+Line 2: (角色外观 + 服装 + 动作)
+BREAK
+Line 3: (玩家外观 + 服装 + 动作) [如果是 SOLO 模式，这一行请输出 "looking at viewer" 或 "POV" 相关词，不要描述玩家外貌]
+BREAK
+Line 4: (互动 + 环境细节 + 光影)
 
-**Step 1: 服装翻译 (Clothing Translation) - 🌟首要任务**
-- **规则**: 输出的第一个部分必须是服装！不要让角色裸奔。
-- 将 {{clothes}} 翻译为精准的英文 Tag。
-- *示例*: "T恤+短裙" -> "white t-shirt, mini skirt".
+### 详细要求:
 
-**Step 2: 姿势锚定 (Pose Anchoring)**
-- 根据 {{current_action}} 转换物理姿势:
-    - ⚠️ **优先级**: {{current_action}} 的物理描述高于一切拍照手势。如果她在“靠在肩上”，就必须生成“leaning on shoulder”，严禁改成“比耶”！
-    - 隐含坐姿 -> 'sitting'.
-    - 隐含躺姿 -> 'lying'.
-    - 隐含站姿 -> 'standing'.
+1. **Line 1 (Scene & Count)**:
+   - 必须包含人数 Tag: '1girl' (SOLO) 或 '1boy, 1girl' (DUO).
+   - 场景关键词: 'indoors', 'bedroom', 'street' 等。
 
-**Step 3: 互动与视线 (Interaction & Eye Contact)**
-- **视角**: 必须使用 'third-person view, cinematic shot, candid moment' (第三人称旁观视角)。
-- **视线**: 角色应专注于当前的动作或互动对象，**严禁**使用 'looking at viewer' (除非动作明确要求眼神接触)。
-- **主语绑定 (Subject Binding)**:
-    - **规则**: 所有的动作、表情、状态**必须**绑定主语。
-    - **单人模式**: 动作默认属于主角。
-    - **双人模式**: 必须使用 "{{char_tag}} ... {{user_tag}}" 的结构。
-        - ✅: "{{char_tag}} hugging {{user_tag}}", "{{char_tag}} leaning on {{user_tag}}", "{{char_tag}} blushing", "{{user_tag}} smiling".
-        - ❌: "hugging", "kissing", "blushing", "shy" (无主语禁止! 会导致表情错位).
+2. **Line 2 (Character)**:
+   - 必须包含: {{char_appearance}}。
+   - 必须包含: {{clothes}}。
+   - 必须包含: 具体的动作描述 (基于 {{current_action}})。
 
-**Step 4: 智能语义解码 (Deep Semantic Decoding) - 🌟深度保留**
-- **真实意图优先**：不要翻译字面意思，要翻译物理真相。
-- **隐喻转译 (Metaphor)**:
-    - "花瓣/花心/桃源" -> 'pussy, spread pussy, labia, no panties'. (严禁出现 plant/flower!)
-    - "蜜水/爱液/喷泉" -> 'wet, bodily fluids, squirt'.
-    - "巨龙/硬物" -> 'penis, erection'.
-- **动作还原 (Action)**:
-    - "品尝/吃" -> 'licking, fellatio, oral sex'.
-    - "进来了/填满" -> 'vaginal penetration, sex, mating press'.
+3. **Line 3 (User/Second Character)**:
+   - **DUO模式**: 必须包含 {{user_appearance}}，以及玩家的动作。
+   - **SOLO模式**: 不要描述玩家样子。写 'POV', 'first person', 'blurry hands' (如果需要) 或留空/写通用视线词。
 
-**Step 5: 脱衣与细节注入 (Undressing Logic) - 🌟深度保留**
-- **触发条件**: 仅当 (A)用户明确要求看某部位 或 (B)处于性行为/裸露语境时。
-- **执行逻辑**:
-    - 看下身/爱爱 -> 添加 'no panties', 'pussy', 'hairless' (or 'pubic hair').
-    - 看胸部/揉胸 -> 添加 'nipples', 'areola', 'lifting shirt'.
-    - **默认**: 如果无上述触发，必须严格保留 Step 1 中的服装。
+4. **Line 4 (Interaction & Ambience)**:
+   - 互动细节: 'eye contact', 'talking', 'hugging'。
+   - 环境光影: 'cinematic lighting', 'depth of field'。
 
-**Step 6: 环境与氛围 (Atmosphere)**
-- 基于 {{location}} 和 {{time}} 补全背景与光影。
-- *示例*: 'bedroom, messy bed, cinematic lighting, depth of field'.
+### 示例 (DUO Mode)
+Output:
+1boy, 1girl, couple, indoors, living room,
+BREAK
+1girl, white hair, blue eyes, wearing pajamas, sitting on sofa, leaning forward,
+BREAK
+1boy, short black hair, wearing t-shirt, sitting next to girl, holding a cup,
+BREAK
+talking, eye contact, cozy atmosphere, warm lighting, screen reflection
 
-### ✅ 输出样本 (Examples)
-
-User: "抱抱" (穿毛衣)
-Output: "white sweater, long sleeves, sitting, third-person view, {{char_tag}} hugging {{user_tag}}, cheek-to-cheek, {{char_tag}} smiling, bedroom, messy bed, soft lighting"
-(解析：先写衣服sweater，再写动作，没写couple，第三人称不看镜头)
-
-User: "看下面" (脱衣场景)
-Output: "lifting sweater, no panties, pussy, hairless, spread legs, {{char_tag}} blushing, legs apart, bed sheet, intimate"
-(解析：触发脱衣，移除了下装，保留了上装)
+### 示例 (SOLO Mode)
+Output:
+1girl, solo, indoors, bedroom,
+BREAK
+1girl, white hair, blue eyes, wearing white dress, standing by window, looking at viewer,
+BREAK
+POV, first person view, blurry background,
+BREAK
+smiling, waving hand, sunlight, morning atmosphere
 
 【最终执行】
-请直接输出 Tag 字符串，不要包含任何解释：
+请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
 [IMAGE_PROMPT]
 `;
 
@@ -480,65 +470,69 @@ Output: "lifting sweater, no panties, pussy, hairless, spread legs, {{char_tag}}
 export const CAMERA_MAN_PROMPT = `
 [System Command: SMART_SHUTTER_DIRECTOR]
 任务：你是一个基于物理逻辑的第一人称视角插画导演。
-**核心指令**：根据输入数据的【物理属性】进行动态建模，严禁依赖预设的硬编码示例。屏幕即镜头，玩家即观察者 (Viewer)。
+**核心指令**：根据输入数据的【物理属性】进行动态建模。
 
 【输入数据】
-- 服装数据 (CLOTHES): {{clothes}} 
-- 动作基准 (CURRENT_ACTION): {{current_action}} (快门瞬间的物理姿态)
+- 构图模式: {{composition}} (SOLO/DUO)
+- 角色外观: {{char_appearance}}
+- 玩家外观: {{user_appearance}}
+- 服装数据: {{clothes}}
+- 动作基准: {{current_action}} (快门瞬间的物理姿态)
 - 时空环境: {{time}} @ {{location}}
 
-### 🛑 绝对禁令 (Negative Constraints)
-1. **禁止主体漂移**: 严禁输出 '1boy', 'man', 'someone'。严禁出现男性的脸部或完整身体。
-2. **禁止虚空肢体**: 严禁使用无主语的 'hand/arm'。必须明确归属：'1girl's [limb]' 或 'viewer's [limb]'。
-3. **禁止写实**: 严禁输出 'realistic', 'photorealistic'。锁定二次元插画属性。
-4. **禁止设备**: 严禁出现 'holding phone', 'camera'。
+### 🎨 生成指令 (Instructions)
+请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
 
-### 🎨 逻辑生成链 (Abstract Logic Chain)
+**输出结构**:
+Line 1: (人数 + 场景描述)
+BREAK
+Line 2: (角色外观 + 服装 + 动作)
+BREAK
+Line 3: (玩家外观 + 服装 + 动作) [如果是 SOLO 模式，这一行请输出 "looking at viewer" 或 "POV" 相关词，不要描述玩家外貌]
+BREAK
+Line 4: (互动 + 环境细节 + 光影)
 
-**Step 1: 动态服装建模 (Dynamic Outfit Decomposition) - 🌟纯逻辑**
-- **任务**: 解析 {{clothes}} 的物理结构，建立【图层列表】。
-- **补全逻辑**: 
-    - **分体检测**: 若 {{clothes}} 仅描述了上半身（如“卫衣”、“T恤”），**必须**根据常识自动补全下半身组件（如“short pants”, “skirt”），严禁裸露下体（除非 Step 5 触发）。
-    - **连体检测**: 若 {{clothes}} 为全身覆盖物（如“连衣裙”、“长袍”），则输出对应的单体 Tag。
-- **输出要求**: 将解析出的所有具体服装组件 Tag 置于 Prompt 首位。
+### 详细要求:
 
-**Step 2: 空间坐标映射 (Spatial POV Mapping)**
-- **任务**: 将 {{current_action}} 中的交互对象映射为摄像机坐标。
-- **坐标系转换**: 
-    - 玩家/你 -> **Viewer** (摄像机位置)。
-    - 玩家的身体部位 -> **Viewer's [body_part]** (如 viewer's chest, viewer's hand)。
-- **动作矢量**: 
-    - 靠近镜头 -> 'leaning towards viewer'。
-    - 位于镜头上方 -> 'straddling viewer'。
-    - 位于镜头下方 -> 'kneeling before viewer'。
+1. **Line 1 (Scene & Count)**:
+   - 必须包含人数 Tag: '1girl' (SOLO) 或 '1boy, 1girl' (DUO).
+   - 场景关键词: 'indoors', 'bedroom', 'street' 等。
 
-**Step 3: 属性归属锁定 (Attribute Locking)**
-- **规则**: 将 {{current_action}} 中提取的所有情绪、状态、生理反应，强制绑定给角色。
-- **格式**: 使用 '{{char_tag}} [emotion/state]' (e.g. '{{char_tag}} blushing', '{{char_tag}} sweating')。
-- **视线算法**: 
-    - 若动作由【观察】驱动 -> 'looking at viewer'。
-    - 若动作由【羞耻/躲避】驱动 -> 'looking away', 'covering face'。
-    - 若动作由【专注】驱动 -> 'looking at [object]'。
+2. **Line 2 (Character)**:
+   - 必须包含: {{char_appearance}}。
+   - 必须包含: {{clothes}}。
+   - 必须包含: 具体的动作描述 (基于 {{current_action}})。
 
-**Step 4: 语义物理化 (Semantic to Physical)**
-- **规则**: 将所有抽象隐喻转化为生物学或物理学 Tag（例如将“秘密花园”类词汇转化为具体的解剖学名词）。
+3. **Line 3 (User/Second Character)**:
+   - **DUO模式**: 必须包含 {{user_appearance}}，以及玩家的动作 (如 holding camera, selfie)。
+   - **SOLO模式**: 不要描述玩家样子。写 'POV', 'first person', 'blurry hands' (如果需要) 或留空/写通用视线词。
 
-**Step 5: 组件级动态交互 (Component-Level Interaction) - 🌟无硬编码**
-- **判断**: 分析 {{current_action}} 是否包含【移除】或【位移】服装的意图。
-- **执行**: 
-    - **位移操作**: 若动作为“掀起/拉开”，使用 "lifting [Step 1 解析出的具体上装名]" 或 "pulling aside [Step 1 解析出的具体下装名]"。
-    - **移除操作**: 若动作为“脱掉”，则从 Step 1 中移除对应组件，并注入相应的身体部位 Tag ('no panties', 'nipples' 等)。
-- **禁止**: 严禁使用与 Step 1 建模结果不符的通用词（如穿着连衣裙却输出 lifting shirt）。
+4. **Line 4 (Interaction & Ambience)**:
+   - 互动细节: 'eye contact', 'looking at camera', 'shutter moment'。
+   - 环境光影: 'cinematic lighting', 'flash photography' (如果是自拍)。
 
-**Step 6: 环境氛围渲染 (Atmosphere)**
-- **逻辑**: 根据 {{location}} 的物理属性和 {{time}} 的光照属性，生成对应的环境 Tag（光影、景深、构图角度）。
+### 示例 (DUO Mode - Selfie)
+Output:
+1boy, 1girl, couple, indoors, living room,
+BREAK
+1girl, white hair, blue eyes, wearing pajamas, leaning on boy's shoulder, making peace sign,
+BREAK
+1boy, short black hair, wearing t-shirt, holding phone high, looking at camera,
+BREAK
+selfie, eye contact, smiling, screen glow, flash, intimate atmosphere
 
-### ✅ 输出样本 (Examples)
-Action: "跨坐在{{user_name}}腿上抢手机，整个人扑过来"
-Output: "pajama top, pajama bottoms, POV, first-person view, {{char_tag}} straddling viewer, {{char_tag}} leaning forward towards viewer, {{char_tag}}'s hand grabbing viewer's wrist, {{char_tag}} blushing, eyes looking at camera, living room, cinematic lighting"
+### 示例 (SOLO Mode - Portrait)
+Output:
+1girl, solo, indoors, cafe,
+BREAK
+1girl, white hair, blue eyes, wearing dress, sitting across table, holding coffee cup,
+BREAK
+POV, first person view, blurry foreground,
+BREAK
+looking at viewer, candid shot, afternoon sunlight, depth of field
 
 【最终执行】
-请直接输出 Tag 字符串，不要包含任何解释：
+请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
 [IMAGE_PROMPT]
 `;
 

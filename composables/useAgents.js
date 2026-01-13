@@ -61,8 +61,8 @@ const getOpenAIStylePrefix = (styleValue) => {
 
 function parseTags(text, key) {
     if (!text) return null;
-    // 匹配 [KEY] 后面直到行尾或下一个标签前的内容
-    const regex = new RegExp(`\\[${key}\\]\\s*(.+)`, 'i');
+    // 匹配 [KEY] 后面直到下一个标签前或结尾的内容 (支持多行)
+    const regex = new RegExp(`\\[${key}\\]\\s*([\\s\\S]*?)(?=\\n\\s*\\[|$)`, 'i');
     const match = text.match(regex);
     return match ? match[1].trim() : null;
 }
@@ -424,10 +424,13 @@ export function useAgents(context) {
             .replace('{{user_msg}}', promptUserMsg)
             .replace('{{ai_msg}}', promptAiMsg)
             .replace('{{current_action}}', currentAction.value || "Standing")
-            .replace(/{{char_tag}}/g, charTag) // ✨ 注入
-            .replace(/{{user_tag}}/g, userTag) // ✨ 注入
-            .replace(/{{pronoun}}/g, pronoun)   // ✨ 注入
-            .replace(/{{possessive}}/g, possessive); // ✨ 注入
+            .replace('{{composition}}', compositionType) // ✨ 注入构图
+            .replace('{{char_appearance}}', fullAppearance) // ✨ 注入角色外观
+            .replace('{{user_appearance}}', userAppearance.value || "1boy, casual clothes") // ✨ 注入玩家外观
+            .replace(/{{char_tag}}/g, charTag) 
+            .replace(/{{user_tag}}/g, userTag) 
+            .replace(/{{pronoun}}/g, pronoun)   
+            .replace(/{{possessive}}/g, possessive); 
         
         try {
             const dirRes = await safeTagChat({
@@ -457,19 +460,8 @@ export function useAgents(context) {
                                                     let stylePart = STYLE_PROMPT_MAP[styleKey] || "";
                                                     if (customPrompt) stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
                                                     
-                                                    const userAppStr = userAppearance.value || "1boy, casual clothes";
-                                
-                                                    // 1. 动态生成 Header (根据最终的 compositionType)
-                                                    // 这样如果是 SOLO，就不会带上 userTag，也不会有 1boy
-                                                    let subjectHeader = "";
-                                                    if (compositionType === 'DUO') {
-                                                        subjectHeader = `${charTag}, ${userTag}, couple, duo`; // 👈 加上 duo
-                                                    } else {
-                                                        subjectHeader = `${charTag}, solo`;
-                                                    }
-                                
-                                                    // 2. 调用新版组装函数
-                                                    finalPrompt = buildComfyPrompt(stylePart, subjectHeader, dynamicPart, fullAppearance, userAppStr, compositionType);
+                                                    // 新版直接拼接: Style + AI生成的完整Block
+                                                    finalPrompt = `${stylePart},\n${dynamicPart}`;
                                                 }
                                 
                                 console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
@@ -579,15 +571,17 @@ export function useAgents(context) {
 					        [COMPOSITION] SOLO
 					        [IMAGE_PROMPT] ...tags...`;
             } else {
-                // ComfyUI 保持原样
+                // ComfyUI 使用新版多行 Prompt
                 prompt = CAMERA_MAN_PROMPT
-                    .replace('{{current_action}}', currentAction.value || "Maintaining pose") 
-                    .replace('{{ai_response}}', targetAction)
                     .replace('{{clothes}}', clothingDesc)
                     .replace('{{location}}', currentLocation.value || "Indoor")
                     .replace('{{time}}', formattedTime.value)
-                    .replace(/{{char_tag}}/g, charTag) // ✨ 注入
-                    .replace(/{{user_tag}}/g, userTag); // ✨ 注入
+                    .replace('{{current_action}}', currentAction.value || "Standing")
+                    .replace('{{composition}}', compositionType) // ✨ 注入
+                    .replace('{{char_appearance}}', fullAppearance) // ✨ 注入
+                    .replace('{{user_appearance}}', userAppearance.value || "1boy, casual clothes") // ✨ 注入
+                    .replace(/{{char_tag}}/g, charTag) 
+                    .replace(/{{user_tag}}/g, userTag); 
             }
             
             // 5. 占位符
@@ -638,18 +632,8 @@ export function useAgents(context) {
                                                 let stylePart = STYLE_PROMPT_MAP[styleKey] || "";
                                                 if (customPrompt) stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
                             
-                                                const userAppStr = userAppearance.value || "1boy, casual clothes";
-                                                
-                                                // 1. 动态生成 Header
-                                                let subjectHeader = "";
-                                                if (compositionType === 'DUO') {
-                                                    subjectHeader = `${charTag}, ${userTag}, couple, duo`; // 👈 加上 duo
-                                                } else {
-                                                    subjectHeader = `${charTag}, solo`;
-                                                }
-                            
-                                                // 2. 调用新版组装函数
-                                                finalPrompt = buildComfyPrompt(stylePart, subjectHeader, dynamicPart, fullAppearance, userAppStr, compositionType);
+                                                // 新版直接拼接: Style + AI生成的完整Block
+                                                finalPrompt = `${stylePart},\n${dynamicPart}`;
                                             }
                             
                             console.log(`🧩 [Camera Prompt]`, finalPrompt);

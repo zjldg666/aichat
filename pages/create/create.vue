@@ -1365,20 +1365,23 @@ const clearHistoryAndReset = () => {
           }
 
           const resetData = {
-              lastMsg: '（记忆已清空）', 
-              lastTime: '刚刚',
-              lastTimeTimestamp: preservedTime, 
-              unread: 0, 
-              summary: '', 
-              currentLocation: formData.value.location || '角色家',
-              interactionMode: 'phone', 
-              clothing: clothingStr,
-              lastActivity: '自由活动', 
-              affection: formData.value.initialAffection || 10,
-              lust: formData.value.initialLust || 0,
-              // ✨ 修复：重置时，直接使用用户设定的静态关系，而不是废话指令
-              relation: formData.value.userRelation || '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
-          };
+                        lastMsg: '（记忆已清空）', 
+                        lastTime: '刚刚',
+                        lastTimeTimestamp: preservedTime, 
+                        unread: 0, 
+                        summary: '', 
+                        currentLocation: formData.value.location || '角色家',
+                        
+                        // 👇👇👇 【新增】必须重置动作，否则会残留之前的动作状态 👇👇👇
+                        currentAction: '站立/闲逛', 
+                        
+                        interactionMode: 'phone', 
+                        clothing: clothingStr,
+                        lastActivity: '自由活动', 
+                        affection: formData.value.initialAffection || 10,
+                        lust: formData.value.initialLust || 0,
+                        relation: formData.value.userRelation || '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
+                    };
 
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);
