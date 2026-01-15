@@ -572,7 +572,7 @@ export function useAgents(context) {
                     if (tag && (tag === 'SOLO' || tag === 'DUO')) {
                         compositionType = tag;
                     }
-                    console.log(`📸 [构图判定] AI 裁决: [${compositionType}] (动作依据: ${currentAction.value?.slice(0,10)}...)`);
+                    console.log(`📸 [构图判定] AI 裁决: [${compositionType}] (动作依据: ${currentAction.value?.slice(0,100)}...)`);
                     
                 } catch (e) {
                     console.warn('⚠️ 构图判定请求超时，降级为默认 SOLO', e);

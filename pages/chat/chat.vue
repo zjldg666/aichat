@@ -808,7 +808,18 @@ const sendMessage = async (isContinue = false, systemOverride = '') => {
         formattedTime: formattedTime.value, location: currentLocation.value, mode: interactionMode.value,
         activity: currentActivity.value, clothes: currentClothing.value, relation: currentRelation.value
     });
-
+	
+	// // 🔥🔥🔥【新增】打印 System Prompt 到控制台 🔥🔥🔥
+	//     console.log('============== [System Prompt 搅拌日志] ==============');
+	//     console.log('📍 [动态状态]');
+	//     console.log(`- 时间: ${formattedTime.value}`);
+	//     console.log(`- 地点: ${currentLocation.value}`);
+	//     console.log(`- 关系: ${currentRelation.value}`);
+	//     console.log('📜 [最终生成的 Prompt]');
+	//     console.log(prompt); 
+	//     console.log('====================================================');
+	//     // 🔥🔥🔥【新增结束】🔥🔥🔥
+		
     const historyLimit = charHistoryLimit.value; 
     let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
     if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
