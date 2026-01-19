@@ -106,7 +106,7 @@ import ChatWardrobe from './ChatWardrobe.vue';
 const props = defineProps({
   // 控制显示哪个弹窗: '' | 'timeSkip' | 'timeSetting' | 'location' | 'forceLocation' | 'wardrobe'
   visibleModal: { type: String, default: '' },
-  
+  currentRole: { type: Object, default: () => ({}) },
   // 数据源
   locationList: { type: Array, default: () => [] },
   wardrobeList: { type: Array, default: () => [] }, // 新增

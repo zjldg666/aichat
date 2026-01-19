@@ -72,6 +72,9 @@
       :visibleModal="activeModal"
       :locationList="locationList"
       :wardrobeList="wardrobeList"
+      
+      :currentRole="currentRole"
+      
       v-model:tempDateStr="tempDateStr"
       v-model:tempTimeStr="tempTimeStr"
       v-model:tempTimeRatio="tempTimeRatio"
@@ -1027,6 +1030,14 @@ const loadRoleData = (id) => {
                 worldLocations.value = [{ name: '学校', icon: '🏫' }, { name: '公司', icon: '🏢' }];
             }
         }
+		// 👇👇👇【新增：加载衣柜数据】👇👇👇
+		        const savedWardrobe = uni.getStorageSync(`wardrobe_data_${id}`);
+		        if (savedWardrobe && Array.isArray(savedWardrobe)) {
+		            wardrobeList.value = savedWardrobe;
+		            console.log(`👗 已加载衣柜数据: ${savedWardrobe.length} 套`);
+		        } else {
+		            wardrobeList.value = [];
+		        }
     }
 };
 

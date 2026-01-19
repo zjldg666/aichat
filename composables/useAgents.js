@@ -572,7 +572,7 @@ export function useAgents(context) {
                     if (tag && (tag === 'SOLO' || tag === 'DUO')) {
                         compositionType = tag;
                     }
-                    console.log(`📸 [构图判定] AI 裁决: [${compositionType}] (动作依据: ${currentAction.value?.slice(0,100)}...)`);
+                    console.log(`📸 [构图判定] AI 裁决: [${compositionType}] (动作依据: ${currentAction.value?.slice(0,200)}...)`);
                     
                 } catch (e) {
                     console.warn('⚠️ 构图判定请求超时，降级为默认 SOLO', e);
@@ -657,11 +657,6 @@ export function useAgents(context) {
                 let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
                 if (!dynamicPart && res.length > 5) dynamicPart = res.replace(/Here is.*?:/i, '').trim();
                 
-                // 清理掉 dynamicPart 里可能自己生成的 1girl/1boy 开头 (避免与模板重复)
-                if (dynamicPart) {
-                     dynamicPart = dynamicPart.replace(/^(1girl|1boy|couple|duo),/i, '').trim();
-                }
-            
                 if (dynamicPart) {
                     lastImageGenerationTime.value = Date.now();
                     

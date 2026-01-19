@@ -13,6 +13,22 @@
 
     <view class="input-container" v-else>
       
+      <view class="camera-popup" v-if="showCameraMenu" @click.stop>
+        <view class="popup-arrow"></view> <view class="camera-actions">
+           <view class="action-item" @click="handleSubCameraClick('clickCamera')">
+              <view class="icon">📸</view>
+              <text class="label">直拍</text>
+              <text class="desc">有声/自然互动</text>
+           </view>
+           <view class="divider"></view>
+           <view class="action-item" @click="handleSubCameraClick('clickStealthCamera')">
+              <view class="icon">👁️</view>
+              <text class="label">偷拍</text>
+              <text class="desc">静音/观察视角</text>
+           </view>
+        </view>
+      </view>
+
       <view class="toolbar-compact" v-if="isToolbarOpen">
         <scroll-view class="tool-scroll" scroll-x="true" show-scrollbar="false">
           <view class="tool-flex">
@@ -40,14 +56,11 @@
               </view>
             </picker>
             
-            <view class="tool-item" @click="$emit('clickCamera')" v-if="!isEmbedded">
-              <view class="tool-icon">📸</view>
-              <text class="tool-text">拍照</text>
+            <view class="tool-item" @click="toggleCameraMenu" :class="{ active: showCameraMenu }" v-if="!isEmbedded">
+              <view class="tool-icon">📷</view>
+              <text class="tool-text">摄影</text>
             </view>
-			<view class="tool-item" @click="$emit('clickStealthCamera')">
-			    <view class="icon-box">👁️</view> 
-				<text class="tool-text">偷拍</text>
-			</view>
+
             <view class="tool-item" @click="$emit('clickWardrobe')" v-if="!isEmbedded">
               <view class="tool-icon">👕</view>
               <text class="tool-text">衣柜</text>
@@ -87,7 +100,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { ref, watch } from 'vue';
+
+const props = defineProps({
   isEditMode: { type: Boolean, default: false },
   selectedCount: { type: Number, default: 0 },
   isToolbarOpen: { type: Boolean, default: false },
@@ -101,13 +116,31 @@ const emit = defineEmits([
   'cancelEdit', 'confirmDelete', 
   'toggleToolbar', 'update:modelValue', 'send',
   'clickTime', 'clickLocation', 'sleepTimeChange',
-  'clickCamera', 'clickContinue', 'toggleThought', 'clickWardrobe'
+  'clickCamera', 'clickStealthCamera', 
+  'clickContinue', 'toggleThought', 'clickWardrobe'
 ]);
+
+// 📸 相机菜单状态
+const showCameraMenu = ref(false);
+
+const toggleCameraMenu = () => {
+  showCameraMenu.value = !showCameraMenu.value;
+};
+
+const handleSubCameraClick = (eventName) => {
+  emit(eventName);
+  showCameraMenu.value = false;
+};
 
 // 处理 picker 的 change 事件并转发
 const onPickerChange = (e) => {
   emit('sleepTimeChange', e);
 };
+
+// 监听工具栏关闭，同时关闭相机菜单
+watch(() => props.isToolbarOpen, (val) => {
+    if (!val) showCameraMenu.value = false;
+});
 </script>
 
 <style lang="scss" scoped>
@@ -179,8 +212,78 @@ const onPickerChange = (e) => {
     display: flex; flex-direction: column; align-items: center; justify-content: center; 
     padding: 10rpx 0; border-radius: 12rpx; 
     flex-shrink: 0;
-    width: 120rpx; /* 固定宽度，确保易点且能横向排布 */
+    width: 120rpx; 
+    
+    &.active {
+        background: rgba(0, 122, 255, 0.1); 
+        .tool-text { color: #007aff; font-weight: bold; }
+    }
 }
 .tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
 .tool-text { font-size: 20rpx; color: var(--text-sub); }
+
+/* 🆕 相机二级菜单悬浮层 */
+.camera-popup {
+    position: absolute;
+    bottom: 240rpx; /* 根据工具栏高度调整，大概在工具栏上方 */
+    left: 50%;
+    transform: translateX(-50%); /* 居中 */
+    
+    width: 320rpx;
+    background: rgba(40, 40, 40, 0.95); /* 深色背景 */
+    backdrop-filter: blur(10px);
+    border-radius: 20rpx;
+    padding: 10rpx 0;
+    box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.3);
+    z-index: 1000;
+    animation: fadeInUp 0.2s ease-out;
+    
+    /* 小三角箭头 (指向下方) */
+    .popup-arrow {
+        position: absolute;
+        bottom: -12rpx;
+        left: 50%;
+        margin-left: -12rpx;
+        width: 0; height: 0;
+        border-left: 12rpx solid transparent;
+        border-right: 12rpx solid transparent;
+        border-top: 12rpx solid rgba(40, 40, 40, 0.95);
+    }
+
+    .camera-actions {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .action-item {
+        display: flex;
+        align-items: center;
+        padding: 24rpx 30rpx;
+        
+        &:active {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .icon { font-size: 40rpx; margin-right: 24rpx; }
+        .label { font-size: 30rpx; color: #fff; font-weight: bold; margin-right: 10rpx; }
+        .desc { font-size: 22rpx; color: #aaa; margin-left: auto; }
+    }
+
+    .divider {
+        height: 1px;
+        background: rgba(255,255,255,0.15);
+        margin: 0 20rpx;
+    }
+}
+
+// 简单的淡入动画
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translate(-50%, 10rpx); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* 适配不同机型，确保菜单位置合理 */
+.camera-popup {
+    bottom: 230rpx; 
+}
 </style>

@@ -137,75 +137,119 @@ const toggleExpand = (index) => {
   localList.value[index].isExpanded = !localList.value[index].isExpanded;
 };
 
-// 自动生成逻辑
+
+
+// 自动生成逻辑 (用户指定关键词版)
 const handleAutoGenerate = async (index) => {
     if (isGenerating.value) return;
+    
+    // 1. 弹窗询问用户想法
+    let userTheme = '';
+    try {
+        const res = await uni.showModal({
+            title: 'AI 灵感设计',
+            content: '请输入想要的主题 (例如: 护士、猫娘、婚纱)\n不填则由 AI 自由发挥',
+            editable: true, 
+            placeholderText: '在此输入关键词...'
+        });
+        
+        if (!res.confirm) return; // 取消操作
+        userTheme = res.content ? res.content.trim() : '';
+    } catch (e) {
+        console.warn('Modal not supported', e);
+    }
+
     const item = localList.value[index];
     const isR18 = item.isR18 || false;
     
     isGenerating.value = true;
-    uni.showLoading({ title: 'AI 设计中...' });
+    uni.showLoading({ title: userTheme ? `正在设计: ${userTheme}...` : 'AI 正在自由发挥...' });
     
     try {
-        // 兼容多模型配置 (从 chat.vue 逻辑迁移)
         const schemes = uni.getStorageSync('app_llm_schemes') || [];
         const idx = uni.getStorageSync('app_current_scheme_index') || 0;
         const config = (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
 
-        if (!config || !config.apiKey) {
-            throw new Error('API 配置缺失');
+        if (!config || !config.apiKey) throw new Error('API 配置缺失');
+
+        const roleName = props.currentRole?.name || 'Character';
+        const roleBio = props.currentRole?.bio || '';
+        const roleGender = props.currentRole?.gender || 'Female';
+        
+        // 2. 构建 Prompt：根据是否有关键词，给 AI 不同的指令
+        let designInstruction = "";
+        
+        if (userTheme) {
+            // 🅰️ 有关键词：围绕关键词设计，但要求有创意
+            designInstruction = `
+【DESIGN MISSION】:
+The user specifically requested: "${userTheme}".
+Please design a high-quality, detailed "${userTheme}".
+- **Requirement**: Don't make it boring. Add some unique artistic touches or details to make it stand out.
+`;
+        } else {
+            // 🅱️ 无关键词：完全自由发挥 (高随机性)
+            designInstruction = `
+【DESIGN MISSION】:
+The user left it blank. Please **Hallucinate** a unique theme yourself.
+- **Randomly Pick a Style**: Sci-fi, Fantasy, Cyberpunk, Gothic, Historical, Streetwear, etc.
+- **Goal**: Create something visually stunning and unexpected.
+`;
         }
 
-        const roleName = props.currentRole?.name || '角色';
-        const roleBio = props.currentRole?.bio || '';
-        const roleGender = props.currentRole?.gender || '女';
-        
-        const systemPrompt = `You are a fashion designer. Design a clothing outfit for a character.
-Character: ${roleName}, Gender: ${roleGender}, Bio: ${roleBio}.
-${isR18 ? '⚠️ MODE: R18/NSFW. Design a sexy, revealing, or fetish outfit appropriate for adult contexts.' : 'MODE: Normal/Safe. Design a stylish, daily or event-appropriate outfit.'}
+        const systemPrompt = `You are a top fashion designer.
+Task: Design an outfit based on the MISSION below.
+Character: ${roleName} (${roleGender})
+Bio: ${roleBio}
 
-Return ONLY a JSON object with the following structure (no markdown, no code blocks):
-{
-  "name": "Outfit Name (Chinese)",
-  "head": "Headwear (Chinese)",
-  "top": "Top (Chinese)",
-  "bottom": "Bottom (Chinese)",
-  "socks": "Socks/Legwear (Chinese)",
-  "shoes": "Shoes (Chinese)",
-  "accessory": "Accessories (Chinese)",
-  "tags": "English tags for Stable Diffusion/ComfyUI describing this outfit visually (comma separated)"
-}`;
+${designInstruction}
+
+${isR18 ? '⚠️ MODE: R18/NSFW. Make it sexy, revealing, or fetish-oriented.' : 'MODE: Normal/Safe. Focus on fashion aesthetics.'}
+
+【OUTPUT FORMAT】:
+Please strictly follow this line-by-line format:
+
+Name: [Creative Outfit Name in Chinese]
+Head: [Headwear in Chinese]
+Top: [Top in Chinese]
+Bottom: [Bottom in Chinese]
+Socks: [Socks in Chinese]
+Shoes: [Shoes in Chinese]
+Accessory: [Accessories in Chinese]
+Tags: [Detailed English tags for Stable Diffusion/ComfyUI describing the visual appearance]
+`;
 
         const res = await LLM.chat({
             config,
-            messages: [{ role: 'user', content: "Design now." }],
+            messages: [{ role: 'user', content: "Start design." }],
             systemPrompt: systemPrompt,
-            temperature: 0.8
+            temperature: 0.9 // 保持较高的温度，保证每次设计的差异性
         });
         
-        // 解析 JSON
-        let data = null;
-        try {
-            const jsonStr = res.replace(/```json/g, '').replace(/```/g, '').trim();
-            data = JSON.parse(jsonStr);
-        } catch (e) {
-            console.error('JSON Parse Error', e);
-            uni.showToast({ title: '生成格式错误', icon: 'none' });
-            return;
-        }
-        
-        if (data) {
-            item.name = data.name || item.name;
-            item.items.head = data.head || '';
-            item.items.top = data.top || '';
-            item.items.bottom = data.bottom || '';
-            item.items.socks = data.socks || '';
-            item.items.shoes = data.shoes || '';
-            item.items.accessory = data.accessory || '';
-            item.tags = data.tags || ''; // 保存英文 Tags
+        // 3. 解析结果 (无需修改，沿用之前的正则逻辑)
+        const extract = (key) => {
+            const regex = new RegExp(`^${key}\\s*[:：]\\s*(.*)$`, 'im');
+            const match = res.match(regex);
+            return match ? match[1].trim() : '';
+        };
+
+        const newName = extract('Name');
+        const newTags = extract('Tags');
+
+        if (newName || newTags) {
+            item.name = newName || item.name;
+            item.items.head = extract('Head');
+            item.items.top = extract('Top');
+            item.items.bottom = extract('Bottom');
+            item.items.socks = extract('Socks');
+            item.items.shoes = extract('Shoes');
+            item.items.accessory = extract('Accessory');
+            item.tags = newTags;
             
             emitUpdate();
             uni.showToast({ title: '设计完成', icon: 'success' });
+        } else {
+            uni.showToast({ title: 'AI 没按格式返回，请重试', icon: 'none' });
         }
         
     } catch (e) {

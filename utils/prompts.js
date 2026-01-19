@@ -596,7 +596,9 @@ export const CAMERA_MAN_OPENAI_PROMPT = `
 [IMAGE_PROMPT] She is caught in a candid moment, turning around with a surprised expression. She is wearing a loose oversized shirt. Her hands are covering her face shyly, and the background is a blurry bedroom interior with soft lamp light.
 `;
 
-// 🟢 3. 拍照按钮专用构图判定 (轻量级，响应快门按钮)
+
+
+// 🟢 3. 拍照按钮专用构图判定 (逻辑修正版)
 export const SNAPSHOT_COMPOSITION_JUDGE = `
 [System Command: COMPOSITION_ANALYZER]
 任务：玩家刚刚按下了【拍照快门】。请根据当前情境，决定照片的**构图模式**。
@@ -607,26 +609,24 @@ export const SNAPSHOT_COMPOSITION_JUDGE = `
 
 【判定逻辑 (Composition Logic)】
 
-🔍 **判定核心：相机镜头在哪里？**
+⚠️ **核心原则：是否需要渲染玩家身体？**
 
-1. **[COMPOSITION] SOLO (单人/主观视角)**
-   - **定义**: 镜头在玩家手中/眼中，拍摄**对方**。画面里**只有角色**。
-   - **典型场景**:
-     - 抓拍她发呆、睡觉、吃东西、看电视。
-     - 玩家处于“观察者”视角 (POV)。
-     - 即使有互动（如“摸头”），如果重点是**她的表情**，依然算 SOLO。
-     - **手机聊天模式 (Phone)** 99% 的情况都是 SOLO (对方发自拍过来)。
+1. **[COMPOSITION] DUO (双人/互动)**
+   - **强制触发条件**: 
+     - 任何**持续的肢体接触**：拥抱 (hugging)、搂腰 (holding waist)、坐在腿上 (sitting on lap)、靠在肩膀 (leaning on shoulder)、埋在胸口 (buried in chest)、背着 (piggyback)。
+     - **原因**: 只要有肢体接触，必须渲染玩家的身体作为支撑，否则画面会崩坏。所以即使是 POV 视角，如果有身体依靠，也必须算 DUO！
+   - **其他场景**: 合影 (Selfie)、接吻 (Kissing)、牵手 (Holding hands)。
 
-2. **[COMPOSITION] DUO (双人/合影)**
-   - **定义**: 镜头同时囊括了**你和她**。
-   - **典型场景**:
-     - **自拍 (Selfie)**: 明确提到“合影”、“凑过来拍一张”。
-     - **肢体纠缠**: 拥抱、背着、公主抱、接吻（且需要看到双方）。
-     - **第三人称视角**: 类似于电影镜头，描述“两人并肩走在夕阳下”。
+2. **[COMPOSITION] SOLO (单人/独照)**
+   - **定义**: 画面里**不需要**出现玩家的身体结构（除了模糊的手）。
+   - **适用场景**:
+     - 远距离抓拍她（发呆、看书、走路）。
+     - 简单的互动：摸头 (Patting head)、递东西 (Handing object) —— 这些只需要一只手，不需要身体。
+     - **手机聊天模式 (Phone)** 强制 SOLO。
 
 【特殊规则】
-- 如果无法确定，**默认优先 SOLO** (因为玩家通常想看老婆，而不是看自己)。
-- 如果模式是 Phone，**强制 SOLO**。
+- 如果动作为 "被搂在怀里"、"靠在身上"，**必须** 选 DUO，否则生图会缺少身体支撑！
+- 仅当完全没有身体接触，或仅有手部接触时，才选 SOLO。
 
 【输出格式】
 只输出标签，不要解释：
