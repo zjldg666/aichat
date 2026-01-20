@@ -623,38 +623,37 @@ const processAIResponse = async (rawText) => {
     } 
 
     if (mainContent) {
-         // 直接对文本进行格式化处理，使其能拆分成多个气泡
-         let tempText = mainContent
-            .replace(/\n\s*([”"’])/g, '$1')     // 处理引号前的换行
-            .replace(/([“"‘])\s*\n/g, '$1')     // 处理引号后的换行
-            .replace(/([（\(])/g, '|||$1')      // 在左括号前加切割符
-            .replace(/([）\)])/g, '$1|||')      // 在右括号后加切割符
-            .replace(/(\r\n|\n|\r)+/g, '|||')   // 将普通换行符转为切割符
-            .replace(/(?:\|\|\|)+/g, '|||');    // 合并连续的切割符
+            // ✨✨✨ 【智能粘合逻辑】 ✨✨✨
             
-         // 使用 for...of 循环来支持 await 顺序执行
-         const parts = tempText.split('|||');
-         
-         for (const part of parts) {
-             let cleanPart = part.trim();
-             // 防止重复添加和空消息
-             if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
-                 const newMsg = {
-                     id: Date.now() + Math.random(),
-                     role: 'model', 
-                     content: cleanPart 
-                 };
-                 
-                 messageList.value.push(newMsg);
-                 
-                 // ✅ 关键修复：每生成一个气泡，就立即显式保存这一条
-                 await saveHistory(newMsg);
-             }
-         }
-    }
-    
-    // 基础维护 (滚动到底部)
-    scrollToBottom();
+            let formattedText = mainContent
+                // 步骤1：先标准化换行符
+                .replace(/(\r\n|\r)/g, '\n')
+                
+              
+                .replace(/([）\)])\s*\n\s*([“"‘])/g, '$1\n$2')
+                
+                // 步骤3：处理剩下的孤立换行符 (把连续换行合并为一个切割符)
+                .replace(/\n+/g, '|||');
+                
+            // 步骤4：切割
+            const parts = formattedText.split('|||');
+             
+            for (const part of parts) {
+                 let cleanPart = part.trim();
+                 // 过滤空消息
+                 if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
+                     const newMsg = {
+                         id: Date.now() + Math.random(),
+                         role: 'model', 
+                         content: cleanPart 
+                     };
+                     messageList.value.push(newMsg);
+                     await saveHistory(newMsg);
+                 }
+            }
+        }
+        
+        scrollToBottom();
     
     // =========================================================================
     // 📊 3. 对话与状态监控日志 (完全保留原逻辑，使用 rawText 供 Agent 分析)

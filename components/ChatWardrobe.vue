@@ -37,6 +37,15 @@
 
         <!-- 展开详情区域 -->
         <view class="card-body" v-if="item.isExpanded">
+			<view class="design-input-box">
+			        <text class="label">🎨 设计灵感 / 风格:</text>
+			        <input 
+			            class="style-input" 
+			            v-model="item.stylePrompt" 
+			            placeholder="例如: 护士、猫娘、赛博朋克、古风 (留空则随机)" 
+			            @input="onUpdate"
+			        />
+			    </view>
           <!-- 生成工具栏 -->
           <view class="gen-toolbar">
             <view 
@@ -140,64 +149,56 @@ const toggleExpand = (index) => {
 
 
 // 自动生成逻辑 (用户指定关键词版)
+// 自动生成逻辑 (已修改：直接读取输入框，不再弹窗)
 const handleAutoGenerate = async (index) => {
-    if (isGenerating.value) return;
-    
-    // 1. 弹窗询问用户想法
-    let userTheme = '';
-    try {
-        const res = await uni.showModal({
-            title: 'AI 灵感设计',
-            content: '请输入想要的主题 (例如: 护士、猫娘、婚纱)\n不填则由 AI 自由发挥',
-            editable: true, 
-            placeholderText: '在此输入关键词...'
-        });
-        
-        if (!res.confirm) return; // 取消操作
-        userTheme = res.content ? res.content.trim() : '';
-    } catch (e) {
-        console.warn('Modal not supported', e);
-    }
+  if (isGenerating.value) return;
 
-    const item = localList.value[index];
-    const isR18 = item.isR18 || false;
-    
-    isGenerating.value = true;
-    uni.showLoading({ title: userTheme ? `正在设计: ${userTheme}...` : 'AI 正在自由发挥...' });
-    
-    try {
-        const schemes = uni.getStorageSync('app_llm_schemes') || [];
-        const idx = uni.getStorageSync('app_current_scheme_index') || 0;
-        const config = (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
+  const item = localList.value[index];
+  
+  // 1. 直接获取用户输入的风格 (如果没有输入，则是空字符串)
+  const userTheme = item.stylePrompt ? item.stylePrompt.trim() : '';
+  const isR18 = item.isR18 || false;
 
-        if (!config || !config.apiKey) throw new Error('API 配置缺失');
+  isGenerating.value = true;
+  
+  // 动态提示：如果有关键词显示关键词，否则显示自由发挥
+  uni.showLoading({ 
+    title: userTheme ? `设计: ${userTheme}...` : 'AI 自由设计中...' 
+  });
 
-        const roleName = props.currentRole?.name || 'Character';
-        const roleBio = props.currentRole?.bio || '';
-        const roleGender = props.currentRole?.gender || 'Female';
-        
-        // 2. 构建 Prompt：根据是否有关键词，给 AI 不同的指令
-        let designInstruction = "";
-        
-        if (userTheme) {
-            // 🅰️ 有关键词：围绕关键词设计，但要求有创意
-            designInstruction = `
+  try {
+    const schemes = uni.getStorageSync('app_llm_schemes') || [];
+    const idx = uni.getStorageSync('app_current_scheme_index') || 0;
+    const config = (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
+
+    if (!config || !config.apiKey) throw new Error('API 配置缺失');
+
+    const roleName = props.currentRole?.name || 'Character';
+    const roleBio = props.currentRole?.bio || '';
+    const roleGender = props.currentRole?.gender || 'Female';
+
+    // 2. 构建 Prompt：根据是否有关键词，给 AI 不同的指令
+    let designInstruction = "";
+
+    if (userTheme) {
+      // 🅰️ 有关键词：围绕关键词设计，但要求有创意
+      designInstruction = `
 【DESIGN MISSION】:
 The user specifically requested: "${userTheme}".
 Please design a high-quality, detailed "${userTheme}".
 - **Requirement**: Don't make it boring. Add some unique artistic touches or details to make it stand out.
 `;
-        } else {
-            // 🅱️ 无关键词：完全自由发挥 (高随机性)
-            designInstruction = `
+    } else {
+      // 🅱️ 无关键词：完全自由发挥 (高随机性)
+      designInstruction = `
 【DESIGN MISSION】:
 The user left it blank. Please **Hallucinate** a unique theme yourself.
 - **Randomly Pick a Style**: Sci-fi, Fantasy, Cyberpunk, Gothic, Historical, Streetwear, etc.
 - **Goal**: Create something visually stunning and unexpected.
 `;
-        }
+    }
 
-        const systemPrompt = `You are a top fashion designer.
+    const systemPrompt = `You are a top fashion designer.
 Task: Design an outfit based on the MISSION below.
 Character: ${roleName} (${roleGender})
 Bio: ${roleBio}
@@ -219,46 +220,47 @@ Accessory: [Accessories in Chinese]
 Tags: [Detailed English tags for Stable Diffusion/ComfyUI describing the visual appearance]
 `;
 
-        const res = await LLM.chat({
-            config,
-            messages: [{ role: 'user', content: "Start design." }],
-            systemPrompt: systemPrompt,
-            temperature: 0.9 // 保持较高的温度，保证每次设计的差异性
-        });
-        
-        // 3. 解析结果 (无需修改，沿用之前的正则逻辑)
-        const extract = (key) => {
-            const regex = new RegExp(`^${key}\\s*[:：]\\s*(.*)$`, 'im');
-            const match = res.match(regex);
-            return match ? match[1].trim() : '';
-        };
+    const res = await LLM.chat({
+      config,
+      messages: [{ role: 'user', content: "Start design." }],
+      systemPrompt: systemPrompt,
+      temperature: 0.9 // 保持较高的温度，保证每次设计的差异性
+    });
 
-        const newName = extract('Name');
-        const newTags = extract('Tags');
+    // 3. 解析结果
+    const extract = (key) => {
+      const regex = new RegExp(`^${key}\\s*[:：]\\s*(.*)$`, 'im');
+      const match = res.match(regex);
+      return match ? match[1].trim() : '';
+    };
 
-        if (newName || newTags) {
-            item.name = newName || item.name;
-            item.items.head = extract('Head');
-            item.items.top = extract('Top');
-            item.items.bottom = extract('Bottom');
-            item.items.socks = extract('Socks');
-            item.items.shoes = extract('Shoes');
-            item.items.accessory = extract('Accessory');
-            item.tags = newTags;
-            
-            emitUpdate();
-            uni.showToast({ title: '设计完成', icon: 'success' });
-        } else {
-            uni.showToast({ title: 'AI 没按格式返回，请重试', icon: 'none' });
-        }
-        
-    } catch (e) {
-        console.error(e);
-        uni.showToast({ title: '生成失败', icon: 'none' });
-    } finally {
-        isGenerating.value = false;
-        uni.hideLoading();
+    const newName = extract('Name');
+    const newTags = extract('Tags');
+
+    if (newName || newTags) {
+      // 只有解析成功才覆盖
+      item.name = newName || item.name;
+      item.items.head = extract('Head');
+      item.items.top = extract('Top');
+      item.items.bottom = extract('Bottom');
+      item.items.socks = extract('Socks');
+      item.items.shoes = extract('Shoes');
+      item.items.accessory = extract('Accessory');
+      item.tags = newTags;
+
+      emitUpdate();
+      uni.showToast({ title: '设计完成', icon: 'success' });
+    } else {
+      uni.showToast({ title: 'AI 没按格式返回，请重试', icon: 'none' });
     }
+
+  } catch (e) {
+    console.error(e);
+    uni.showToast({ title: '生成失败', icon: 'none' });
+  } finally {
+    isGenerating.value = false;
+    uni.hideLoading();
+  }
 };
 
 // 切换 R18 状态
@@ -273,6 +275,7 @@ const addNewOutfit = () => {
     id: Date.now(),
     name: '新套装',
     isExpanded: true,
+	stylePrompt: '',
     isEditing: true, // 默认允许改名
     isR18: false,    // 默认为正常模式
     tags: '',        // 英文 Tags
@@ -407,6 +410,25 @@ const emitUpdate = () => {
 .card-body {
   padding: 20rpx;
   background: var(--bg-color);
+  .design-input-box {
+        margin-bottom: 20rpx;
+        
+        .label {
+            font-size: 24rpx;
+            color: var(--text-sub);
+            margin-bottom: 10rpx;
+            display: block;
+        }
+        
+        .style-input {
+            background: var(--input-bg); // 或者是 #f5f5f5
+            padding: 16rpx;
+            border-radius: 12rpx;
+            font-size: 26rpx;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+    }
 }
 
 .gen-toolbar {
