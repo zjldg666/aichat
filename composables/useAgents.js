@@ -13,7 +13,9 @@ import {
     SUMMARY_PROMPT,
     IMAGE_GENERATOR_OPENAI_PROMPT,
     CAMERA_MAN_OPENAI_PROMPT,
-	SNAPSHOT_COMPOSITION_JUDGE
+	SNAPSHOT_COMPOSITION_JUDGE,
+	VISUAL_CONTENT_ANALYZER
+	 
 } from '@/utils/prompts.js';
 import { STYLE_PROMPT_MAP } from '@/utils/constants.js'; // ✨ 引入画风映射表
 
@@ -331,170 +333,212 @@ export function useAgents(context) {
 
         
     const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null) => {
-        // 1. 冷却检查
-        if (!existingMsgId && Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) return;
-        
-        const config = getCurrentLlmConfig();
-        if (!config || !config.apiKey) return;
-        
-        // 2. 文本清洗
-        const rawAiText = aiResponseText || "";
-        const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-        const promptAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
-        const promptUserMsg = lastUserMsg || "";
-        
-        // ============================
-        // A. 门卫检查 (Gatekeeper)
-        // ============================
-        let compositionType = 'SOLO'; 
-        
-        if (!existingMsgId) {
-            console.log('🕵️ [门卫] 启动检查...');
+            // 🛡️ 1. 强力防抖：如果列表里已经有正在生成的占位符，直接拒绝，防止双重触发
+            // 这一步解决了“生成两张图”的问题
+            const isGenerating = messageList.value.some(m => 
+                m.isSystem && (m.content === '📷 正在构图...' || m.content === '📷 显影中...')
+            );
+            if (!existingMsgId && isGenerating) {
+                console.log('🚧 [生图拦截] 上一张图正在生成中...');
+                return;
+            }
+    
+            // 2. 冷却检查
+            if (!existingMsgId && Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) return;
             
-            let gatekeeperPrompt = "";
-            if (interactionMode.value === 'phone') {
-                // 默认允许主动发图，除非明确禁止
-                const allowSelfImage = currentRole.value?.settings?.allowSelfImage !== false ? 'TRUE' : 'FALSE';
-                gatekeeperPrompt = SNAPSHOT_TRIGGER_PHONE
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) return;
+            
+            // 3. 文本清洗
+            const rawAiText = aiResponseText || "";
+            const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            const promptAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
+            const promptUserMsg = lastUserMsg || "";
+            
+            // ============================
+            // A. 门卫检查 (Gatekeeper)
+            // ============================
+            let compositionType = 'SOLO'; // 默认值
+            
+            if (!existingMsgId) {
+                console.log('🕵️ [门卫] 启动检查...');
+                
+                let gatekeeperPrompt = "";
+                if (interactionMode.value === 'phone') {
+                    const allowSelfImage = currentRole.value?.settings?.allowSelfImage !== false ? 'TRUE' : 'FALSE';
+                    gatekeeperPrompt = SNAPSHOT_TRIGGER_PHONE
+                        .replace('{{user_msg}}', promptUserMsg)
+                        .replace('{{ai_msg}}', promptAiMsg)
+                        .replace('{{allow_self_image}}', allowSelfImage);
+                } else {
+                    gatekeeperPrompt = SNAPSHOT_TRIGGER_FACE
+                        .replace('{{user_msg}}', promptUserMsg)
+                        .replace('{{ai_msg}}', promptAiMsg);
+                }
+            
+                const gateRes = await safeTagChat({
+                    config, messages: [{ role: 'user', content: gatekeeperPrompt }],
+                    temperature: 0.1, maxTokens: 100
+                });
+                
+                let result = false;
+                const resultTag = parseTags(gateRes, 'RESULT');
+                const compTag = parseTags(gateRes, 'COMPOSITION');
+                if (compTag && compTag.toUpperCase().includes('DUO')) {
+                    compositionType = 'DUO';
+                }
+                const looseMatch = /\bTRUE\b/i.test(gateRes); 
+            
+                if ((resultTag && resultTag.toUpperCase().includes('TRUE')) || looseMatch) {
+                    result = true;
+                }
+                console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
+                if (!result) return;
+            }
+    
+            // =========================================================
+            // 🔥 B. 视觉解耦层 (The Visual Decoupler)
+            // =========================================================
+            console.log('🧠 [视觉导演] 启动内容解耦分析...');
+            
+            let finalVisualAction = currentAction.value || "Standing";
+            let finalComposition = compositionType; // 👈 坚定地继承门卫的判断
+            let hardwareBan = false; 
+    
+            try {
+                const decouplerPrompt = VISUAL_CONTENT_ANALYZER
                     .replace('{{user_msg}}', promptUserMsg)
                     .replace('{{ai_msg}}', promptAiMsg)
-                    .replace('{{allow_self_image}}', allowSelfImage);
-            } else {
-                gatekeeperPrompt = SNAPSHOT_TRIGGER_FACE
-                    .replace('{{user_msg}}', promptUserMsg)
-                    .replace('{{ai_msg}}', promptAiMsg);
+                    .replace('{{real_time_action}}', currentAction.value || "Holding phone, replying message");
+    
+                const analysisResult = await safeJsonChat({
+                    config,
+                    messages: [{ role: 'user', content: decouplerPrompt }],
+                    temperature: 0.1, 
+                    maxTokens: 300
+                });
+    
+                if (analysisResult) {
+                    console.log('✨ [解耦结果]:', analysisResult);
+                    
+                    // 4. 覆盖原始数据
+                    if (analysisResult.visual_action && analysisResult.visual_action.length > 2) {
+                        finalVisualAction = analysisResult.visual_action;
+                    }
+                    
+                    // ❌ [删除] 绝对不要让解耦器覆盖构图！
+                    // if (analysisResult.composition) { finalComposition = analysisResult.composition; } 
+                    
+                    hardwareBan = analysisResult.hardware_ban === true || String(analysisResult.hardware_ban) === 'true';
+                }
+            } catch (e) {
+                console.warn('⚠️ 解耦分析失败，将回退到原始动作逻辑', e);
             }
-        
-            const gateRes = await safeTagChat({
-                config, messages: [{ role: 'user', content: gatekeeperPrompt }],
-                temperature: 0.1, maxTokens: 100
+    
+            // ============================
+            // C. 生图逻辑 (Director)
+            // ============================
+            const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
+                currentRole, 
+                interactionMode, 
+                messageList, 
+                chatId, 
+                chatName,
+                saveHistory, 
+                scrollToBottom,
+                userAppearance: ref('') 
             });
             
-            let result = false;
-            const resultTag = parseTags(gateRes, 'RESULT');
-            const compTag = parseTags(gateRes, 'COMPOSITION');
-            if (compTag && compTag.toUpperCase().includes('DUO')) {
-                compositionType = 'DUO';
+            let placeholderId = existingMsgId;
+            if (!placeholderId) {
+                placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
+                messageList.value.push({ role: 'system', content: '📷 正在构图...', isSystem: true, id: placeholderId });
             }
-            const looseMatch = /\bTRUE\b/i.test(gateRes); 
-        
-            if ((resultTag && resultTag.toUpperCase().includes('TRUE')) || looseMatch) {
-                result = true;
+            scrollToBottom();
+            saveHistory();
+            
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const isOpenAI = imgConfig.provider === 'openai';
+            
+            // 🟢 1. 获取性别与样貌
+            const settings = currentRole.value?.settings || {};
+            const gender = settings.gender || '女';
+            const userGender = settings.userGender || '男';
+    
+            const charTag = gender === '女' ? '1girl' : '1boy';
+            const userTag = userGender === '男' ? '1boy' : '1girl';
+            const pronoun = gender === '女' ? 'She' : 'He';
+            const possessive = gender === '女' ? 'Her' : 'His';
+    
+            let fullAppearance = settings.appearance || settings.appearanceSafe || (gender === '女' ? "a beautiful girl" : "a handsome boy");
+            if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
+            
+            // 🟢 2. 构建 Prompt 给 AI
+            const template = isOpenAI ? IMAGE_GENERATOR_OPENAI_PROMPT : IMAGE_GENERATOR_PROMPT;
+            const clothingDesc = settings.clothingTags ? settings.clothingTags : (currentClothing.value || "Casual");
+    
+            if (hardwareBan) {
+                finalVisualAction += ", (holding phone:0), (holding camera:0), hands free";
             }
-            console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
-            if (!result) return;
-        }
-        
-        // ============================
-        // B. 生图逻辑 (Director)
-        // ============================
-        // 🔥 3. 这里的 useChatGallery 需要传入完整参数 (特别是 chatId)
-        const { handleAsyncImageGeneration, retryGenerateImage } = useChatGallery({ 
-            currentRole, 
-            interactionMode, 
-            messageList, 
-            chatId, // ✅ 核心修复：传入了 chatId
-            chatName,
-            saveHistory, 
-            scrollToBottom,
-            userAppearance: ref('') // 补一个默认值防止报错
-        });
-        
-        let placeholderId = existingMsgId;
-        if (!placeholderId) {
-            placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-            messageList.value.push({ role: 'system', content: '📷 正在构图...', isSystem: true, id: placeholderId });
-        }
-        scrollToBottom();
-        saveHistory();
-        
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const isOpenAI = imgConfig.provider === 'openai';
-        
-        // 🟢 1. 获取性别与样貌
-        const settings = currentRole.value?.settings || {};
-        const gender = settings.gender || '女';
-        const userGender = settings.userGender || '男';
-
-        // 变量映射
-        const charTag = gender === '女' ? '1girl' : '1boy';
-        const userTag = userGender === '男' ? '1boy' : '1girl';
-        const pronoun = gender === '女' ? 'She' : 'He';
-        const possessive = gender === '女' ? 'Her' : 'His';
-
-        let fullAppearance = settings.appearance || settings.appearanceSafe || (gender === '女' ? "a beautiful girl" : "a handsome boy");
-        if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
-        
-        // 🟢 2. 构建 Prompt 给 AI (只问动作 积木B)
-        const template = isOpenAI ? IMAGE_GENERATOR_OPENAI_PROMPT : IMAGE_GENERATOR_PROMPT;
-        
-        // 🛠️ 优先使用英文 Tags，否则降级使用中文描述 (防止中文污染 Prompt)
-        const clothingDesc = settings.clothingTags ? settings.clothingTags : (currentClothing.value || "Casual");
-
-        const directorPrompt = template
-            .replace('{{clothes}}', clothingDesc) 
-            .replace('{{location}}', currentLocation.value || "Indoor") 
-            .replace('{{time}}', formattedTime.value)
-            .replace('{{user_msg}}', promptUserMsg)
-            .replace('{{ai_msg}}', promptAiMsg)
-            .replace('{{current_action}}', currentAction.value || "Standing")
-            .replace('{{composition}}', compositionType) // ✨ 注入构图
-            .replace('{{char_appearance}}', fullAppearance) // ✨ 注入角色外观
-            .replace('{{user_appearance}}', userAppearance.value || "1boy, casual clothes") // ✨ 注入玩家外观
-            .replace(/{{char_tag}}/g, charTag) 
-            .replace(/{{user_tag}}/g, userTag) 
-            .replace(/{{pronoun}}/g, pronoun)   
-            .replace(/{{possessive}}/g, possessive); 
-        
-        try {
-            const dirRes = await safeTagChat({
-                config, messages: [{ role: 'user', content: directorPrompt }],
-                temperature: 0.7, maxTokens: 300
-            });
-        
-            console.log(`🎨 [导演] 动态部分生成:`, dirRes);
-            let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
-            if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
-        
-            if (dynamicPart) {
-                lastImageGenerationTime.value = Date.now();
+    
+            const directorPrompt = template
+                .replace('{{clothes}}', clothingDesc) 
+                .replace('{{location}}', currentLocation.value || "Indoor") 
+                .replace('{{time}}', formattedTime.value)
+                .replace('{{user_msg}}', promptUserMsg)
+                .replace('{{ai_msg}}', promptAiMsg)
+                .replace('{{current_action}}', finalVisualAction)
+                .replace('{{composition}}', finalComposition) // ✅ 这里现在用的是门卫的判断
+                .replace('{{char_appearance}}', fullAppearance) 
+                .replace('{{user_appearance}}', userAppearance.value || "1boy, casual clothes") 
+                .replace(/{{char_tag}}/g, charTag) 
+                .replace(/{{user_tag}}/g, userTag) 
+                .replace(/{{pronoun}}/g, pronoun)   
+                .replace(/{{possessive}}/g, possessive); 
+            
+            try {
+                const dirRes = await safeTagChat({
+                    config, messages: [{ role: 'user', content: directorPrompt }],
+                    temperature: 0.7, maxTokens: 300
+                });
+            
+                console.log(`🎨 [导演] 动态部分生成:`, dirRes);
+                let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
+                if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
+            
+                if (dynamicPart) {
+                    lastImageGenerationTime.value = Date.now();
+                    const idx = messageList.value.findIndex(m => m.id === placeholderId);
+                    if (idx !== -1) messageList.value[idx].content = '📷 显影中...';
+            
+                    let finalPrompt = "";
+                    if (isOpenAI) {
+                        const stylePrefix = getOpenAIStylePrefix(imgConfig.style); 
+                        finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
+                    } else {
+                        const customPrompt = imgConfig.prompt || ""; 
+                        const styleKey = imgConfig.style || 'anime';
+                        let stylePart = STYLE_PROMPT_MAP[styleKey] || "";
+                        if (customPrompt) stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
+                        finalPrompt = `${stylePart},\n${dynamicPart}`;
+                    }
+                                    
+                    console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
+                    handleAsyncImageGeneration(finalPrompt, placeholderId, finalComposition);
+                } else {
+                    throw new Error("生成内容无效");
+                }
+            } catch (e) {
+                console.warn('Director failed:', e);
                 const idx = messageList.value.findIndex(m => m.id === placeholderId);
-                if (idx !== -1) messageList.value[idx].content = '📷 显影中...';
-        
-                // 🔥🔥🔥 核心拼接修改开始 🔥🔥🔥
-                                let finalPrompt = "";
-                                if (isOpenAI) {
-                                    // OpenAI 暂不支持 BREAK，保持原样或自行调整
-                                    const stylePrefix = getOpenAIStylePrefix(imgConfig.style); 
-                                    finalPrompt = `${stylePrefix} ${fullAppearance}. ${dynamicPart}`;
-                                } else {
-                                                    // 🔥 ComfyUI 组装 🔥
-                                                    const customPrompt = imgConfig.prompt || ""; 
-                                                    const styleKey = imgConfig.style || 'anime';
-                                                    let stylePart = STYLE_PROMPT_MAP[styleKey] || "";
-                                                    if (customPrompt) stylePart = stylePart ? `${stylePart}, ${customPrompt}` : customPrompt;
-                                                    
-                                                    // 新版直接拼接: Style + AI生成的完整Block
-                                                    finalPrompt = `${stylePart},\n${dynamicPart}`;
-                                                }
-                                
-                                console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
-                                handleAsyncImageGeneration(finalPrompt, placeholderId, compositionType);
-            } else {
-                throw new Error("生成内容无效");
+                if (idx !== -1) {
+                    messageList.value[idx].content = '❌ 构图失败';
+                    messageList.value[idx].hasError = true;
+                    messageList.value[idx].retryContext = { lastUserMsg, aiResponseText: rawAiText };
+                    saveHistory();
+                }
             }
-        } catch (e) {
-            console.warn('Director failed:', e);
-            const idx = messageList.value.findIndex(m => m.id === placeholderId);
-            if (idx !== -1) {
-                messageList.value[idx].content = '❌ 构图失败';
-                messageList.value[idx].hasError = true;
-                messageList.value[idx].retryContext = { lastUserMsg, aiResponseText: rawAiText };
-                saveHistory();
-            }
-        }
-    };
-
+        };
     const retryAgentGeneration = async (msg) => {
         if (msg.isLogicError && msg.retryContext) {
             console.log('🔄 触发 AI 重新构图...');

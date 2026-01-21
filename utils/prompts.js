@@ -383,11 +383,40 @@ export const SNAPSHOT_TRIGGER_FACE = `
 [COMPOSITION] SOLO 或 DUO
 `;
 
+// 🔥🔥🔥 新增：视觉内容解耦分析器 🔥🔥🔥
+// AiChat/utils/prompts.js
+
+export const VISUAL_CONTENT_ANALYZER = `
+[System Command: VISUAL_CONTENT_DECOUPLER]
+任务：你是一个AI摄影导演。请根据对话上下文，**提取照片里应该出现的画面内容**。
+
+【输入数据】
+- 玩家指令: "{{user_msg}}"
+- 角色回复: "{{ai_msg}}"
+- 角色实时物理状态: "{{real_time_action}}"
+
+【分析逻辑 (Decoupling Logic)】
+ **去手机化 (De-Phone Protocol) - 核心任务**:
+   - 如果玩家要求“合影/拍照/看现在的你”，且非对着镜子自拍：
+     - **必须**给角色分配一个**占用手部**的动作，以防止AI自动补全手机。
+     - **推荐动作**: "making peace sign" (比耶), "hand on cheek" (托腮), "waving" (招手), "fixing hair" (撩头发), "hands on hips" (叉腰), "clasping hands" (握手)。
+     - **禁止**: 不要输出 "holding phone", "taking photo"。
+
+
+【输出格式】
+请直接输出 JSON 格式（不要Markdown）：
+{
+  "visual_action": "此处填写画面动作，例如: 'standing close, making peace sign with fingers'",
+  "hardware_ban": true
+}
+`;
+
+// AiChat/utils/prompts.js
 
 export const IMAGE_GENERATOR_PROMPT = `
-[System Command: VISUAL_DIRECTOR]
-任务：你是 Stable Diffusion (ComfyUI) 的核心提示词导演。
-**目标**：根据对话内容生成符合特定格式的 Prompt Block。
+[System Command: VISUAL_DIRECTOR_V2]
+任务：你是 Stable Diffusion (ComfyUI) 的**摄影构图导演**。
+**目标**：将对话转化为画面 Prompt。**核心原则：除非用户明确要求，否则严禁对着镜子拍摄！**
 
 【输入数据】
 - 构图模式: {{composition}} (SOLO/DUO)
@@ -396,7 +425,7 @@ export const IMAGE_GENERATOR_PROMPT = `
 - 服装: {{clothes}}
 - 地点: {{location}}
 - 时间: {{time}}
-- 基准动作: {{current_action}}
+- 动作基准: {{current_action}}
 - 角色代词: {{char_tag}} ({{pronoun}})
 - 用户代词: {{user_tag}}
 
@@ -404,60 +433,70 @@ export const IMAGE_GENERATOR_PROMPT = `
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
+### 📸 镜头语言守则 (Camera Rules) - ⚠️ 必须严格执行
+1. **默认视角 = 镜头视角 (Lens View)**:
+   - 想象相机是浮在空中的眼睛。角色应该看着这个“隐形的相机”。
+   - **严禁**描述相机本身（No visible camera hardware）。
+   - **严禁**描述镜子 (No mirror)，除非输入数据里明确有 "mirror"。
+
+2. **自拍/合影的处理 (Selfie Logic)**:
+   - **正确做法 (Front Camera)**: 描述角色 "looking at viewer" (看镜头)。如果是手持自拍，加上 "arm extended" (手臂伸出) 或 "selfie angle" (自拍角度)，但**不要画出手机**！
+   - **错误做法 (Mirror Selfie)**: 严禁输出 "holding phone", "facing mirror", "reflection"，这会让画面变成对着镜子拍。
+
 ### 🎨 生成指令 (Instructions)
-请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
+请输出 4 段式 Prompt Block。
 
 **输出结构**:
-Line 1: (人数 + 场景描述)
+Line 1: (人数 + 场景描述 + **构图视角词**)
 BREAK
-Line 2: (角色外观 + 服装 + 动作)
+Line 2: (角色外观 + 服装 + 动作 + 表情)
 BREAK
-Line 3: (玩家外观 + 服装 + 动作) [如果是 SOLO 模式，这一行请输出 "looking at viewer" 或 "POV" 相关词，不要描述玩家外貌]
+Line 3: (玩家/第二人外观 + 动作) [DUO模式必填，SOLO模式填POV词]
 BREAK
-Line 4: (互动 + 环境细节 + 光影)
+Line 4: (互动 + 光影 + **禁止手机入镜的负面暗示**)
 
 ### 详细要求:
 
-1. **Line 1 (Scene & Count)**:
-   - 必须包含人数 Tag: '1girl' (SOLO) 或 '1boy, 1girl' (DUO).
-   - 场景关键词: 'indoors', 'bedroom', 'street' 等。
+1. **Line 1 (Scene)**:
+   - 必须包含: '1girl/couple' + 场景。
+   - **强制视角词**: 必须根据情况加入 'looking at viewer', 'from front', 'selfie angle' (如果是自拍)。
 
 2. **Line 2 (Character)**:
-   - 必须包含: {{char_appearance}}。
-   - 必须包含: {{clothes}}。
-   - 必须包含: 具体的动作描述 (基于 {{current_action}})。
+   - 必须包含: {{char_appearance}}, {{clothes}}。
+   - **动作清洗**: 如果 {{current_action}} 包含 "holding phone/smartphone"，请**自动删除**该动作！改为 "posing", "v sign", "hand on cheek" 等适合拍照的动作。
 
 3. **Line 3 (User/Second Character)**:
-   - **DUO模式**: 必须包含 {{user_appearance}}，以及玩家的动作。
-   - **SOLO模式**: 不要描述玩家样子。写 'POV', 'first person', 'blurry hands' (如果需要) 或留空/写通用视线词。
+   - **DUO模式**:
+      - 必须包含 {{user_appearance}}。
+      - **玩家动作**: 绝对不要写 "holding phone"。请写 "next to girl", "hugging", "arm around shoulder"。
+   - **SOLO模式**: 写 "POV", "blurry foreground", "looking at viewer"。
 
-4. **Line 4 (Interaction & Ambience)**:
-   - 互动细节: 'eye contact', 'talking', 'hugging'。
-   - 环境光影: 'cinematic lighting', 'depth of field'。
-   - ⚠️ **绝对禁令**: 严禁输出具体数字时间（如 "(22:58)"），括号数字会导致花屏！只允许使用模糊时间词（如 "night", "sunset", "late night"）。
+4. **Line 4 (Interaction)**:
+   - 必须包含: 'eye contact' (看镜头/看眼色)。
+   - **负面暗示**: 请在此行末尾强制加入: **, no mirror, no reflection, no holding phone** (作为正向提示词里的强调，虽然有点怪，但在SD里能起作用，或者依赖你的负面Prompt配置)。
 
-### 示例 (DUO Mode)
+### 示例 (DUO - 正常合影)
 Output:
-1boy, 1girl, couple, indoors, living room,
+couple, 1boy, 1girl, indoors, bedroom, selfie angle, from front,
 BREAK
-1girl, white hair, blue eyes, wearing pajamas, sitting on sofa, leaning forward,
+1girl, white hair, blue eyes, pajamas, standing close, making peace sign, smiling at viewer,
 BREAK
-1boy, short black hair, wearing t-shirt, sitting next to girl, holding a cup,
+1boy, short black hair, casual shirt, standing next to girl, arm around her shoulder, smiling,
 BREAK
-talking, eye contact, cozy atmosphere, warm lighting, screen reflection
+eye contact, happy atmosphere, soft lighting, no mirror, no camera visible
 
-### 示例 (SOLO Mode)
+### 示例 (SOLO - POV抓拍)
 Output:
-1girl, solo, indoors, bedroom,
+1girl, solo, outdoors, park, cowboy shot,
 BREAK
-1girl, white hair, blue eyes, wearing white dress, standing by window, looking at viewer,
+1girl, white hair, blue eyes, summer dress, turning around, hair flowing, smiling,
 BREAK
-POV, first person view, blurry background,
+POV, viewer watching, blurry background,
 BREAK
-smiling, waving hand, sunlight, morning atmosphere
+eye contact, candid moment, sunlight, lens flare, no mirror
 
 【最终执行】
-请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
+请直接输出包含 BREAK 的 Tag 字符串：
 [IMAGE_PROMPT]
 `;
 
