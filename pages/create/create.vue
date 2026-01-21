@@ -16,6 +16,20 @@
             <text class="label">角色名称</text>
             <input class="input" v-model="formData.name" placeholder="例如：林雅婷" />
           </view>
+		  
+		  <view class="input-item">
+		      <text class="label">角色性别</text>
+		      <scroll-view scroll-x class="chips-scroll">
+		          <view class="chips-flex">
+		              <view v-for="item in OPTIONS.gender" :key="item" 
+		                    class="chip" 
+		                    :class="{active: formData.gender === item}" 
+		                    @click="formData.gender = item">
+		                  {{item}}
+		              </view>
+		          </view>
+		      </scroll-view>
+		  </view>
 
           <view class="sub-group">
              <view class="sub-header" @click="toggleSubSection('charWork')">
@@ -398,6 +412,21 @@
                      <text class="label">你的昵称</text>
                      <input class="input" v-model="formData.userNameOverride" placeholder="例：阿林 (留空则使用APP全局昵称)" />
                  </view>
+				 
+				 <view class="input-item">
+				     <text class="label">你的性别</text>
+				     <scroll-view scroll-x class="chips-scroll">
+				         <view class="chips-flex">
+				             <view v-for="item in OPTIONS.gender" :key="item" 
+				                   class="chip" 
+				                   :class="{active: formData.userGender === item}" 
+				                   @click="formData.userGender = item">
+				                 {{item}}
+				             </view>
+				         </view>
+				     </scroll-view>
+				 </view>
+				 
                  <view class="input-item">
                     <text class="label">你们的关系</text>
                     <input class="input" v-model="formData.userRelation" placeholder="例：青梅竹马 / 刚认识的邻居 / 你的债主" />
@@ -645,6 +674,7 @@ const { isDarkMode, applyNativeTheme } = useTheme();
 // 1. 常量定义 (UI 选项保留在页面内是没问题的)
 // =========================================================================
 const OPTIONS = {
+    gender: ['女', '男', '其他'], // ✨ 新增：角色性别选项
     hairColor: ['黑色', '银白', '金色', '粉色', '红色', '蓝色', '紫色', '棕色'],
     hairStyle: ['长直发', '大波浪', '双马尾', '短发', '姬发式', '丸子头', '单马尾', '凌乱发'],
     eyeColor: ['红色', '蓝色', '金色', '绿色', '紫色', '黑色', '异色'],
@@ -727,7 +757,7 @@ const userWorldIndex = ref(-1);
 const diaryList = ref([]);
 const formData = ref({
   // --- 基础信息 ---
-  name: '', avatar: '', bio: '',
+  name: '', gender: '女', avatar: '', bio: '',
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
@@ -761,8 +791,9 @@ const formData = ref({
   likes: '',          
   dislikes: '',       
   personalityNormal: '', 
+  evolutionLevel: 1,    // ✨ 新增：进化等级
 
-  userNameOverride: '', 
+  userNameOverride: '', userGender: '男',
   userRelation: '',     
   userPersona: '',      
   userWorldId: '', userLocation: '', userOccupation: '',
@@ -770,8 +801,7 @@ const formData = ref({
   userFeatures: { hair: '', body: '', privates: '' },
 
   maxReplies: 1, 
-  initialAffection: 10,
-  initialLust: 0, 
+
   
   allowProactive: false,
   proactiveInterval: 4,
@@ -1104,6 +1134,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
     const target = list.find(item => String(item.id) === String(id));
     if (target) {
         formData.value.name = target.name;
+        formData.value.gender = (target.settings && target.settings.gender) || '女';
         formData.value.avatar = target.avatar;
         formData.value.worldId = target.worldId || '';
         formData.value.location = target.location || '';
@@ -1111,6 +1142,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
 
         if (target.settings) {
             formData.value.userNameOverride = target.settings.userNameOverride || '';
+            formData.value.userGender = target.settings.userGender || '男';
             formData.value.userRelation = target.settings.userRelation || '';
             formData.value.userPersona = target.settings.userPersona || '';
             formData.value.workplace = target.settings.workplace || '';
@@ -1128,6 +1160,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.likes = target.settings.likes || '';                  
             formData.value.dislikes = target.settings.dislikes || '';            
             formData.value.personalityNormal = target.settings.personalityNormal || '';
+            formData.value.evolutionLevel = target.settings.evolutionLevel || 1;       // ✨ 新增
             
             formData.value.userWorldId = target.settings.userWorldId || '';
             formData.value.userLocation = target.settings.userLocation || '';
@@ -1149,8 +1182,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
         }
 
         formData.value.maxReplies = target.maxReplies || 1;
-        formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
-        formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
+
         
         formData.value.allowProactive = target.allowProactive || false;
         formData.value.proactiveInterval = target.proactiveInterval || 4;
@@ -1202,8 +1234,6 @@ const saveCharacter = () => {
     name: formData.value.name,
     avatar: formData.value.avatar || '/static/ai-avatar.png',
     maxReplies: formData.value.maxReplies,
-    initialAffection: formData.value.initialAffection,
-    initialLust: formData.value.initialLust, 
     allowProactive: formData.value.allowProactive,
     proactiveInterval: formData.value.proactiveInterval,
     proactiveNotify: formData.value.proactiveNotify,
@@ -1219,12 +1249,14 @@ const saveCharacter = () => {
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
     settings: {
+        gender: formData.value.gender, // ✨ 新增
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
         userNameOverride: formData.value.userNameOverride,
+        userGender: formData.value.userGender, // ✨ 新增
         userRelation: formData.value.userRelation,
         userPersona: formData.value.userPersona,
         workplace: formData.value.workplace,
@@ -1243,6 +1275,7 @@ const saveCharacter = () => {
         userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
         personalityNormal: formData.value.personalityNormal,
+        evolutionLevel: formData.value.evolutionLevel,       // ✨ 新增
     },
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 
     lastTime: isEditMode.value ? undefined : '刚刚',
@@ -1258,8 +1291,6 @@ const saveCharacter = () => {
   } else {
     const newChar = { 
         id: Date.now(), ...charData, 
-        affection: formData.value.initialAffection, 
-        lust: formData.value.initialLust, 
         lastTimeTimestamp: getInitialGameTime(), 
         unread: 0,
         relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
@@ -1312,19 +1343,21 @@ const clearHistoryAndReset = () => {
           }
 
           const resetData = {
-              lastMsg: '（记忆已清空）', 
-              lastTime: '刚刚',
-              lastTimeTimestamp: preservedTime, 
-              unread: 0, 
-              summary: '', 
-              currentLocation: formData.value.location || '角色家',
-              interactionMode: 'phone', 
-              clothing: clothingStr,
-              lastActivity: '自由活动', 
-              affection: formData.value.initialAffection || 10,
-              lust: formData.value.initialLust || 0,
-              relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
-          };
+                        lastMsg: '（记忆已清空）', 
+                        lastTime: '刚刚',
+                        lastTimeTimestamp: preservedTime, 
+                        unread: 0, 
+                        summary: '', 
+                        currentLocation: formData.value.location || '角色家',
+                        
+                        // 👇👇👇 【新增】必须重置动作，否则会残留之前的动作状态 👇👇👇
+                        currentAction: '站立/闲逛', 
+                        
+                        interactionMode: 'phone', 
+                        clothing: clothingStr,
+                        lastActivity: '自由活动', 
+                        relation: formData.value.userRelation || '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
+                    };
 
           list[index] = { ...list[index], ...resetData };
           uni.setStorageSync('contact_list', list);

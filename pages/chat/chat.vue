@@ -3,33 +3,19 @@
     <view v-if="isArchiving" class="archiving-bar">
             <text class="archiving-text">🌙 整理中... 请勿退出</text>
         </view>
-    <view class="status-bar-wrapper">
-      <view class="info-row">
-        <view class="location-box" :class="interactionMode === 'phone' ? 'mode-phone' : 'mode-face'">
-          <view class="icon-circle">
-            <text>{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
-          </view>
-          <view class="status-content">
-            <view class="loc-row">
-              <text class="mode-tag">{{ interactionMode === 'phone' ? '远程' : '当面' }}</text>
-              <text class="location-text">{{ currentLocation }}</text>
-            </view>
-            <text class="activity-text">状态: {{ currentActivity }}</text>
-          </view>
-        </view>
-        <view class="right-status-group">
-        <view class="status-pill player-pill" @click="showForceLocationPanel = true">
-            <text class="pill-icon">👤</text>
-            <text class="pill-text">{{ playerLocation }}</text>
-        </view>
-          <view class="status-pill time-pill" @click="showTimeSettingPanel = true">
-            <text class="time-clock">{{ timeParts.time }}</text>
-            <text class="time-week">{{ timeParts.week }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
+    
+    <!-- 1. 顶部状态栏 -->
+    <ChatHeader 
+      :interactionMode="interactionMode"
+      :currentLocation="currentLocation"
+      :currentActivity="currentActivity"
+      :playerLocation="playerLocation"
+      :timeParts="timeParts"
+      @clickPlayer="showForceLocationPanel = true"
+      @clickTime="showTimeSettingPanel = true"
+    />
 
+    <!-- 2. 聊天内容区 -->
     <scroll-view 
       class="chat-scroll" 
       scroll-y="true" 
@@ -39,195 +25,67 @@
       <view class="chat-content">
         <view class="system-tip"><text>长按对话内容可进入多选删除模式</text></view>
         
-		<view 
-		v-for="(msg, index) in messageList" 
-		:key="msg.id || index" 
-		:id="'msg-' + index" 
-		class="message-item" 
-		:class="[
-			msg.role === 'user' ? 'right' : 'left',
-			isEditMode && selectedIds.includes(msg.id) ? 'is-selected' : '',
-			isEditMode && !selectedIds.includes(msg.id) ? 'not-selected' : ''
-		]"
-		@touchstart="handleTouchStart(msg, $event)"
-		@touchmove="handleTouchMove($event)"
-		@touchend="handleTouchEnd"
-		@click="isEditMode ? toggleSelect(msg) : null"
-		>
-          
-          <view v-if="msg.type === 'think'" class="system-event think-bubble">
-             <text>{{ msg.content }}</text>
-          </view>
-          <view v-else-if="msg.isSystem" 
-                          class="system-event" 
-                          :class="{ 'error-system-msg': msg.isError }"
-                          @click="msg.isError ? handleRetry(msg) : null">
-                      <text>{{ msg.content }}</text>
-                    </view>
-          
-          <template v-else>
-            <view v-if="isEditMode" class="select-check-icon">
-                <view class="circle" :class="{ 'checked': selectedIds.includes(msg.id) }">
-                    <text v-if="selectedIds.includes(msg.id)">✓</text>
-                </view>
-            </view>
-          
-            <image v-if="msg.role === 'model'" class="avatar" :src="currentRole?.avatar || '/static/ai-avatar.png'" mode="aspectFill"></image>
-            
-            <image v-if="msg.role === 'user'" class="avatar" :src="userAvatar" mode="aspectFill"></image>
-          
-            <view class="bubble-wrapper">
-              <view v-if="!msg.type || msg.type === 'text'" class="bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
-                <text class="msg-text" user-select>{{ msg.content }}</text>
-              </view>
-              <view v-else-if="msg.type === 'image'" class="bubble image-bubble" :class="msg.role === 'user' ? 'right-bubble' : 'left-bubble'">
-                  <image 
-                    v-if="!msg.hasError" 
-                    :src="msg.content" 
-                    mode="widthFix" 
-                    class="chat-image" 
-                    @click="previewImage(msg.content)"
-                    @error="handleImageLoadError(msg)" 
-                  ></image>
-              
-                  <view v-else class="image-error-box" @click.stop="handleRetry(msg)">
-                      <text class="error-icon">⚠️</text>
-                      <text class="error-text">图片生成失败</text>
-                      <view class="retry-btn">
-                          <text class="retry-icon">↻</text> 点击重试
-                      </view>
-                  </view>
-              </view>
-            </view>
-            
-            </template>
-        </view>
+        <ChatMessageItem 
+          v-for="(msg, index) in messageList" 
+          :key="msg.id || index" 
+          :id="'msg-' + index"
+          :msg="msg"
+          :isEditMode="isEditMode"
+          :isSelected="selectedIds.includes(msg.id)"
+          :roleAvatar="currentRole?.avatar"
+          :userAvatar="userAvatar"
+          @longPress="enterEditMode"
+          @toggleSelect="toggleSelect"
+          @retry="handleRetry"
+          @preview="previewImage"
+        />
         
         <view v-if="isLoading" class="loading-wrapper"><view class="loading-dots">...</view></view>
         <view id="scroll-bottom" style="height: 20rpx;"></view>
       </view>
     </scroll-view>
 
-    <view class="footer">
-        
-        <view class="edit-toolbar" v-if="isEditMode">
-            <view class="cancel-btn" @click="cancelEdit">取消</view>
-            <view class="count-tip">已选择 <text class="num">{{ selectedIds.length }}</text> 条内容</view>
-            <view class="delete-confirm-btn" @click="confirmDelete" :class="{ 'active': selectedIds.length > 0 }">删除</view>
-        </view>
-
-        <view class="input-container" v-if="!isEditMode">
-            <view class="toolbar-compact" v-if="isToolbarOpen">
-                <view class="tool-grid">
-                    <view class="tool-item" @click="showTimePanel = true"><view class="tool-icon">⏳</view><text class="tool-text">时间</text></view>
-                    <view class="tool-item" @click="showLocationPanel = true"><view class="tool-icon">🗺️</view><text class="tool-text">移动</text></view>
-                    <picker mode="time" :value="wakeTime" start="00:00" end="23:59" @change="onSleepTimeChange" style="width: 100%;">
-                      <view class="tool-item">
-                        <view class="tool-icon">🛌</view>
-                        <text class="tool-text">睡到...</text>
-                      </view>
-                    </picker>
-                    <view class="tool-item" @click="handleCameraSend"><view class="tool-icon">📸</view><text class="tool-text">拍照</text></view>
-                    <view class="tool-item" @click="triggerNextStep"><view class="tool-icon">👉</view><text class="tool-text">继续</text></view>
-                    <view class="tool-item" @click="toggleThought">
-                        <view class="tool-icon">{{ showThought ? '🧠' : '😶' }}</view>
-                        <text class="tool-text">{{ showThought ? '显心声' : '藏心声' }}</text>
-                    </view>
-                </view>
-            </view>
-            <view class="input-area">
-                <view class="action-btn" @click="toggleToolbar">
-                    <text>{{ isToolbarOpen ? '⬇️' : '⊕' }}</text>
-                </view>
-                <input class="input" v-model="inputText" confirm-type="send" @confirm="sendMessage(false)" placeholder="输入对话..." />
-                <view class="send-btn" @click="sendMessage(false)">发送</view>
-            </view>
-        </view>
-    </view>
+    <!-- 3. 底部工具栏 -->
+    <ChatFooter 
+      :isEditMode="isEditMode"
+      :selectedCount="selectedIds.length"
+      :isToolbarOpen="isToolbarOpen"
+      v-model="inputText"
+      :wakeTime="wakeTime"
+      :showThought="showThought"
+      @cancelEdit="cancelEdit"
+      @confirmDelete="confirmDelete"
+      @toggleToolbar="toggleToolbar"
+      @send="sendMessage(false)"
+      @clickTime="showTimePanel = true"
+      @clickLocation="showLocationPanel = true"
+      @sleepTimeChange="onSleepTimeChange"
+      @clickCamera="handleCameraSend"
+	  @clickStealthCamera="handleStealthCameraSend"
+      @clickContinue="triggerNextStep"
+      @toggleThought="toggleThought"
+      @clickWardrobe="showWardrobePanel = true"
+    />
     
-    <view class="time-panel-mask" v-if="showTimePanel" @click="showTimePanel = false">
-      <view class="time-panel" @click.stop>
-        <view class="panel-title">时间跳跃</view>
-        <view class="grid-actions">
-          <view class="grid-btn" @click="handleTimeSkip('morning')">🌤️ 一上午过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('afternoon')">🌇 一下午过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('night')">🌙 一晚上过去</view>
-          <view class="grid-btn" @click="handleTimeSkip('day')">📅 一整天过去</view>
-        </view>
-        <view class="custom-time">
-          <text>快进分钟：</text>
-          <input class="mini-input" type="number" v-model="customMinutes" placeholder="30"/>
-          <view class="mini-btn" @click="handleTimeSkip('custom')">确定</view>
-        </view>
-      </view>
-    </view>
-
-    <view class="time-panel-mask" v-if="showTimeSettingPanel" @click="showTimeSettingPanel = false">
-      <view class="time-panel" @click.stop>
-        <view class="panel-title">设定具体时间</view>
-        <view class="setting-row">
-            <text class="setting-label">日期：</text>
-            <picker mode="date" :value="tempDateStr" @change="onDateChange">
-                <view class="picker-display">{{ tempDateStr }}</view>
-            </picker>
-        </view>
-        <view class="setting-row">
-            <text class="setting-label">时间：</text>
-            <picker mode="time" :value="tempTimeStr" @change="onTimeChange">
-                <view class="picker-display">{{ tempTimeStr }}</view>
-            </picker>
-        </view>
-        <view class="setting-row">
-                <text class="setting-label">流速：</text>
-                <view class="ratio-input-box">
-                    <text class="txt">现实 1s = 游戏</text>
-                    <input class="mini-input" type="number" v-model="tempTimeRatio" />
-                    <text class="txt">s</text>
-                </view>
-            </view>
-        <button class="confirm-time-btn" @click="confirmManualTime">确认修改</button>
-      </view>
-    </view>
-
-    <view class="time-panel-mask" v-if="showLocationPanel" @click="showLocationPanel = false">
-        <view class="time-panel" @click.stop>
-            <view class="panel-title">前往哪里？</view>
-            <view class="grid-actions">
-                <view 
-                    class="grid-btn" 
-                    v-for="(loc, index) in locationList" 
-                    :key="index"
-                    @click="handleMoveTo(loc)"
-                    :style="loc.style || ''"
-                >
-                    <text>{{ loc.icon }} {{ loc.name }}</text>
-                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
-                </view>
-            </view>
-            <view class="custom-time">
-                <text>自定义地点：</text>
-                <input class="mini-input" v-model="customLocation" placeholder="输入地点"/>
-                <view class="mini-btn" @click="handleMoveTo({name: customLocation, type: 'custom'})">出发</view>
-            </view>
-        </view>
-    </view>
-    <view class="time-panel-mask" v-if="showForceLocationPanel" @click="showForceLocationPanel = false">
-        <view class="time-panel" @click.stop>
-            <view class="panel-title" style="color: #ff9800;">🛠️ 强制修正坐标 (不通知AI)</view>
-            <view class="grid-actions">
-                <view class="grid-btn" v-for="(loc, index) in locationList" :key="index" 
-                      @click="handleForceMove(loc)" :style="loc.style || ''">
-                    <text>{{ loc.icon }} {{ loc.name }}</text>
-                    <span v-if="loc.detail" style="font-size:20rpx; opacity:0.7;">{{ loc.detail }}</span>
-                </view>
-            </view>
-            <view class="custom-time">
-                <text>自定义：</text>
-                <input class="mini-input" v-model="forceCustomLocation" placeholder="输入地点" />
-                <view class="mini-btn" @click="handleForceMove({name: forceCustomLocation})">修正</view>
-            </view>
-        </view>
-    </view>
+    <!-- 4. 弹窗面板 -->
+    <ChatModals 
+      :visibleModal="activeModal"
+      :locationList="locationList"
+      :wardrobeList="wardrobeList"
+      
+      :currentRole="currentRole"
+      
+      v-model:tempDateStr="tempDateStr"
+      v-model:tempTimeStr="tempTimeStr"
+      v-model:tempTimeRatio="tempTimeRatio"
+      @close="closeModal"
+      @timeSkip="handleTimeSkip"
+      @confirmTime="confirmManualTime"
+      @moveTo="handleMoveTo"
+      @forceMove="handleForceMove"
+      @update:wardrobeList="handleWardrobeUpdate"
+      @applyOutfit="handleApplyOutfit"
+    />
 	
   </view>
 </template>
@@ -243,15 +101,23 @@ import { useGameTime } from '@/composables/useGameTime.js';
 import { useChatGallery } from '@/composables/useChatGallery.js';
 import { useGameLocation } from '@/composables/useGameLocation.js';
 import { useAgents } from '@/composables/useAgents.js';
-// ... existing imports
-import { useTheme } from '@/composables/useTheme.js'; // 导入
+import { useTheme } from '@/composables/useTheme.js';
+import { useEvolution } from '@/composables/useEvolution.js'; // ✨ 新增
 
-// ... inside script setup
-const { isDarkMode, applyNativeTheme } = useTheme();
+// 引入新组件
+import ChatHeader from '@/components/ChatHeader.vue';
+import ChatMessageItem from '@/components/ChatMessageItem.vue';
+import ChatFooter from '@/components/ChatFooter.vue';
+import ChatModals from '@/components/ChatModals.vue';
+
 import { 
     CORE_INSTRUCTION_LOGIC_MODE,
-    TIME_SHIFT_PROMPT // 👈 新增引入这个
+    TIME_SHIFT_PROMPT,
+	CAMERA_REACTION_PROMPT
 } from '@/utils/prompts.js';
+
+const { isDarkMode, applyNativeTheme } = useTheme();
+
 // ==================================================================================
 // 1. 核心状态定义 (State)
 // ==================================================================================
@@ -270,8 +136,7 @@ const userAvatar = ref('/static/user-avatar.png');
 const userHome = ref('未知地址');
 const userAppearance = ref('');
 const charHome = ref('未知地址');
-const currentAffection = ref(0);
-const currentLust = ref(0);
+
 const currentLocation = ref('角色家');
 const interactionMode = ref('phone');
 const currentClothing = ref('默认服装');
@@ -285,69 +150,18 @@ const currentSummary = ref('');
 const enableSummary = ref(false);
 const summaryFrequency = ref(20);
 const charHistoryLimit = ref(20);
+// --- 🧬 进化相关状态 ---
+const evolutionLevel = ref(1);
+
 // --- 🛌 睡觉相关状态 ---
 const wakeTime = ref('08:00'); // 默认睡到早上 8 点
 
 // UI 状态
-
 const isToolbarOpen = ref(false); 
 const worldLocations = ref([]); 
 
 const toggleToolbar = () => { isToolbarOpen.value = !isToolbarOpen.value; };
 
-// ... 原有的 import ...
-
-// --- 🔧 手动实现长按防误触逻辑 ---
-const touchTimer = ref(null);
-const touchStartPosition = ref({ x: 0, y: 0 });
-const isLongPressTriggered = ref(false); // 标记是否已经触发了长按
-
-// 1. 手指按下
-const handleTouchStart = (msg, e) => {
-    if (isEditMode.value) return; // 如果已经是编辑模式，不处理
-    if (e.touches.length > 1) return; // 忽略多指触控
-
-    // 记录起始位置
-    touchStartPosition.value = {
-        x: e.touches[0].pageX,
-        y: e.touches[0].pageY
-    };
-    isLongPressTriggered.value = false;
-
-    // 开启计时器：设定 800ms 后触发 (比默认的 500ms 长，防误触效果好)
-    touchTimer.value = setTimeout(() => {
-        enterEditMode(msg);
-        isLongPressTriggered.value = true; // 标记已触发，防止松手时触发点击或其他逻辑
-    }, 800); 
-};
-
-// 2. 手指移动
-const handleTouchMove = (e) => {
-    if (!touchTimer.value) return;
-
-    // 计算移动距离
-    const moveX = e.touches[0].pageX;
-    const moveY = e.touches[0].pageY;
-    const diffX = Math.abs(moveX - touchStartPosition.value.x);
-    const diffY = Math.abs(moveY - touchStartPosition.value.y);
-
-    // 阈值设定为 10px。如果移动超过 10px，说明用户是在“滑动”而不是“长按”
-    if (diffX > 10 || diffY > 10) {
-        clearTimeout(touchTimer.value);
-        touchTimer.value = null;
-    }
-};
-
-// 3. 手指离开
-const handleTouchEnd = () => {
-    // 清除计时器
-    if (touchTimer.value) {
-        clearTimeout(touchTimer.value);
-        touchTimer.value = null;
-    }
-};
-
-// ... 原有的 enterEditMode 等函数 ...
 // ==================================================================================
 // 2. 基础辅助函数
 // ==================================================================================
@@ -359,8 +173,9 @@ const scrollToBottom = () => {
 };
 // --- 变量定义 ---
 const showForceLocationPanel = ref(false);
+const showWardrobePanel = ref(false); // ✨ 新增：衣柜面板开关
+const wardrobeList = ref([]); // ✨ 新增：衣柜数据
 const forceCustomLocation = ref('');
-
 
 // 🧠 心理活动显示开关 (默认关闭，或从缓存读取)
 const showThought = ref(uni.getStorageSync('setting_show_thought') === true);
@@ -503,7 +318,7 @@ const saveHistory = async (msg) => {
             uni.setStorageSync('contact_list', list);
         }
         
-        console.log('💾 [DB] 消息已保存且预览已更新');
+        // console.log('💾 [DB] 消息已保存且预览已更新');
     } catch (e) {
         console.error('❌ 数据库保存失败', e);
     }
@@ -515,9 +330,8 @@ const getCurrentLlmConfig = () => {
     return (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
 };
 
-const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
-    if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
-    if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
+const saveCharacterState = (newTime, newSummary, newLocation, newClothes, newMode)=> {
+
     if (newTime !== undefined) currentTime.value = newTime; 
     if (newSummary !== undefined) currentSummary.value = newSummary;
     if (newLocation !== undefined) currentLocation.value = newLocation;
@@ -529,8 +343,9 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
         const index = list.findIndex(item => String(item.id) === String(chatId.value));
         if (index !== -1) {
             const item = list[index];
-            item.affection = currentAffection.value;
-            item.lust = currentLust.value;
+            // 🗑️ 移除: 好感度/欲望值 (已废弃)
+            // item.affection = currentAffection.value;
+            // item.lust = currentLust.value;
             item.lastTimeTimestamp = currentTime.value;
             item.summary = currentSummary.value;
             // 🌟 核心改动：保存玩家位置
@@ -541,19 +356,15 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
             item.interactionMode = interactionMode.value;
             item.lastActivity = currentActivity.value;
             item.relation = currentRelation.value;
+            // ✨ 保存进化状态
+            if (!item.settings) item.settings = {};
+            item.settings.evolutionLevel = evolutionLevel.value;
+
             uni.setStorageSync('contact_list', list);
         }
     }
 };
 
-const relationshipStatus = computed(() => {
-    const score = currentAffection.value;
-    if (score < 20) return '礼貌疏离';
-    if (score < 40) return '普通熟人';
-    if (score < 60) return '暧昧萌芽';
-    if (score < 80) return '恋人未满';
-    return '热恋情侣';
-});
 
 const previewImage = (url) => { uni.previewImage({ urls: [url] }); };
 const onDateChange = (e) => { tempDateStr.value = e.detail.value; }; 
@@ -654,19 +465,28 @@ const {
     locationList, checkIsWorking, calculateMoveResult 
 } = useGameLocation({ currentRole, userHome, charHome, currentTime, worldLocations });
 
+// ✨ 修复顺序：先定义 Evolution，再传给 Agents
+const { executeEvolution, isEvolving } = useEvolution(); 
+
 const {
     runSceneCheck, runRelationCheck, runVisualDirectorCheck, runCameraManCheck, 
     checkAndRunSummary, runDayEndSummary,isArchiving,
-    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration
+    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration,isSceneAnalyzing
 } = useAgents({chatId,
     messageList, currentRole, chatName, currentLocation, currentClothing, currentAction,
-    interactionMode, currentRelation, currentAffection, // ✨ 确保这里传了好感度 Ref
+    interactionMode, currentRelation, 
     currentActivity, formattedTime, playerLocation,
     enableSummary, summaryFrequency, currentSummary,
-    saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration
+    saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration,userAppearance,
+    executeEvolution // ✨ 现在可以安全传入了
 });
 
-const handleTimeSkip = async (type) => {
+const handleTimeSkip = async (type, customVal) => {
+    // 适配 ChatModals 回传的 customVal
+    if (type === 'custom' && customVal) {
+        customMinutes.value = customVal;
+    }
+
     // 1. 调用底层时间逻辑修改时间
     const isNextDay = _handleTimeSkip(type, messageList, scrollToBottom);
     
@@ -804,45 +624,45 @@ const processAIResponse = async (rawText) => {
         messageList.value.push(thinkMsg);
         await saveHistory(thinkMsg);
     } 
-    // [方案一]: 如果开关关闭 (else)，这里什么都不做，thinkContent 直接被丢弃，mainContent 也不包含它
 
-    // =========================================================================
-    // 💬 2. 正文上屏逻辑 (保留你原本的切割与保存逻辑)
-    // =========================================================================
-    // ⚠️ 注意：这里使用 mainContent (已去除think)，而不是 rawText
     if (mainContent) {
-         // 直接对文本进行格式化处理，使其能拆分成多个气泡
-         let tempText = mainContent
-            .replace(/\n\s*([”"’])/g, '$1')     // 处理引号前的换行
-            .replace(/([“"‘])\s*\n/g, '$1')     // 处理引号后的换行
-            .replace(/([（\(])/g, '|||$1')      // 在左括号前加切割符
-            .replace(/([）\)])/g, '$1|||')      // 在右括号后加切割符
-            .replace(/(\r\n|\n|\r)+/g, '|||')   // 将普通换行符转为切割符
-            .replace(/(?:\|\|\|)+/g, '|||');    // 合并连续的切割符
+            // ✨✨✨ 【智能粘合逻辑】 ✨✨✨
             
-         // 使用 for...of 循环来支持 await 顺序执行
-         const parts = tempText.split('|||');
-         
-         for (const part of parts) {
-             let cleanPart = part.trim();
-             // 防止重复添加和空消息
-             if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
-                 const newMsg = {
-                     id: Date.now() + Math.random(),
-                     role: 'model', 
-                     content: cleanPart 
-                 };
-                 
-                 messageList.value.push(newMsg);
-                 
-                 // ✅ 关键修复：每生成一个气泡，就立即显式保存这一条
-                 await saveHistory(newMsg);
-             }
-         }
-    }
-    
-    // 基础维护 (滚动到底部)
-    scrollToBottom();
+            // 🧬 进化系统：不再通过进度条积累，完全依赖 Gatekeeper
+            // const progressDelta = calculateProgress(messageList.value);
+            // evolutionProgress.value = ... 
+            
+            saveCharacterState(); // 保存进度
+
+            let formattedText = mainContent
+                // 步骤1：先标准化换行符
+                .replace(/(\r\n|\r)/g, '\n')
+                
+              
+                .replace(/([）\)])\s*\n\s*([“"‘])/g, '$1\n$2')
+                
+                // 步骤3：处理剩下的孤立换行符 (把连续换行合并为一个切割符)
+                .replace(/\n+/g, '|||');
+                
+            // 步骤4：切割
+            const parts = formattedText.split('|||');
+             
+            for (const part of parts) {
+                 let cleanPart = part.trim();
+                 // 过滤空消息
+                 if (cleanPart && (messageList.value.length === 0 || messageList.value[messageList.value.length - 1].content !== cleanPart)) {
+                     const newMsg = {
+                         id: Date.now() + Math.random(),
+                         role: 'model', 
+                         content: cleanPart 
+                     };
+                     messageList.value.push(newMsg);
+                     await saveHistory(newMsg);
+                 }
+            }
+        }
+        
+        scrollToBottom();
     
     // =========================================================================
     // 📊 3. 对话与状态监控日志 (完全保留原逻辑，使用 rawText 供 Agent 分析)
@@ -859,46 +679,82 @@ const processAIResponse = async (rawText) => {
         }
         
         console.log('--- 💬 对话监控 ------------------------------------------');
-        console.log(`🗣️ [玩家]: ${lastUserMsg}`);
-        console.log(`🤖 [角色(RAW)]: ${rawText}`); // 这里打印包含 <think> 的原始内容，方便调试
+        // console.log(`🗣️ [玩家]: ${lastUserMsg}`);
+        // console.log(`🤖 [角色(RAW)]: ${rawText}`); // 这里打印包含 <think> 的原始内容，方便调试
         console.log('--- 📊 角色状态快照 ---------------------------------------');
-        console.log(`📍 地点: ${currentLocation.value}`);
+        // console.log(`📍 地点: ${currentLocation.value}`);
         console.log(`💃 动作: ${currentAction.value}`);
         console.log(`👗 服装: ${currentClothing.value}`);
         console.log(`❤️ 关系: ${currentRelation.value} `);
         console.log(`📅 时间: ${formattedTime.value}`);
         console.log(`📱 模式: ${interactionMode.value === 'phone' ? '手机聊天' : '当面互动'}`);
         console.log('-----------------------------------------------------------');
+		// 👇👇👇 【新增】纯净版剧本日志 👇👇👇
+		console.log('\n📖 ================= [ 当前剧本回放 ] ================= 📖');
+		messageList.value.forEach((msg, index) => {
+		    // 1. 跳过不想看的系统提示（比如生图的loading，或者时间流逝提示），只看对话
+		    // 如果你想看所有系统消息，注释掉下面这行
+		    // if (msg.isSystem && msg.content.includes('显影中')) return;
+		
+		    // 2. 格式化角色名
+		    let roleName = '';
+		    let emoji = '';
+		    
+		    if (msg.role === 'user') {
+		        roleName = '我';
+		        emoji = '🗣️';
+		    } else if (msg.role === 'model' || msg.role === 'assistant') {
+		        roleName = chatName.value; // AI名字
+		        emoji = '🌸';
+		    } else {
+		        roleName = '系统';
+		        emoji = '⚙️';
+		    }
+		
+		    // 3. 格式化内容 (去除 <think> 标签，让阅读更流畅)
+		    let cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+		    if (!cleanContent) cleanContent = "(心理活动/空)";
+		
+		    // 4. 打印一行
+		    // console.log(`${emoji} [${roleName}]: ${cleanContent}`);
+		});
+		console.log('📖 ======================================================\n');
 
-        // 4. 触发 Agent 检查 (混合并行策略)
-        // ... (保留上面的 console.log 代码)
+    
         
-        // 4. 触发 Agent 检查 (混合并行策略)
-        setTimeout(() => {
-            console.log('🚦 [后台导演] 全并行策略启动...');
+                setTimeout(() => {
+                    console.log('🚦 [后台导演] 并行流水线启动...');
         
-            // 轨道 A: 关系与记忆 (保持不变)
-            runRelationCheck(lastUserMsg, rawText); 
-            checkAndRunSummary(); 
+                    // 轨道 A: 关系与记忆
+                    runRelationCheck(lastUserMsg, rawText); 
+                    checkAndRunSummary(); 
         
-            // 轨道 B: 场景与生图 (🔥🔥 改为并行 🔥🔥)
-            // 原逻辑：runSceneCheck(...).then(...) -> 导致了等待
-            // 新逻辑：同时触发，互不阻塞
-            
-            // 1. 启动场景分析 (让它自己在后台跑，更新地点/衣服)
-            runSceneCheck(lastUserMsg, rawText);
+                    // 轨道 B: 场景与生图 (并行化)
+                    // 1. 启动场景分析 (并不再阻塞)
+                    const sceneCheckPromise = runSceneCheck(lastUserMsg, rawText);
+
+                    if (lastUserMsg.includes('快门已按下') || lastUserMsg.includes('User took a photo')) {
+                        console.log('🛑 [导演] 检测到手动快门的回响，跳过自动生图。');
+                        return;
+                    }
+                    // =========================================================
         
-            // 2. 立即启动生图判定 (不再等待场景分析结束)
-            // 这样只要门卫 Agent (Visual Consent Check) 返回 true，UI 就会立刻显示“正在构图”
-            let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('拍');
-            
-            if (isCameraAction) {
-                runCameraManCheck(lastUserMsg, rawText);
-            } else {
-                runVisualDirectorCheck(lastUserMsg, rawText);
-            }
-            
-        }, 500);
+                    // 2. 启动生图判定
+                    let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('SHUTTER') || lastUserMsg.includes('快门');
+                    
+                    if (isCameraAction) {
+                        // 手动拍照：为了保证地点/服装准确，我们最好还是等待场景分析完成
+                        // 但我们可以选择让用户感觉更快，或者保证准确性。
+                        // 这里选择等待，因为手动拍照没有 Gatekeeper 耗时可以抵消。
+                        sceneCheckPromise.then(() => {
+                             runCameraManCheck(lastUserMsg, rawText);
+                        });
+                    } else {
+                        // 自动生图：将场景分析的 Promise 传递进去，实现并行 Gatekeeper
+                        runVisualDirectorCheck(lastUserMsg, rawText, null, sceneCheckPromise);
+                    }
+                    
+                }, 500);
     }
 };
 
@@ -970,7 +826,18 @@ const sendMessage = async (isContinue = false, systemOverride = '') => {
         formattedTime: formattedTime.value, location: currentLocation.value, mode: interactionMode.value,
         activity: currentActivity.value, clothes: currentClothing.value, relation: currentRelation.value
     });
-
+	
+	// // 🔥🔥🔥【新增】打印 System Prompt 到控制台 🔥🔥🔥
+	//     console.log('============== [System Prompt 搅拌日志] ==============');
+	//     console.log('📍 [动态状态]');
+	//     console.log(`- 时间: ${formattedTime.value}`);
+	//     console.log(`- 地点: ${currentLocation.value}`);
+	//     console.log(`- 关系: ${currentRelation.value}`);
+	//     console.log('📜 [最终生成的 Prompt]');
+	//     console.log(prompt); 
+	//     console.log('====================================================');
+	//     // 🔥🔥🔥【新增结束】🔥🔥🔥
+		
     const historyLimit = charHistoryLimit.value; 
     let contextMessages = messageList.value.filter(msg => !msg.isSystem && msg.type !== 'image');
     if (historyLimit > 0) contextMessages = contextMessages.slice(-historyLimit);
@@ -1034,12 +901,71 @@ const triggerNextStep = () => {
     sendMessage(true, `[System Command: NARRATIVE_CONTINUATION]\n**Status**: User waiting.\n**Task**: Finish msg or initiate action.\n**Rules**: No repeat.`);
 };
 
-const handleCameraSend = () => {
-    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法抓拍', icon: 'none' });
+
+
+
+// pages/chat/chat.vue
+
+// 📸 1. 明拍模式 (100% 有快门声，强交互)
+const handleCameraSend = async () => {
+    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法拍照', icon: 'none' });
+
+    // UI 反馈
+    messageList.value.push({ role: 'system', content: '📸 咔嚓！(你大方地按下了快门)', isSystem: true });
+    scrollToBottom();
     
-    // 🛠️ 修改这里的 Prompt，从系统指令改为描述性动作
-    // 这样 AI 会根据当前氛围决定是“发现你拍照并害羞/配合”还是“完全没发现继续手头的动作”
-    const cameraPrompt = `(你举起手机，寻找一个合适的角度，按下了快门。由于是在这种氛围下，她可能会注意到你的镜头并给出反应，也可能正专注于自己的事而完全没察觉。请根据当前情境自然衔接剧情。)`;
+    // 动作同步等待 (复用之前的逻辑)
+    await waitForActionSync(); 
+
+    // 调用摄影师
+    await runCameraManCheck("System: Shutter Pressed", "");
+
+    // ⚡️ 核心差异：强制有声
+    const soundContext = "(随着“咔嚓”一声清晰的快门声，你大方地拍了一张照片，她肯定听到了)";
+    
+    // 发送剧本
+    sendCameraReactionPrompt(soundContext);
+};
+
+// 👁️ 2. 偷拍模式 (静音，观察视角)
+const handleStealthCameraSend = async () => {
+    if (interactionMode.value !== 'face') return uni.showToast({ title: '非见面模式无法偷拍', icon: 'none' });
+
+    // UI 反馈 (提示词不同)
+    messageList.value.push({ role: 'system', content: '👁️ (你悄悄按下了拍摄键...)', isSystem: true });
+    scrollToBottom();
+
+    // 动作同步等待
+    await waitForActionSync();
+
+    // 调用摄影师
+    await runCameraManCheck("System: Shutter Pressed", "");
+
+    // ⚡️ 核心差异：强制静音 + 强调未察觉
+    const soundContext = "(你趁她不注意，完全静音地抓拍了一张。她似乎完全没有察觉，依然沉浸在自己的事情中)";
+    
+    // 发送剧本
+    sendCameraReactionPrompt(soundContext);
+};
+
+// 🛠️ 提取出来的公共等待函数 (保持代码整洁)
+const waitForActionSync = async () => {
+    if (isSceneAnalyzing && isSceneAnalyzing.value) {
+        console.log('🚧 [Camera] 动作分析未完成，挂起...');
+        let timeout = 50; 
+        while (isSceneAnalyzing.value && timeout > 0) {
+            await new Promise(r => setTimeout(r, 200));
+            timeout--;
+        }
+    }
+};
+
+// 🛠️ 提取出来的公共发送函数
+const sendCameraReactionPrompt = (soundContext) => {
+    const cameraPrompt = CAMERA_REACTION_PROMPT
+        .replace('{{current_action}}', currentAction.value || "站立")
+        .replace('{{sound_context}}', soundContext)
+        .replace('{{current_relation}}', currentRelation.value || "普通关系");
     
     sendMessage(false, cameraPrompt);
 };
@@ -1073,7 +999,6 @@ const loadRoleData = (id) => {
         chatName.value = target.name;
         uni.setNavigationBarTitle({ title: target.name });
    
-        currentLust.value = target.lust || 0;
         currentTime.value = target.lastTimeTimestamp || Date.now();
         currentClothing.value = target.clothing || '便服';
         charHome.value = target.location || '角色家';
@@ -1100,6 +1025,11 @@ const loadRoleData = (id) => {
         summaryFrequency.value = target.summaryFrequency || 20;
         currentSummary.value = target.summary || "";
         charHistoryLimit.value = target.historyLimit || 20;
+        
+        // ✨ 加载进化状态
+        if (target.settings) {
+            evolutionLevel.value = target.settings.evolutionLevel || 1;
+        }
 
         // 加载世界观地点
         const allWorlds = uni.getStorageSync('app_world_settings') || [];
@@ -1119,6 +1049,14 @@ const loadRoleData = (id) => {
                 worldLocations.value = [{ name: '学校', icon: '🏫' }, { name: '公司', icon: '🏢' }];
             }
         }
+		// 👇👇👇【新增：加载衣柜数据】👇👇👇
+		        const savedWardrobe = uni.getStorageSync(`wardrobe_data_${id}`);
+		        if (savedWardrobe && Array.isArray(savedWardrobe)) {
+		            wardrobeList.value = savedWardrobe;
+		            console.log(`👗 已加载衣柜数据: ${savedWardrobe.length} 套`);
+		        } else {
+		            wardrobeList.value = [];
+		        }
     }
 };
 
@@ -1189,12 +1127,85 @@ onUnload(() => { stopTimeFlow(); saveCharacterState(); });
 onNavigationBarButtonTap((e) => {
     if (e.key === 'setting') uni.navigateTo({ url: `/pages/create/create?id=${chatId.value}` });
 });
+
+// --- 新增：Modal 统一管理 ---
+const activeModal = computed(() => {
+  if (showTimePanel.value) return 'timeSkip';
+  if (showTimeSettingPanel.value) return 'timeSetting';
+  if (showLocationPanel.value) return 'location';
+  if (showForceLocationPanel.value) return 'forceLocation';
+  if (showWardrobePanel.value) return 'wardrobe'; // ✨ 新增
+  return '';
+});
+
+const closeModal = () => {
+  showTimePanel.value = false;
+  showTimeSettingPanel.value = false;
+  showLocationPanel.value = false;
+  showForceLocationPanel.value = false;
+  showWardrobePanel.value = false; // ✨ 新增
+};
+
+// --- 衣柜逻辑 ---
+const handleWardrobeUpdate = (newList) => {
+    wardrobeList.value = newList;
+    // 持久化保存
+    if (chatId.value) {
+        uni.setStorageSync(`wardrobe_data_${chatId.value}`, newList);
+    }
+};
+
+const handleApplyOutfit = (outfit) => {
+    if (!outfit) return;
+    
+    // 1. 生成描述字符串
+    const items = outfit.items || {};
+    const parts = [];
+    if (items.head) parts.push(`头饰: ${items.head}`);
+    if (items.top) parts.push(`上装: ${items.top}`);
+    if (items.bottom) parts.push(`下装: ${items.bottom}`);
+    if (items.socks) parts.push(`袜子: ${items.socks}`);
+    if (items.shoes) parts.push(`鞋子: ${items.shoes}`);
+    if (items.accessory) parts.push(`配饰: ${items.accessory}`);
+    
+    const desc = `${outfit.name} (${parts.join(', ')})`;
+    
+    // 2. 更新当前状态
+    currentClothing.value = desc;
+    
+    // ✨ 保存英文 Tags (如果有)
+    if (outfit.tags) {
+        if (!currentRole.value.settings) currentRole.value.settings = {};
+        currentRole.value.settings.clothingTags = outfit.tags;
+    } else {
+        // 如果没有 Tags，清空旧的防止混淆
+        if (currentRole.value.settings) delete currentRole.value.settings.clothingTags;
+    }
+
+    saveCharacterState();
+    
+    // 3. 构造玩家建议 (而非强制系统指令)
+    // 这样既增加了代入感，又避免了系统指令可能触发的奇怪逻辑(如自动拍照)
+    // 注意：不包含"拍"等关键词，避免触发 runCameraManCheck
+    const suggestion = `(你从衣柜中找出${outfit.name}递给她) "试试这套衣服怎么样？"`;
+    inputText.value = suggestion;
+
+    // 4. 发送消息 (false代表不是continue，由sendMessage内部处理inputText)
+    sendMessage(false);
+    
+    // 5. 关闭面板
+    showWardrobePanel.value = false;
+    // uni.showToast({ title: `已建议换装`, icon: 'none' });
+};
+
 </script>
 
 <style lang="scss" scoped>
-/* ==========================================================================
-   1. 基础容器 & 全局变量应用
-   ========================================================================== */
+/* 
+   重构后：大部分样式已移至子组件
+   仅保留页面级布局和全局变量容器
+*/
+
 .chat-container { 
     display: flex; 
     flex-direction: column; 
@@ -1203,368 +1214,27 @@ onNavigationBarButtonTap((e) => {
     overflow: hidden; 
 }
 
-/* ==========================================================================
-   2. 顶部状态栏 - 磨砂玻璃效果
-   ========================================================================== */
-.status-bar-wrapper {
-    background-color: var(--card-bg); /* 卡片背景 */
-    border-bottom: 1px solid var(--border-color); /* 边框 */
-    backdrop-filter: blur(10px);
-    padding: 20rpx 24rpx; 
-    z-index: 10;
-    flex-shrink: 0;
-    box-shadow: var(--shadow); /* 阴影也变量化 */
-}
-
-.info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    height: 100rpx;
-    gap: 16rpx;
-}
-
-/* --- 左侧：角色位置卡片 --- */
-.location-box {
-    flex: 1.4;
-    display: flex;
-    align-items: center;
-    padding: 0 20rpx;
-    border-radius: 20rpx;
-    border: 1px solid transparent;
-    transition: all 0.3s;
-    
-    /* 手机模式：跟随胶囊颜色 */
-    &.mode-phone { 
-        background: var(--pill-bg); 
-        border-color: var(--border-color);
-        .icon-circle { background: var(--bg-color); color: var(--text-sub); }
-        .mode-tag { background: var(--bg-color); color: var(--text-sub); }
-    }
-    
-    /* 见面模式：保持淡淡的蓝色，夜间模式下透明度叠加不会刺眼 */
-    &.mode-face { 
-        background: linear-gradient(135deg, rgba(0,122,255,0.1) 0%, rgba(0,122,255,0.05) 100%);
-        border-color: rgba(0,122,255,0.3);
-        .icon-circle { background: var(--card-bg); color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
-        .mode-tag { background: var(--card-bg); color: #007aff; }
-    }
-}
-
-.icon-circle {
-    width: 64rpx; height: 64rpx;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 32rpx;
-    margin-right: 16rpx;
-    flex-shrink: 0;
-}
-
-.status-content {
-    flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
-}
-
-.loc-row {
-    display: flex; align-items: center; margin-bottom: 4rpx;
-}
-
-.mode-tag {
-    font-size: 18rpx; padding: 2rpx 8rpx; border-radius: 6rpx; 
-    margin-right: 8rpx; font-weight: bold; flex-shrink: 0;
-}
-
-.location-text { 
-    font-size: 26rpx; font-weight: bold; 
-    color: var(--text-color); /* 适配文字 */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.activity-text { 
-    font-size: 20rpx; 
-    color: var(--text-sub); /* 适配次要文字 */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* --- 右侧：状态组 --- */
-.right-status-group {
-    flex: 0.9;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 8rpx;
-}
-
-.status-pill {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 0 16rpx;
-    border-radius: 12rpx;
-    font-size: 22rpx;
-}
-
-/* 玩家位置 & 时间胶囊 - 统一适配夜间模式 */
-.time-pill, .player-pill {
-    background: var(--pill-bg); 
-    border: 1px solid var(--border-color); 
-    color: var(--text-color);
-    
-    .pill-icon { margin-right: 8rpx; font-size: 24rpx; }
-    .pill-text { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    
-    .time-clock { font-weight: bold; font-size: 26rpx; font-family: Helvetica, sans-serif; }
-    .time-week { color: var(--text-sub); font-size: 20rpx; }
-    
-    /* 覆盖 justify-content 以适配不同内容 */
-    &.time-pill { justify-content: space-between; }
-}
-
-/* ==========================================================================
-   3. 聊天内容区
-   ========================================================================== */
+/* 聊天滚动区 */
 .chat-scroll { flex: 1; overflow: hidden; }
 .chat-content { padding: 20rpx; padding-bottom: 240rpx; }
 
 .system-tip { 
     text-align: center; 
-    color: var(--text-sub); /* 适配 */
+    color: var(--text-sub); 
     font-size: 24rpx; margin-bottom: 30rpx; 
-}
-
-.message-item { 
-    display: flex; margin-bottom: 30rpx; 
-    &.left { flex-direction: row; .avatar { margin-right: 20rpx; } } 
-    &.right { flex-direction: row-reverse; .avatar { margin-left: 20rpx; } } 
-}
-
-.avatar { 
-    width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; 
-    background-color: var(--border-color); /* 占位色适配 */
-}
-
-.bubble-wrapper { max-width: 72%; }
-
-/* 聊天气泡 */
-.bubble { 
-    padding: 18rpx 24rpx; border-radius: 16rpx; font-size: 30rpx; line-height: 1.5; 
-    
-    /* 左侧气泡 (AI) - 随主题变黑白 */
-    &.left-bubble { 
-        background-color: var(--card-bg); 
-        color: var(--text-color); 
-        border-top-left-radius: 4rpx; 
-        border: 1px solid var(--border-color); /* 微弱边框增加夜间层次 */
-    } 
-    
-    /* 右侧气泡 (玩家) - 保持绿色，夜间依然清晰 */
-    &.right-bubble { 
-        background-color: #95ec69; 
-        color: #000; 
-        border-top-right-radius: 4rpx; 
-    } 
-    
-    &.image-bubble { padding: 0; background: transparent; box-shadow: none; border: none; } 
-}
-
-.chat-image { width: 400rpx; border-radius: 16rpx; }
-
-/* 系统事件 (时间流逝等) */
-.system-event { 
-    width: 100%; text-align: center; margin: 20rpx 0; 
-    text { 
-        background: var(--pill-bg); /* 适配 */
-        color: var(--text-sub); 
-        font-size: 22rpx; padding: 4rpx 20rpx; border-radius: 20rpx; 
-    } 
-}
-
-.error-system-msg text { 
-    background: #ffebee; color: #ff4757; border: 1px solid #ffcdd2; /* 报错保持醒目红 */
 }
 
 .loading-wrapper { display: flex; justify-content: center; margin-bottom: 20rpx; }
 .loading-dots { color: var(--text-sub); font-weight: bold; }
 
-/* 🧠 心理活动气泡 */
-.think-bubble { margin: 10rpx 0; opacity: 0.9; }
-.think-bubble text {
-    background: transparent !important;
-    color: var(--text-sub) !important;
-    font-size: 24rpx; font-style: italic; font-family: serif;
-    padding: 8rpx 24rpx;
-    border: 2rpx dashed var(--border-color); /* 虚线适配 */
-    border-radius: 20rpx;
-    display: inline-block;
-}
-
-/* 图片失败占位符 */
-.image-error-box {
-    width: 400rpx; height: 300rpx;
-    background-color: var(--tool-bg); /* 适配 */
-    border: 2rpx dashed #ff4d4f;
-    border-radius: 16rpx;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16rpx;
-    
-    .error-icon { font-size: 48rpx; }
-    .error-text { font-size: 26rpx; color: #ff4d4f; }
-    
-    .retry-btn {
-        display: flex; align-items: center;
-        background-color: var(--card-bg); /* 适配 */
-        border: 1px solid var(--border-color);
-        padding: 8rpx 24rpx; border-radius: 30rpx;
-        font-size: 24rpx; color: var(--text-color);
-        box-shadow: var(--shadow);
-        
-        .retry-icon { font-size: 24rpx; margin-right: 8rpx; font-weight: bold; }
-        &:active { background-color: var(--bg-color); transform: scale(0.98); }
-    }
-}
-
-/* ==========================================================================
-   4. 底部工具栏 & 输入区
-   ========================================================================== */
-.footer { 
-    position: fixed; bottom: 0; left: 0; right: 0; 
-    background: var(--card-bg); /* 适配 */
-    border-top: 1px solid var(--border-color); 
-    z-index: 99; padding-bottom: env(safe-area-inset-bottom); 
-}
-
-/* 多选编辑条 */
-.edit-toolbar {
-    display: flex; justify-content: space-between; align-items: center;
-    height: 100rpx; padding: 0 40rpx;
-    background: var(--card-bg);
-    border-top: 1px solid var(--border-color);
-    .delete-confirm-btn { color: #ff4d4f; font-weight: bold; }
-    .cancel-btn { color: var(--text-color); }
-    .count-tip { font-size: 24rpx; color: var(--text-sub); }
-}
-
-.input-area { 
-    display: flex; align-items: center; padding: 16rpx 20rpx; 
-    background: var(--tool-bg); /* 适配 */
-}
-
-.action-btn { 
-    width: 70rpx; height: 70rpx; display: flex; align-items: center; justify-content: center; 
-    margin-right: 16rpx; font-size: 44rpx; 
-    color: var(--text-sub); 
-}
-
-.input { 
-    flex: 1; height: 76rpx; 
-    background: var(--input-bg); /* 适配 */
-    color: var(--text-color);
-    border-radius: 38rpx; padding: 0 30rpx; font-size: 30rpx; margin-right: 16rpx; 
-    border: 1px solid var(--border-color);
-}
-
-.send-btn { 
-    width: 120rpx; height: 76rpx; background: #007aff; color: #fff; 
-    line-height: 76rpx; border-radius: 38rpx; text-align: center; 
-    font-size: 28rpx; font-weight: bold; 
-}
-
-.toolbar-compact { 
-    background: var(--tool-bg); 
-    border-bottom: 1px solid var(--border-color); 
-    padding: 16rpx 10rpx; 
-}
-
-.tool-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10rpx; }
-.tool-item { 
-    display: flex; flex-direction: column; align-items: center; justify-content: center; 
-    padding: 10rpx 0; border-radius: 12rpx; 
-}
-.tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
-.tool-text { font-size: 20rpx; color: var(--text-sub); }
-
-/* ==========================================================================
-   5. 弹窗面板
-   ========================================================================== */
-.time-panel-mask { 
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-    background: rgba(0,0,0,0.5); z-index: 999; 
-    display: flex; justify-content: center; align-items: center; 
-}
-
-.time-panel { 
-    width: 600rpx; 
-    background: var(--card-bg); /* 适配 */
-    border-radius: 24rpx; padding: 40rpx 30rpx; 
-    animation: popCenter 0.25s; 
-}
-
-@keyframes popCenter { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-.panel-title { 
-    font-size: 34rpx; font-weight: bold; text-align: center; margin-bottom: 40rpx; 
-    color: var(--text-color); 
-}
-
-.grid-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; max-height: 60vh; overflow-y: auto; }
-
-.grid-btn { 
-    background: var(--bg-color); /* 适配 */
-    color: #007aff; text-align: center; padding: 24rpx 0; border-radius: 12rpx; font-size: 28rpx; 
-}
-
-.custom-time { display: flex; align-items: center; justify-content: center; margin-top: 30rpx; gap: 10rpx; }
-
-.mini-input { 
-    width: 100rpx; 
-    border-bottom: 1px solid var(--border-color); 
-    text-align: center; color: var(--text-color);
-}
-
-.mini-btn { 
-    background: var(--tool-bg); /* 适配 */
-    padding: 10rpx 20rpx; border-radius: 8rpx; font-size: 24rpx; color: var(--text-color);
-}
-
-.setting-row { display: flex; align-items: center; margin-bottom: 30rpx; justify-content: center; }
-
-.picker-display { 
-    border: 1px solid var(--border-color); 
-    padding: 10rpx 30rpx; border-radius: 10rpx; min-width: 240rpx; text-align: center; 
-    background: var(--input-bg); 
-    color: var(--text-color);
-}
-
-.confirm-time-btn { background: #007aff; color: #fff; width: 100%; border-radius: 40rpx; margin-top: 20rpx; }
-
-.ratio-input-box {
-    display: flex; align-items: center; 
-    background: var(--tool-bg); 
-    padding: 8rpx 20rpx; border-radius: 10rpx;
-    
-    .txt { font-size: 24rpx; color: var(--text-sub); }
-    .mini-input { 
-        width: 80rpx; text-align: center; font-weight: bold; color: #007aff; 
-        border-bottom: 2rpx solid #007aff; margin: 0 10rpx; 
-    }
-}
-
-/* 编辑模式选中状态 */
-.not-selected { opacity: 0.3; filter: grayscale(80%); }
-
-.is-selected .bubble {
-    background-color: #007aff !important; 
-    color: #fff !important;
-    transform: scale(1.05); 
-    border: 2rpx solid #0056b3 !important;
-}
-
-.select-check-icon {
-    display: flex; align-items: center; padding: 0 10rpx;
-    .circle {
-        width: 36rpx; height: 36rpx; 
-        border: 2rpx solid var(--text-sub); 
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center; font-size: 24rpx;
-        &.checked { background: #007aff; border-color: #007aff; color: #fff; }
-    }
+/* 归档中提示条 */
+.archiving-bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  z-index: 9999;
+  text-align: center;
+  padding: 10rpx;
+  font-size: 24rpx;
 }
 </style>
