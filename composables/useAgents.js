@@ -332,7 +332,7 @@ export function useAgents(context) {
 
 
         
-    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null) => {
+    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null, sceneCheckPromise = null) => {
             // 🛡️ 1. 强力防抖：如果列表里已经有正在生成的占位符，直接拒绝，防止双重触发
             // 这一步解决了“生成两张图”的问题
             const isGenerating = messageList.value.some(m => 
@@ -395,44 +395,37 @@ export function useAgents(context) {
                 console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
                 if (!result) return;
             }
+
+            // =========================================================
+            // 🔥 并行流水线同步点 (Synchronization Point)
+            // =========================================================
+            if (sceneCheckPromise) {
+                try {
+                    console.log('⏳ [流水线] 门卫已放行，等待场景数据同步...');
+                    await sceneCheckPromise;
+                    console.log('✅ [流水线] 场景数据同步完成，开始生图。');
+                } catch (e) {
+                    console.warn('⚠️ 场景同步失败，将使用旧数据继续:', e);
+                }
+            }
     
             // =========================================================
-            // 🔥 B. 视觉解耦层 (The Visual Decoupler)
+            // 🗑️ B. 视觉解耦层 (已移除) - Merged into Director
             // =========================================================
-            console.log('🧠 [视觉导演] 启动内容解耦分析...');
+            // 优化：移除解耦层，节省一次 LLM 调用 (~2.5s)。
+            // 动作细化和硬件屏蔽将直接在 Prompt 拼接阶段处理。
             
             let finalVisualAction = currentAction.value || "Standing";
-            let finalComposition = compositionType; // 👈 坚定地继承门卫的判断
+            let finalComposition = compositionType; 
             let hardwareBan = false; 
-    
-            try {
-                const decouplerPrompt = VISUAL_CONTENT_ANALYZER
-                    .replace('{{user_msg}}', promptUserMsg)
-                    .replace('{{ai_msg}}', promptAiMsg)
-                    .replace('{{real_time_action}}', currentAction.value || "Holding phone, replying message");
-    
-                const analysisResult = await safeJsonChat({
-                    config,
-                    messages: [{ role: 'user', content: decouplerPrompt }],
-                    temperature: 0.1, 
-                    maxTokens: 300
-                });
-    
-                if (analysisResult) {
-                    console.log('✨ [解耦结果]:', analysisResult);
-                    
-                    // 4. 覆盖原始数据
-                    if (analysisResult.visual_action && analysisResult.visual_action.length > 2) {
-                        finalVisualAction = analysisResult.visual_action;
-                    }
-                    
-                    // ❌ [删除] 绝对不要让解耦器覆盖构图！
-                    // if (analysisResult.composition) { finalComposition = analysisResult.composition; } 
-                    
-                    hardwareBan = analysisResult.hardware_ban === true || String(analysisResult.hardware_ban) === 'true';
-                }
-            } catch (e) {
-                console.warn('⚠️ 解耦分析失败，将回退到原始动作逻辑', e);
+
+            // 简单的规则判定：如果是在当面互动模式，大概率不应该拿着手机
+            // 除非动作明确说了 "showing photo on phone" 等。
+            // 这里为了安全，如果是 FACE 模式，默认开启 hardwareBan (除非以后有更智能的判断)
+            if (interactionMode.value === 'face') {
+                // 只有当动作里没有 explicitly 提到 phone 时才 ban?
+                // 暂时简单处理：Face模式下默认不喜欢出现电子设备
+                hardwareBan = true;
             }
     
             // ============================

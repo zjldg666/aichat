@@ -318,8 +318,7 @@ export const SNAPSHOT_TRIGGER_PHONE = `
 [System Command: VISUAL_GATEKEEPER_PHONE]
 任务：你是一个严谨的“手机相册门卫”。请判断当前对话是否涉及图片传输。
 
-【当前权限】
-- 允许角色主动发图: {{allow_self_image}} (TRUE/FALSE)
+
 
 【对话内容】
 玩家: "{{user_msg}}"
@@ -329,13 +328,10 @@ export const SNAPSHOT_TRIGGER_PHONE = `
 ✅ **[TRUE] 放行条件**:
 1. **玩家索取**: 明确要求看照片、自拍、私房照 (e.g., "发张图", "看看你", "自拍呢").
 2. **玩家追问**: 在发图语境下要求更多 (e.g., "再来一张", "还要").
-3. **角色主动**: 
-   - **前提**: {{allow_self_image}} 必须为 TRUE.
-   - **行为**: 角色明确表示“我发给你了”、“看这张照片”、“刚拍的给你的”.
+
 
 🛑 **[FALSE] 拦截条件**:
 1. 玩家只是闲聊或夸奖文字 ("你好美")，未提及图片。
-2. 角色想发图但 {{allow_self_image}} 为 FALSE.
 3. 视频通话请求 (Video call) -> 拦截 (这不是发图).
 
 【输出格式】
@@ -413,10 +409,12 @@ export const VISUAL_CONTENT_ANALYZER = `
 
 // AiChat/utils/prompts.js
 
+// AiChat/utils/prompts.js
+
 export const IMAGE_GENERATOR_PROMPT = `
-[System Command: VISUAL_DIRECTOR_V2]
+[System Command: VISUAL_DIRECTOR_V3]
 任务：你是 Stable Diffusion (ComfyUI) 的**摄影构图导演**。
-**目标**：将对话转化为画面 Prompt。**核心原则：除非用户明确要求，否则严禁对着镜子拍摄！**
+**目标**：将对话转化为画面 Prompt。**核心原则：绝对禁止使用 "selfie" 或 "phone" 单词！**
 
 【输入数据】
 - 构图模式: {{composition}} (SOLO/DUO)
@@ -425,7 +423,7 @@ export const IMAGE_GENERATOR_PROMPT = `
 - 服装: {{clothes}}
 - 地点: {{location}}
 - 时间: {{time}}
-- 动作基准: {{current_action}}
+- 动作基准: {{current_action}} (已由解耦器清洗)
 - 角色代词: {{char_tag}} ({{pronoun}})
 - 用户代词: {{user_tag}}
 
@@ -433,67 +431,54 @@ export const IMAGE_GENERATOR_PROMPT = `
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
-### 📸 镜头语言守则 (Camera Rules) - ⚠️ 必须严格执行
-1. **默认视角 = 镜头视角 (Lens View)**:
-   - 想象相机是浮在空中的眼睛。角色应该看着这个“隐形的相机”。
-   - **严禁**描述相机本身（No visible camera hardware）。
-   - **严禁**描述镜子 (No mirror)，除非输入数据里明确有 "mirror"。
-
-2. **自拍/合影的处理 (Selfie Logic)**:
-   - **正确做法 (Front Camera)**: 描述角色 "looking at viewer" (看镜头)。如果是手持自拍，加上 "arm extended" (手臂伸出) 或 "selfie angle" (自拍角度)，但**不要画出手机**！
-   - **错误做法 (Mirror Selfie)**: 严禁输出 "holding phone", "facing mirror", "reflection"，这会让画面变成对着镜子拍。
+### 📸 避坑指南 (Anti-Artifact Rules)
+1. **违禁词库 (Banned Words)**:
+   - **绝对不要输出**: "selfie", "phone", "camera", "holding device".
+   - **自拍视角的正确写法**: 使用 **"looking at viewer, from front, close-up"**。不要写 "selfie angle"！
+2. **手部占位**: 
+   - 确保 Line 2 的角色动作里包含具体的**手势 Tag** (如 v sign, hand on cheek, waving)，不要让手闲着。
 
 ### 🎨 生成指令 (Instructions)
 请输出 4 段式 Prompt Block。
 
 **输出结构**:
-Line 1: (人数 + 场景描述 + **构图视角词**)
+Line 1: (人数 + 场景描述 + **from front, looking at viewer**)
 BREAK
 Line 2: (角色外观 + 服装 + 动作 + 表情)
 BREAK
-Line 3: (玩家/第二人外观 + 动作) [DUO模式必填，SOLO模式填POV词]
+Line 3: (玩家/第二人外观 + 动作) [DUO模式必填]
 BREAK
-Line 4: (互动 + 光影 + **禁止手机入镜的负面暗示**)
+Line 4: (互动 + 光影 + **no mirror, no reflection**)
 
 ### 详细要求:
 
 1. **Line 1 (Scene)**:
    - 必须包含: '1girl/couple' + 场景。
-   - **强制视角词**: 必须根据情况加入 'looking at viewer', 'from front', 'selfie angle' (如果是自拍)。
+   - **强制视角**: 必须使用 **'from front', 'looking at viewer'**。**严禁使用 'selfie'！**
 
 2. **Line 2 (Character)**:
    - 必须包含: {{char_appearance}}, {{clothes}}。
-   - **动作清洗**: 如果 {{current_action}} 包含 "holding phone/smartphone"，请**自动删除**该动作！改为 "posing", "v sign", "hand on cheek" 等适合拍照的动作。
+   - **动作**: 直接填入 {{current_action}}。
 
 3. **Line 3 (User/Second Character)**:
    - **DUO模式**:
       - 必须包含 {{user_appearance}}。
-      - **玩家动作**: 绝对不要写 "holding phone"。请写 "next to girl", "hugging", "arm around shoulder"。
-   - **SOLO模式**: 写 "POV", "blurry foreground", "looking at viewer"。
+      - 玩家动作: "arm around shoulder", "standing next to girl", "smiling". 
+      - **绝对不要写** "holding phone" 或 "taking photo"！
 
 4. **Line 4 (Interaction)**:
-   - 必须包含: 'eye contact' (看镜头/看眼色)。
-   - **负面暗示**: 请在此行末尾强制加入: **, no mirror, no reflection, no holding phone** (作为正向提示词里的强调，虽然有点怪，但在SD里能起作用，或者依赖你的负面Prompt配置)。
+   - 必须包含: 'eye contact', 'intimate atmosphere'。
+   - **负面暗示**: 只写 **, no mirror, no reflection**。**不要写 no phone** (会起反作用)！
 
-### 示例 (DUO - 正常合影)
+### 示例 (DUO - 合影)
 Output:
-couple, 1boy, 1girl, indoors, bedroom, selfie angle, from front,
+couple, 1boy, 1girl, indoors, bedroom, from front, looking at viewer,
 BREAK
 1girl, white hair, blue eyes, pajamas, standing close, making peace sign, smiling at viewer,
 BREAK
 1boy, short black hair, casual shirt, standing next to girl, arm around her shoulder, smiling,
 BREAK
-eye contact, happy atmosphere, soft lighting, no mirror, no camera visible
-
-### 示例 (SOLO - POV抓拍)
-Output:
-1girl, solo, outdoors, park, cowboy shot,
-BREAK
-1girl, white hair, blue eyes, summer dress, turning around, hair flowing, smiling,
-BREAK
-POV, viewer watching, blurry background,
-BREAK
-eye contact, candid moment, sunlight, lens flare, no mirror
+eye contact, happy atmosphere, soft lighting, no mirror, no reflection
 
 【最终执行】
 请直接输出包含 BREAK 的 Tag 字符串：

@@ -713,15 +713,16 @@ const processAIResponse = async (rawText) => {
 
     
         
-                setTimeout(async () => {
-                    console.log('🚦 [后台导演] 串行同步策略启动...');
+                setTimeout(() => {
+                    console.log('🚦 [后台导演] 并行流水线启动...');
         
                     // 轨道 A: 关系与记忆
                     runRelationCheck(lastUserMsg, rawText); 
                     checkAndRunSummary(); 
         
-                    // 轨道 B: 场景与生图
-                    await runSceneCheck(lastUserMsg, rawText);
+                    // 轨道 B: 场景与生图 (并行化)
+                    // 1. 启动场景分析 (并不再阻塞)
+                    const sceneCheckPromise = runSceneCheck(lastUserMsg, rawText);
 
                     if (lastUserMsg.includes('快门已按下') || lastUserMsg.includes('User took a photo')) {
                         console.log('🛑 [导演] 检测到手动快门的回响，跳过自动生图。');
@@ -733,9 +734,15 @@ const processAIResponse = async (rawText) => {
                     let isCameraAction = lastUserMsg.includes('SNAPSHOT') || lastUserMsg.includes('SHUTTER') || lastUserMsg.includes('快门');
                     
                     if (isCameraAction) {
-                        runCameraManCheck(lastUserMsg, rawText);
+                        // 手动拍照：为了保证地点/服装准确，我们最好还是等待场景分析完成
+                        // 但我们可以选择让用户感觉更快，或者保证准确性。
+                        // 这里选择等待，因为手动拍照没有 Gatekeeper 耗时可以抵消。
+                        sceneCheckPromise.then(() => {
+                             runCameraManCheck(lastUserMsg, rawText);
+                        });
                     } else {
-                        runVisualDirectorCheck(lastUserMsg, rawText);
+                        // 自动生图：将场景分析的 Promise 传递进去，实现并行 Gatekeeper
+                        runVisualDirectorCheck(lastUserMsg, rawText, null, sceneCheckPromise);
                     }
                     
                 }, 500);
