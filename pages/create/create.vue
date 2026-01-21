@@ -815,8 +815,7 @@ const formData = ref({
   userFeatures: { hair: '', body: '', privates: '' },
 
   maxReplies: 1, 
-  initialAffection: 10,
-  initialLust: 0, 
+
   
   allowProactive: false,
   proactiveInterval: 4,
@@ -1198,8 +1197,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
         }
 
         formData.value.maxReplies = target.maxReplies || 1;
-        formData.value.initialAffection = target.initialAffection !== undefined ? target.initialAffection : 10;
-        formData.value.initialLust = target.initialLust !== undefined ? target.initialLust : 0;
+
         
         formData.value.allowProactive = target.allowProactive || false;
         formData.value.proactiveInterval = target.proactiveInterval || 4;
@@ -1251,8 +1249,6 @@ const saveCharacter = () => {
     name: formData.value.name,
     avatar: formData.value.avatar || '/static/ai-avatar.png',
     maxReplies: formData.value.maxReplies,
-    initialAffection: formData.value.initialAffection,
-    initialLust: formData.value.initialLust, 
     allowProactive: formData.value.allowProactive,
     proactiveInterval: formData.value.proactiveInterval,
     proactiveNotify: formData.value.proactiveNotify,
@@ -1311,8 +1307,6 @@ const saveCharacter = () => {
   } else {
     const newChar = { 
         id: Date.now(), ...charData, 
-        affection: formData.value.initialAffection, 
-        lust: formData.value.initialLust, 
         lastTimeTimestamp: getInitialGameTime(), 
         unread: 0,
         relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
@@ -1378,8 +1372,6 @@ const clearHistoryAndReset = () => {
                         interactionMode: 'phone', 
                         clothing: clothingStr,
                         lastActivity: '自由活动', 
-                        affection: formData.value.initialAffection || 10,
-                        lust: formData.value.initialLust || 0,
                         relation: formData.value.userRelation || '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。', 
                     };
 

@@ -135,8 +135,7 @@ const userAvatar = ref('/static/user-avatar.png');
 const userHome = ref('未知地址');
 const userAppearance = ref('');
 const charHome = ref('未知地址');
-const currentAffection = ref(0);
-const currentLust = ref(0);
+
 const currentLocation = ref('角色家');
 const interactionMode = ref('phone');
 const currentClothing = ref('默认服装');
@@ -327,9 +326,8 @@ const getCurrentLlmConfig = () => {
     return (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
 };
 
-const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
-    if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
-    if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
+const saveCharacterState = (newTime, newSummary, newLocation, newClothes, newMode)=> {
+
     if (newTime !== undefined) currentTime.value = newTime; 
     if (newSummary !== undefined) currentSummary.value = newSummary;
     if (newLocation !== undefined) currentLocation.value = newLocation;
@@ -358,14 +356,6 @@ const saveCharacterState = (newScore, newTime, newSummary, newLocation, newCloth
     }
 };
 
-const relationshipStatus = computed(() => {
-    const score = currentAffection.value;
-    if (score < 20) return '礼貌疏离';
-    if (score < 40) return '普通熟人';
-    if (score < 60) return '暧昧萌芽';
-    if (score < 80) return '恋人未满';
-    return '热恋情侣';
-});
 
 const previewImage = (url) => { uni.previewImage({ urls: [url] }); };
 const onDateChange = (e) => { tempDateStr.value = e.detail.value; }; 
@@ -472,7 +462,7 @@ const {
     checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration,isSceneAnalyzing
 } = useAgents({chatId,
     messageList, currentRole, chatName, currentLocation, currentClothing, currentAction,
-    interactionMode, currentRelation, currentAffection, // ✨ 确保这里传了好感度 Ref
+    interactionMode, currentRelation, 
     currentActivity, formattedTime, playerLocation,
     enableSummary, summaryFrequency, currentSummary,
     saveCharacterState, saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration,userAppearance 
@@ -990,7 +980,6 @@ const loadRoleData = (id) => {
         chatName.value = target.name;
         uni.setNavigationBarTitle({ title: target.name });
    
-        currentLust.value = target.lust || 0;
         currentTime.value = target.lastTimeTimestamp || Date.now();
         currentClothing.value = target.clothing || '便服';
         charHome.value = target.location || '角色家';

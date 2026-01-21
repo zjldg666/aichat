@@ -128,7 +128,7 @@ export function useAgents(context) {
     const {
         messageList, currentRole, chatName, chatId, // 👈 1. 这里加了 chatId
         currentLocation, currentClothing, currentAction,
-        interactionMode, currentRelation, currentAffection, 
+        interactionMode, currentRelation, 
         currentActivity, playerLocation, formattedTime,
         enableSummary, summaryFrequency, currentSummary,
         saveCharacterState, saveHistory, scrollToBottom,
@@ -773,9 +773,7 @@ export function useAgents(context) {
 
     // =========================================================================
     // 6. 每日结算 (🌟保持 JSON 模式🌟)
-    // =========================================================================
-    // 解释：每日结算需要生成结构化数据存库 (brief, mood 等)，用 JSON 是最合适的。
-    // 而且它是后台任务，不需要实时性，我们保留了 safeJsonChat 重试机制。
+
     const runDayEndSummary = async () => {
         isArchiving.value = true;
         console.log(`🌙 [Daily Summary] 开始归档...`);
@@ -816,12 +814,12 @@ export function useAgents(context) {
         if (result) {
             saveCharacterState(undefined, undefined, result.new_memory);
             const roleId = currentRole.value.id || 'default';
-            const mood = (currentAffection.value > 60) ? '开心' : '平静';
-            
-            await DB.execute(
-                `INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
-                [Date.now(), String(roleId), fullDateStr, result.brief, rawLog, mood]
-            );
+			const mood = '记录中'; // 或者直接删掉这个变量，如果在 DB.execute 里需要，就传空字符串
+						
+			await DB.execute(
+				`INSERT INTO diaries (id, roleId, dateStr, brief, detail, mood) VALUES (?, ?, ?, ?, ?, ?)`,
+				[Date.now(), String(roleId), fullDateStr, result.brief, rawLog, mood] // 这里的 mood 现在是字符串 '记录中'
+			);
             console.log('✅ [DB] 归档完成:', result.brief);
             const initialSummary = `**今日生活账本 (${fullDateStr})**:\n- [00:00]: 新的一天开始。`; 
             saveCharacterState(undefined, undefined, initialSummary);
