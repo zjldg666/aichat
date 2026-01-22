@@ -1,6 +1,6 @@
 // AiChat/core/prompt-builder.js
 
-import { CORE_INSTRUCTION_CHAT_MODE } from '@/utils/prompts.js';
+import { CORE_INSTRUCTION_LOGIC_MODE } from '@/utils/prompts.js';
 
 export function buildSystemPrompt({
     role,
@@ -41,7 +41,8 @@ export function buildSystemPrompt({
     const charName = role.name || 'AI';
     // ✨ 注入角色年龄到 Bio 前面
     const ageInfo = (s.age) ? `[Age: ${s.age}] ` : "";
-    const charBio = ageInfo + (s.bio || "No bio provided.");
+    const personalityInfo = (s.personality) ? `[Personality: ${s.personality}] ` : ""; // ✨ 新增
+    const charBio = ageInfo + personalityInfo + (s.bio || "No bio provided.");
     const charLogic = s.personalityNormal || "React naturally based on your bio.";
     
     // 日记目录注入逻辑
@@ -61,19 +62,18 @@ export function buildSystemPrompt({
     const defaultRelationText = '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。';
     const isRelationValid = relation && relation !== defaultRelationText && relation.length > 2;
     const finalRelation = isRelationValid ? relation : (s.userRelation || '初相识，还没有具体印象');
-    const relationAnchor = `\n\n【当前关系 (Relationship)】\n${finalRelation}`;
+    const relationAnchor = `\n\n【RELATIONSHIP STATUS (HARD FACT)】\nCURRENT STATUS: ${finalRelation}`;
     
-    // ✨ 简化逻辑拼接：移除冗余的 "Current Psychology"
-    const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${relationAnchor}`;
+    const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${relationAnchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${finalRelation}`;
 
     // 5. 模板替换 
-    let prompt = CORE_INSTRUCTION_CHAT_MODE
+    let prompt = CORE_INSTRUCTION_LOGIC_MODE
         // 🔥 [修复 2]: 使用正则全局替换 /g，确保所有位置的 {{work_start}} 都被替换
         .replace(/{{work_start}}/g, workStart) 
         .replace(/{{work_end}}/g, workEnd)   
         .replace(/{{char}}/g, charName)
         .replace(/{{bio}}/g, charBio)
-        // .replace(/{{evolution_level}}/g, s.evolutionLevel || 1) // ✨ 已移除进化等级
+        .replace(/{{evolution_level}}/g, s.evolutionLevel || 1)
         .replace(/{{logic}}/g, dynamicLogic)
         .replace(/{{likes}}/g, s.likes || "Unknown")
         .replace(/{{dislikes}}/g, s.dislikes || "Unknown")

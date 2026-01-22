@@ -548,7 +548,12 @@
         <view v-show="activeSections.core" class="section-content">
            <view class="textarea-item">
              <text class="label">📜 背景故事 / 身份设定 (Bio)</text>
-             <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。她性格..." maxlength="-1" />
+             <textarea class="textarea" v-model="formData.bio" placeholder="例：她是刚搬来的人妻邻居，丈夫常年出差。..." maxlength="-1" />
+           </view>
+
+           <view class="textarea-item">
+             <text class="label">✨ 人物性格 (Personality)</text>
+             <textarea class="textarea" style="height:120rpx;" v-model="formData.personality" placeholder="例：傲娇、腹黑、温柔、病娇..." maxlength="-1" />
            </view>
 
            <view class="textarea-item">
@@ -567,16 +572,16 @@
 
            <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
               <view style="text-align: center;">
-                  <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 性格素描生成</view>
-                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">让 AI 读懂背景故事，自动生成她的性格和说话习惯。</view>
-                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成性格素描</button>
+                  <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 行为逻辑生成</view>
+                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。</view>
+                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
               </view>
            </view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
-             <text class="label">🧠 性格与行为素描 (Character Sketch)</text>
-             <view class="help-text">这里是一段自然语言描述，AI 会参考它来决定怎么和你说话。</view>
-             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="例如：她性格开朗，说话喜欢带“呢”，把你当成最好的朋友..." maxlength="-1" />
+             <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
+             <view class="help-text">这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。</view>
+             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="AI将严格遵循此逻辑行动..." maxlength="-1" />
            </view>
         </view>
       </view>
@@ -794,7 +799,7 @@ const userWorldIndex = ref(-1);
 const diaryList = ref([]);
 const formData = ref({
   // --- 基础信息 ---
-  name: '', gender: '女', age: '', avatar: '', bio: '', // ✨ 新增 age
+  name: '', gender: '女', age: '', avatar: '', bio: '', personality: '', // ✨ 新增 personality
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
@@ -1195,6 +1200,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.faceStyle = target.settings.faceStyle || 'cute';
             
             formData.value.bio = target.settings.bio || '';
+            formData.value.personality = target.settings.personality || ''; // ✨ 新增
             formData.value.speakingStyle = target.settings.speakingStyle || ''; 
             formData.value.likes = target.settings.likes || '';                  
             formData.value.dislikes = target.settings.dislikes || '';            
@@ -1305,6 +1311,7 @@ const saveCharacter = () => {
         workEndHour: formData.value.workEndHour,
         workDays: formData.value.workDays,
         bio: formData.value.bio,
+        personality: formData.value.personality, // ✨ 新增
         speakingStyle: formData.value.speakingStyle, 
         likes: formData.value.likes,                  
         dislikes: formData.value.dislikes,            
