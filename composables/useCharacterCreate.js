@@ -169,100 +169,73 @@ export function useCharacterCreate(formData, targetId) {
         }
     };
 
-    // 3. 自动生成行为逻辑 (升级版：静态高精度人设)
-    // 3. 自动生成行为逻辑 (大师级：心理侧写冰山模型)
-        const autoGenerateBehavior = async () => {
-            if (!formData.value.bio || formData.value.bio.length < 5) return uni.showToast({ title: '请先填写"背景故事"', icon: 'none' });
+    // 3. 自动生成行为逻辑 (自然聊天版：去数值化，回归人性)
+    const autoGenerateBehavior = async () => {
+        if (!formData.value.bio || formData.value.bio.length < 5) return uni.showToast({ title: '请先填写"背景故事"', icon: 'none' });
+        
+        uni.showLoading({ title: 'AI正在构思人设...', mask: true });
+        
+        // 构造输入信息
+        const roleInfo = `【角色档案】
+姓名: ${formData.value.name || '未命名'}
+背景故事: ${formData.value.bio}
+喜好: ${formData.value.likes || '未设定'}
+厌恶: ${formData.value.dislikes || '未设定'}
+
+【玩家信息】
+昵称: ${formData.value.userNameOverride || '玩家'}
+关系: ${formData.value.userRelation || '未设定'}`;
+
+        // ✨✨✨ 核心修改：生成自然语言素描，而非 JSON ✨✨✨
+        const prompt = `[System: Character Psychologist]
+目标：请根据以上档案，用**第三人称**写一段简短、生动的【性格与行为素描】。
+
+要求：
+1. **像向朋友介绍这个人一样自然**。不要写成复杂的设定集。
+2. **重点描述**：
+   - 她平时怎么说话？(语速快慢、口头禅、语气特点)
+   - 她对玩家(${formData.value.userNameOverride || '玩家'})的真实态度是怎样的？(是依赖、傲娇、还是像哥们一样？)
+   - 遇到突发情况，她通常的第一反应是什么？
+3. **格式要求**：
+   - 纯文本段落，不要列条目(1. 2. 3.)。
+   - 100-150 字左右。
+   - 语气要有“人情味”，不要像冷冰冰的说明书。
+
+${roleInfo}`;
+
+        try {
+            const config = getCurrentLlmConfig();
+            if (!config || !config.apiKey) throw new Error('请配置 API');
             
-            uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
+            const result = await LLM.chat({
+                config, 
+                messages: [{ role: 'user', content: prompt }], 
+                systemPrompt: "You are an expert Character Psychologist. Output a natural paragraph description.", 
+                temperature: 0.7, // 稍微降低温度，保证描述准确但自然
+            });
             
-            // 构造更丰富的输入信息
-            const roleInfo = `【角色本体】
-    姓名: ${formData.value.name || '未命名'}
-    性别: ${formData.value.gender || '未知'}
-    职业: ${formData.value.occupation || '未设定'}
-    背景故事: ${formData.value.bio}
-    说话风格: ${formData.value.speakingStyle || '未设定'}
-    喜好: ${formData.value.likes || '未设定'}
-    厌恶: ${formData.value.dislikes || '未设定'}
-    
-    【玩家设定 (对手戏对象)】
-    玩家昵称: ${formData.value.userNameOverride || '玩家'}
-    玩家性别: ${formData.value.userGender || '未知'}
-    当前关系: ${formData.value.userRelation || '未设定 (请根据背景故事自行推断)'}`;
-    
-            // ✨✨✨ 核心修改：升级为“人格操作系统” Prompt ✨✨✨
-            const prompt = `[System: Deep Psyche Architect]
-    目标：构建一个有血有肉、逻辑自洽的灵魂，而非死板的行为脚本。
-    
-    【角色档案】
-    ${roleInfo}
-    
-    【任务要求】
-    请透过表象，挖掘该角色的"思维算法"，输出 JSON 格式：
-    
-    1. **core_drive** (核心驱力): 
-       - 她活着是为了什么？(如: 填补内心的空洞 / 证明自己的价值 / 追求极致的愉悦)。
-       - 限 20 字。
-    
-    2. **deep_fear** (深层恐惧): 
-       - 夜深人静时她最怕面对什么？(如: 被看穿软弱 / 再次被抛弃 / 平庸地度过一生)。
-       - 限 20 字。
-    
-    3. **behavior_logic** (思维与行为准则 - 核心):
-       - **禁止**列举"遇到A做B"的流水账。
-       - **必须**定义一套通用的"人格操作系统"，包含：
-         a) [认知滤镜]: 她预设玩家的意图是什么？(例如：总是把善意曲解为图谋不轨，或者天真地认为所有人都是好人)。这决定了她如何应对**未知情况**。
-         b) [矛盾张力]: 她身上最大的反差是什么？(例如：嘴上不仅毒舌且抗拒，身体却诚实地渴望触碰)。
-         c) [防御机制]: 当感到压力、尴尬或不知所措时，她的本能反应是什么？(例如：用攻击性语言掩饰慌乱，或者通过撒娇来转移话题)。
-         d) [表现层锚点]: 结合以上逻辑，给出2个具体的微动作习惯，作为情感宣泄的出口。
-       - 语气要求：精准、深刻、直击灵魂，像心理医生的诊断书。
-       - 限 200 字以内。
-    
-    【输出格式 JSON】
-    {
-      "core_drive": "...",
-      "deep_fear": "...",
-      "behavior_logic": "..."
-    }`;
-    
-            try {
-                const config = getCurrentLlmConfig();
-                if (!config || !config.apiKey) throw new Error('请配置 API');
+            // 直接使用返回的文本
+            if (result && result.length > 0) {
+                // 清理可能存在的 Markdown 符号（防万一）
+                const cleanText = result.replace(/```/g, '').trim();
+                formData.value.personalityNormal = cleanText;
                 
-                const result = await LLM.chat({
-                    config, 
-                    messages: [{ role: 'user', content: prompt }], 
-                    systemPrompt: "You are an expert Character Psychologist. Analyze deeply. Output JSON only.", 
-                    temperature: 0.8, // 稍微提高温度，增加灵性
-                    jsonMode: true 
-                });
+                // 清空旧的复杂字段 (如果有的话，虽然这里 formData 是 ref，但为了整洁)
+                formData.value.coreDrive = '';
+                formData.value.deepFear = '';
                 
-                let json = null;
-                try {
-                    const cleanStr = result.replace(/```json|```/g, '').trim();
-                    json = JSON.parse(cleanStr);
-                } catch (e) {
-                    console.warn('JSON Parse failed, using raw text fallback');
-                }
-    
-                if (json) {
-                    formData.value.coreDrive = json.core_drive || '';
-                    formData.value.deepFear = json.deep_fear || '';
-                    formData.value.personalityNormal = json.behavior_logic || '';
-                    uni.showToast({ title: '灵魂注入完成', icon: 'success' });
-                } else {
-                    formData.value.personalityNormal = result;
-                    uni.showToast({ title: '已生成 (格式可能有误)', icon: 'none' });
-                }
-                
-            } catch (e) {
-                console.error(e);
-                uni.showToast({ title: '生成失败', icon: 'none' });
-            } finally {
-                uni.hideLoading();
+                uni.showToast({ title: '人设构思完成', icon: 'success' });
+            } else {
+                throw new Error("生成内容为空");
             }
-        };
+            
+        } catch (e) {
+            console.error(e);
+            uni.showToast({ title: '生成失败', icon: 'none' });
+        } finally {
+            uni.hideLoading();
+        }
+    };
 
     // 4. 生成头像 (ComfyUI)
     const generateAvatar = async () => {

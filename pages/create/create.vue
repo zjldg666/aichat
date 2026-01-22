@@ -567,16 +567,16 @@
 
            <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
               <view style="text-align: center;">
-                  <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 行为逻辑生成</view>
-                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。</view>
-                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
+                  <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 性格素描生成</view>
+                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">让 AI 读懂背景故事，自动生成她的性格和说话习惯。</view>
+                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成性格素描</button>
               </view>
            </view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
-             <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
-             <view class="help-text">这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。</view>
-             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="AI将严格遵循此逻辑行动..." maxlength="-1" />
+             <text class="label">🧠 性格与行为素描 (Character Sketch)</text>
+             <view class="help-text">这里是一段自然语言描述，AI 会参考它来决定怎么和你说话。</view>
+             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="例如：她性格开朗，说话喜欢带“呢”，把你当成最好的朋友..." maxlength="-1" />
            </view>
         </view>
       </view>

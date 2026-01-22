@@ -311,8 +311,7 @@ Character: "${aiResponseText}"`;
         // 🟢 提取标签
         const newRelation = parseTags(res, 'RELATION');
         const newActivity = parseTags(res, 'ACTIVITY');
-        const newLabel = parseTags(res, 'LABEL');
-        const updateCore = parseTags(res, 'UPDATE_CORE'); // ✨ 新增提取
+        const updateCore = parseTags(res, 'EVOLVE'); // ✨ 适配新标签 [EVOLVE]
 
         // 🚨 【修复 Logic Gap】：不要因为没有 Relation/Activity 就直接 Return
         // 只要有 updateCore 也要继续
@@ -320,10 +319,10 @@ Character: "${aiResponseText}"`;
             return;
         }
 
-        console.log(`❤️ [心态] ${newRelation} | [标签] ${newLabel} | [LogicUpdate] ${updateCore}`);
+        console.log(`❤️ [关系] ${newRelation} | [动作] ${newActivity} | [进化] ${updateCore}`);
         let hasChange = false;
         
-        // 1. 更新心理状态
+        // 1. 更新心理状态 (现在直接用 RELATION 覆盖 currentRelation)
         if (newRelation && newRelation !== currentRelation.value) {
             currentRelation.value = newRelation;
             hasChange = true;
@@ -335,17 +334,9 @@ Character: "${aiResponseText}"`;
             hasChange = true;
         }
 
-        // 3. ✨ 新增：如果检测到明确的社会关系标签变化，也保存到 relation 字段（可选）
-        if (newLabel && newLabel.length < 10 && newLabel !== "未定义") {
-             if (!currentRelation.value.includes(newLabel)) {
-                 currentRelation.value = `【${newLabel}】${currentRelation.value}`;
-                 hasChange = true;
-             }
-        }
-        
         // 4. 🔥 核心逻辑门卫触发器 🔥
         if (updateCore && updateCore.toUpperCase().includes('TRUE')) {
-            console.log('🧬 [Gatekeeper] 检测到关系质变，触发核心人设进化！');
+            console.log('🧬 [Evolution] 检测到关系质变，触发性格素描更新！');
             if (executeEvolution) {
                 // 调用进化逻辑
                 // 注意：这里我们异步执行，不阻塞后续流程
