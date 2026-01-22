@@ -16,6 +16,9 @@ You are the "Soul Architect" of an AI character. Your task is to EVOLVE the char
 2. **Recent Experiences (Summary)**:
 {{summary}}
 
+3. **Recent Trigger Events (Context)**:
+{{recent_context}}
+
 3. **Evolution Trigger**:
 The character has reached a turning point. They have accumulated enough experiences to change their worldview, motivations, or behavior.
 
@@ -33,7 +36,7 @@ Return a JSON object ONLY:
 `;
 
     // 执行进化
-    const executeEvolution = async (currentSettings, memorySummary, llmConfig) => {
+    const executeEvolution = async (currentSettings, memorySummary, recentContext, llmConfig) => {
         if (!llmConfig || !llmConfig.apiKey) throw new Error("No LLM Config found");
         
         isEvolving.value = true;
@@ -43,7 +46,8 @@ Return a JSON object ONLY:
             
             const prompt = EVOLUTION_SYSTEM_PROMPT
                 .replace('{{old_persona}}', oldPersona)
-                .replace('{{summary}}', memorySummary || "Just regular daily chats.");
+                .replace('{{summary}}', memorySummary || "Just regular daily chats.")
+                .replace('{{recent_context}}', recentContext || "No recent context provided.");
                 
             console.log('🧬 Evolution Prompt:', prompt);
             

@@ -278,12 +278,19 @@ export function useAgents(context) {
     // =========================================================================
     // 2. 关系检查 Agent (改用标签模式)
     // =========================================================================
-    const runRelationCheck = async (lastUserMsg, aiResponseText) => {
+    const runRelationCheck = async (lastUserMsg, aiResponseText, recentMessages = []) => {
         if (!aiResponseText || aiResponseText.length < 5) return;
         const config = getCurrentLlmConfig();
         if (!config || !config.apiKey) return;
       
-        const conversationContext = `User: "${lastUserMsg}"\nCharacter: "${aiResponseText}"`;
+        // ✨ 构建更丰富的上下文给 Relation Agent
+        const recentText = recentMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+        const conversationContext = `
+【Recent Context】
+${recentText}
+【Current Interaction】
+User: "${lastUserMsg}"
+Character: "${aiResponseText}"`;
         
         // ✨ 准备上下文数据
         const initialRelation = currentRole.value.settings?.userRelation || "未知";
@@ -307,7 +314,11 @@ export function useAgents(context) {
         const newLabel = parseTags(res, 'LABEL');
         const updateCore = parseTags(res, 'UPDATE_CORE'); // ✨ 新增提取
 
-        if (!newRelation && !newActivity) return;
+        // 🚨 【修复 Logic Gap】：不要因为没有 Relation/Activity 就直接 Return
+        // 只要有 updateCore 也要继续
+        if (!newRelation && !newActivity && (!updateCore || !updateCore.toUpperCase().includes('TRUE'))) {
+            return;
+        }
 
         console.log(`❤️ [心态] ${newRelation} | [标签] ${newLabel} | [LogicUpdate] ${updateCore}`);
         let hasChange = false;
@@ -341,6 +352,7 @@ export function useAgents(context) {
                 executeEvolution(
                     currentRole.value.settings, 
                     currentSummary.value, 
+                    recentText, // <--- ✨ 传递最近上下文
                     config
                 ).then(result => {
                     if (result && result.new_persona) {

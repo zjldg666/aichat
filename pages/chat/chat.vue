@@ -358,7 +358,14 @@ const saveCharacterState = (newTime, newSummary, newLocation, newClothes, newMod
             item.relation = currentRelation.value;
             // ✨ 保存进化状态
             if (!item.settings) item.settings = {};
-            item.settings.evolutionLevel = evolutionLevel.value;
+            
+            // 🔥 核心修复：全量合并 currentRole.settings，防止漏掉 personalityNormal 和 clothingTags
+            const currentSettings = currentRole.value?.settings || {};
+            item.settings = {
+                ...item.settings,           // 保留 Storage 里原有的
+                ...currentSettings,         // 合并内存中 currentRole 的修改 (包含 personalityNormal)
+                evolutionLevel: evolutionLevel.value // 确保 evolutionLevel 使用最新的 ref 值
+            };
 
             uni.setStorageSync('contact_list', list);
         }
@@ -679,10 +686,10 @@ const processAIResponse = async (rawText) => {
         }
         
         console.log('--- 💬 对话监控 ------------------------------------------');
-        // console.log(`🗣️ [玩家]: ${lastUserMsg}`);
-        // console.log(`🤖 [角色(RAW)]: ${rawText}`); // 这里打印包含 <think> 的原始内容，方便调试
+        console.log(`🗣️ [玩家]: ${lastUserMsg}`);
+        console.log(`🤖 [角色(RAW)]: ${rawText}`); // 这里打印包含 <think> 的原始内容，方便调试
         console.log('--- 📊 角色状态快照 ---------------------------------------');
-        // console.log(`📍 地点: ${currentLocation.value}`);
+        console.log(`📍 地点: ${currentLocation.value}`);
         console.log(`💃 动作: ${currentAction.value}`);
         console.log(`👗 服装: ${currentClothing.value}`);
         console.log(`❤️ 关系: ${currentRelation.value} `);
@@ -725,8 +732,13 @@ const processAIResponse = async (rawText) => {
                 setTimeout(() => {
                     console.log('🚦 [后台导演] 并行流水线启动...');
         
+                    // 准备最近的对话上下文 (比如取最后 6 条)
+                    const recentMsgs = messageList.value.slice(-6); 
+
                     // 轨道 A: 关系与记忆
-                    runRelationCheck(lastUserMsg, rawText); 
+                    // ✨ 传入 recentMsgs
+                    runRelationCheck(lastUserMsg, rawText, recentMsgs); 
+                    
                     checkAndRunSummary(); 
         
                     // 轨道 B: 场景与生图 (并行化)

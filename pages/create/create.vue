@@ -18,6 +18,11 @@
           </view>
 		  
 		  <view class="input-item">
+		      <text class="label">角色年龄</text>
+		      <input class="input" v-model="formData.age" placeholder="例如：18 (留空默认未知)" type="number" />
+		  </view>
+		  
+		  <view class="input-item">
 		      <text class="label">角色性别</text>
 		      <scroll-view scroll-x class="chips-scroll">
 		          <view class="chips-flex">
@@ -166,6 +171,33 @@
                                   </view>
                               </view>
                           </scroll-view>
+                      </view>
+                      
+                      <!-- ✨ 移动：外貌固定 Prompt -->
+                      <view class="feature-row">
+                          <text class="feat-label">固定外貌 Prompt (英文 - 直接用于生图)</text>
+                          <textarea class="mini-input-text" style="height: 120rpx;" v-model="formData.appearance" placeholder="1girl, cute face..." maxlength="-1" />
+                      </view>
+                      
+                      <!-- ✨ 移动：头像生成 -->
+                      <view class="feature-row">
+                          <view class="label-row">
+                              <text class="feat-label" style="margin-bottom:0;">头像链接</text>
+                              
+                              <view 
+                                class="gen-btn" 
+                                :class="{ 'disabled': isGenerating }" 
+                                @click="generateAvatar" 
+                                hover-class="gen-btn-hover"
+                              >
+                                {{ isGenerating ? loadingText : (imgProvider === 'openai' ? '✨ OpenAI 生成' : '🎨 ComfyUI 生成') }}
+                              </view>
+                          </view>
+                          <input class="mini-input-text" v-model="formData.avatar" placeholder="输入链接 或 点击上方生成" />
+                          <view class="avatar-preview-box">
+                             <image v-if="formData.avatar && formData.avatar.length > 10" :src="formData.avatar" class="avatar-preview" mode="aspectFill"></image>
+                             <view v-else class="avatar-placeholder"><text class="avatar-emoji">📷</text></view>
+                          </view>
                       </view>
 
                       <view class="feature-row">
@@ -425,6 +457,11 @@
 				             </view>
 				         </view>
 				     </scroll-view>
+				 </view>
+				 
+				 <view class="input-item">
+				     <text class="label">你的年龄</text>
+				     <input class="input" v-model="formData.userAge" placeholder="例如：25 (留空默认未知)" type="number" />
 				 </view>
 				 
                  <view class="input-item">
@@ -757,7 +794,7 @@ const userWorldIndex = ref(-1);
 const diaryList = ref([]);
 const formData = ref({
   // --- 基础信息 ---
-  name: '', gender: '女', avatar: '', bio: '',
+  name: '', gender: '女', age: '', avatar: '', bio: '', // ✨ 新增 age
   worldId: '', location: '', occupation: '',
   worldLore: '', 
   
@@ -793,7 +830,7 @@ const formData = ref({
   personalityNormal: '', 
   evolutionLevel: 1,    // ✨ 新增：进化等级
 
-  userNameOverride: '', userGender: '男',
+  userNameOverride: '', userGender: '男', userAge: '', // ✨ 新增 userAge
   userRelation: '',     
   userPersona: '',      
   userWorldId: '', userLocation: '', userOccupation: '',
@@ -1135,6 +1172,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
     if (target) {
         formData.value.name = target.name;
         formData.value.gender = (target.settings && target.settings.gender) || '女';
+        formData.value.age = (target.settings && target.settings.age) || ''; // ✨ 新增
         formData.value.avatar = target.avatar;
         formData.value.worldId = target.worldId || '';
         formData.value.location = target.location || '';
@@ -1143,6 +1181,7 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
         if (target.settings) {
             formData.value.userNameOverride = target.settings.userNameOverride || '';
             formData.value.userGender = target.settings.userGender || '男';
+            formData.value.userAge = target.settings.userAge || ''; // ✨ 新增
             formData.value.userRelation = target.settings.userRelation || '';
             formData.value.userPersona = target.settings.userPersona || '';
             formData.value.workplace = target.settings.workplace || '';
@@ -1249,14 +1288,16 @@ const saveCharacter = () => {
     worldId: formData.value.worldId, 
     occupation: formData.value.occupation,
     settings: {
-        gender: formData.value.gender, // ✨ 新增
+        gender: formData.value.gender, 
+        age: formData.value.age, // ✨ 新增
         appearance: formData.value.appearance, 
         appearanceSafe: formData.value.appearanceSafe,
         appearanceNsfw: formData.value.appearanceNsfw,
         faceStyle: formData.value.faceStyle,
         charFeatures: formData.value.charFeatures, 
         userNameOverride: formData.value.userNameOverride,
-        userGender: formData.value.userGender, // ✨ 新增
+        userGender: formData.value.userGender, 
+        userAge: formData.value.userAge, // ✨ 新增
         userRelation: formData.value.userRelation,
         userPersona: formData.value.userPersona,
         workplace: formData.value.workplace,

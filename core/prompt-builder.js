@@ -30,6 +30,8 @@ export function buildSystemPrompt({
     const finalUserName = s.userNameOverride || userName || appUser.name || 'User';
     
     let myProfile = `[User Profile]\nName: ${finalUserName}`;
+    if (s.userAge || appUser.age) myProfile += `\nAge: ${s.userAge || appUser.age}`; // ✨ 新增：玩家年龄
+    if (s.userGender) myProfile += `\nGender: ${s.userGender}`; // ✨ 新增：玩家性别
     if (s.userOccupation) myProfile += `\nOccupation: ${s.userOccupation}`;
     if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
     if (s.userPersona) myProfile += `\nPersonality: ${s.userPersona}`;        
@@ -37,7 +39,9 @@ export function buildSystemPrompt({
 
     // 3. 准备角色基础信息
     const charName = role.name || 'AI';
-    const charBio = s.bio || "No bio provided.";
+    // ✨ 注入角色年龄到 Bio 前面
+    const ageInfo = (s.age) ? `[Age: ${s.age}] ` : "";
+    const charBio = ageInfo + (s.bio || "No bio provided.");
     const charLogic = s.personalityNormal || "React naturally based on your bio.";
     
     // 日记目录注入逻辑
