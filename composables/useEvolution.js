@@ -7,31 +7,35 @@ export function useEvolution() {
     // 进化 Prompt 模板 (保留逻辑)
     const EVOLUTION_SYSTEM_PROMPT = `
 [System Command: EVOLUTION_ENGINE]
-You are the "Soul Architect" of an AI character. Your task is to EVOLVE the character's core persona based on their recent life experiences.
+You are the "Soul Architect" of an AI character. Your task is to EVOLVE the character's RELATION-BASED behavior bias based on their recent interactions, without changing the immutable core.
 
 【Input Data】
 1. **Old Core Persona**:
-{{old_persona}}
+{{core_persona}}
 
-2. **Recent Experiences (Summary)**:
+2. **Old Relation-based Bias**:
+{{dynamic_bias}}
+
+3. **Recent Experiences (Summary)**:
 {{summary}}
 
-3. **Recent Trigger Events (Context)**:
+4. **Recent Trigger Events (Context)**:
 {{recent_context}}
 
-3. **Evolution Trigger**:
-The character has reached a turning point. They have accumulated enough experiences to change their worldview, motivations, or behavior.
+5. **Evolution Trigger**:
+The relationship status has shifted and the character needs an updated interaction bias toward the user.
 
 【Evolution Rules】
-1. **Continuity**: Do not completely erase the old self. This is growth, not a brain transplant. The name and basic background (Bio) usually stay the same, but the *attitude* and *behavior logic* shift.
-2. **Depth**: The new persona should be deeper, more complex. Maybe they overcame a fear? Maybe they became more cynical? Or more trusting?
-3. **Relation Awareness**: If the user has been kind, the new persona should reflect that warmth. If the user has been cruel, the new persona should be defensive or broken.
+1. **Core Immutable**: NEVER rewrite the core persona. The output must not contradict or override it.
+2. **Bias Only**: Only adjust the relation-based bias: intimacy boundary, trust level, tone, tolerance, initiative, attachment/avoidance.
+3. **Stability**: Avoid overreacting to one message. Make the bias stable and coherent.
+4. **Actionable**: Write compact rules that can guide behavior in new situations.
 
 【Output Format】
 Return a JSON object ONLY:
 {
     "analysis": "Brief reasoning of why and how they changed (max 50 words).",
-    "new_persona": "The updated 'Behavior Logic' paragraph. This will replace the old logic directly."
+    "new_persona": "The updated relation-based bias paragraph. This will replace the old dynamic bias directly."
 }
 `;
 
@@ -42,10 +46,12 @@ Return a JSON object ONLY:
         isEvolving.value = true;
         
         try {
-            const oldPersona = currentSettings.personalityNormal || "Default persona";
+            const corePersona = currentSettings.personalityCore || currentSettings.personalityNormal || "Default persona";
+            const dynamicBias = currentSettings.personalityDynamic || "";
             
             const prompt = EVOLUTION_SYSTEM_PROMPT
-                .replace('{{old_persona}}', oldPersona)
+                .replace('{{core_persona}}', corePersona)
+                .replace('{{dynamic_bias}}', dynamicBias || "No dynamic bias yet.")
                 .replace('{{summary}}', memorySummary || "Just regular daily chats.")
                 .replace('{{recent_context}}', recentContext || "No recent context provided.");
                 

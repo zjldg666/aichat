@@ -207,19 +207,20 @@ ${roleInfo}
    - likes: 喜好 (例: 红茶，古典音乐)。
    - dislikes: 雷点 (例: 轻浮的举动)。
 
-2. **深度心理分析**:
-   - core_drive: 核心驱力 (她活着是为了什么？如: 填补内心的空洞 / 证明自己的价值)。
-   - deep_fear: 深层恐惧 (夜深人静时她最怕面对什么？)。
 
-3. **behavior_logic** (思维与行为准则 - 核心):
-   - **禁止**列举"遇到A做B"的流水账。
-   - **必须**定义一套通用的"人格操作系统"，包含：
-     a) [认知滤镜]: 她预设玩家的意图是什么？(例如：总是把善意曲解为图谋不轨)。这决定了她如何应对**未知情况**。
-     b) [矛盾张力]: 她身上最大的反差是什么？(例如：嘴上不仅毒舌且抗拒，身体却诚实地渴望触碰)。
-     c) [防御机制]: 当感到压力、尴尬或不知所措时，她的本能反应是什么？
-     d) [表现层锚点]: 结合以上逻辑，给出2个具体的微动作习惯，作为情感宣泄的出口。
-   - 语气要求：精准、深刻、直击灵魂，像心理医生的诊断书。
-   - 限 200 字以内。
+3. **行为逻辑拆分**:
+   A) behavior_core (固定核心逻辑 - 设定级原则，长期不变):
+      - **禁止**列举“遇到A做B”的流水账。
+      - **必须**定义一套通用的“人格操作系统”，包含：
+        a) [认知滤镜] 她如何理解玩家的意图与世界；
+        b) [矛盾张力] 她的反差与内在拉扯；
+        c) [防御机制] 面对压力/尴尬的本能反应；
+        d) [表现锚点] 2个具体微动作习惯。
+      - 语气：精准、深刻，像心理医生诊断书。限 150 字。
+   B) relation_behavior (关系动态偏置 - 随关系变化的互动策略):
+      - 定义在不同关系状态下的互动偏好与语气尺度（如：陌生人/暧昧/恋人/冷战）。
+      - 必须声明“不得违反 behavior_core”，并给出简短可执行的偏置规则。
+      - 限 150 字。
 
 【输出格式 JSON】
 {
@@ -228,7 +229,8 @@ ${roleInfo}
   "dislikes": "...",
   "core_drive": "...",
   "deep_fear": "...",
-  "behavior_logic": "..."
+  "behavior_core": "...",
+  "relation_behavior": "..."
 }`;
 
         try {
@@ -259,10 +261,14 @@ ${roleInfo}
 
                 formData.value.coreDrive = json.core_drive || '';
                 formData.value.deepFear = json.deep_fear || '';
-                formData.value.personalityNormal = json.behavior_logic || '';
+                formData.value.personalityCore = json.behavior_core || json.behavior_logic || '';
+                formData.value.personalityDynamic = json.relation_behavior || '';
+                formData.value.personalityNormal = formData.value.personalityCore || '';
                 uni.showToast({ title: '灵魂注入完成', icon: 'success' });
             } else {
+                formData.value.personalityCore = result;
                 formData.value.personalityNormal = result;
+                formData.value.personalityDynamic = '';
                 uni.showToast({ title: '已生成 (格式可能有误)', icon: 'none' });
             }
             

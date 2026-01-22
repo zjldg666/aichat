@@ -294,7 +294,9 @@ Character: "${aiResponseText}"`;
         
         // ✨ 准备上下文数据
         const initialRelation = currentRole.value.settings?.userRelation || "未知";
-        const currentLogic = currentRole.value.settings?.personalityNormal || "默认逻辑";
+        const coreLogic = currentRole.value.settings?.personalityCore || currentRole.value.settings?.personalityNormal || "默认逻辑";
+        const dynamicLogic = currentRole.value.settings?.personalityDynamic || "";
+        const currentLogic = `【固定核心】\n${coreLogic}\n\n【关系动态偏置】\n${dynamicLogic || '（无额外偏置）'}`;
 
         const prompt = RELATIONSHIP_PROMPT
             .replace('{{initial_relation}}', initialRelation)
@@ -312,15 +314,19 @@ Character: "${aiResponseText}"`;
         const newRelation = parseTags(res, 'RELATION');
         const newActivity = parseTags(res, 'ACTIVITY');
         const newLabel = parseTags(res, 'LABEL');
-        const updateCore = parseTags(res, 'UPDATE_CORE'); // ✨ 新增提取
+        const updateDynamic = parseTags(res, 'UPDATE_DYNAMIC');
+        const updateCore = parseTags(res, 'UPDATE_CORE');
 
         // 🚨 【修复 Logic Gap】：不要因为没有 Relation/Activity 就直接 Return
         // 只要有 updateCore 也要继续
-        if (!newRelation && !newActivity && (!updateCore || !updateCore.toUpperCase().includes('TRUE'))) {
+        const shouldUpdateDynamic = updateDynamic && updateDynamic.toUpperCase().includes('TRUE');
+        const shouldUpdateCore = updateCore && updateCore.toUpperCase().includes('TRUE');
+
+        if (!newRelation && !newActivity && !shouldUpdateDynamic && !shouldUpdateCore) {
             return;
         }
 
-        console.log(`❤️ [心态] ${newRelation} | [标签] ${newLabel} | [LogicUpdate] ${updateCore}`);
+        console.log(`❤️ [心态] ${newRelation} | [标签] ${newLabel} | [UpdateDynamic] ${updateDynamic} | [UpdateCore] ${updateCore}`);
         let hasChange = false;
         
         // 1. 更新心理状态
@@ -344,11 +350,9 @@ Character: "${aiResponseText}"`;
         }
         
         // 4. 🔥 核心逻辑门卫触发器 🔥
-        if (updateCore && updateCore.toUpperCase().includes('TRUE')) {
-            console.log('🧬 [Gatekeeper] 检测到关系质变，触发核心人设进化！');
+        if (shouldUpdateDynamic || shouldUpdateCore) {
+            console.log('🧬 [Gatekeeper] 检测到关系质变，触发关系动态偏置进化！');
             if (executeEvolution) {
-                // 调用进化逻辑
-                // 注意：这里我们异步执行，不阻塞后续流程
                 executeEvolution(
                     currentRole.value.settings, 
                     currentSummary.value, 
@@ -356,11 +360,15 @@ Character: "${aiResponseText}"`;
                     config
                 ).then(result => {
                     if (result && result.new_persona) {
-                        // 更新设置
                         if (!currentRole.value.settings) currentRole.value.settings = {};
-                        currentRole.value.settings.personalityNormal = result.new_persona;
+                        currentRole.value.settings.personalityDynamic = result.new_persona;
+                        if (!currentRole.value.settings.personalityCore && currentRole.value.settings.personalityNormal) {
+                            currentRole.value.settings.personalityCore = currentRole.value.settings.personalityNormal;
+                        }
+                        if (currentRole.value.settings.personalityCore) {
+                            currentRole.value.settings.personalityNormal = currentRole.value.settings.personalityCore;
+                        }
                         
-                        // 增加进化等级
                         const currentLvl = currentRole.value.settings.evolutionLevel || 1;
                         currentRole.value.settings.evolutionLevel = currentLvl + 1;
                         
@@ -368,10 +376,8 @@ Character: "${aiResponseText}"`;
                         // currentRole.value.settings.evolutionProgress = 0; 
                         
                         saveCharacterState();
-                        console.log('✅ [Evolution] 核心人设已自动更新完毕！');
+                        console.log('✅ [Evolution] 关系动态偏置已自动更新完毕！');
                         
-                        // 可选：发送系统通知
-                        // messageList.value.push({ role: 'system', content: `🧬 [系统] 角色内心发生了质变...`, isSystem: true });
                     }
                 }).catch(err => {
                     console.error('❌ [Evolution] 自动进化失败:', err);

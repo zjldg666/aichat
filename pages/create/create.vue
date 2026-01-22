@@ -573,15 +573,21 @@
            <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
               <view style="text-align: center;">
                   <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 行为逻辑生成</view>
-                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">不再使用死板的好感度。让 AI 分析人设，生成她该如何对待你。</view>
-                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成行为逻辑</button>
+                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">AI 会拆分生成：固定核心行为 + 随关系变化的动态偏置。</view>
+                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成核心 + 动态</button>
               </view>
            </view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
-             <text class="label">🧠 核心行为逻辑 (Behavior Logic)</text>
-             <view class="help-text">这里决定了她是个什么样的人。是见面就白给，还是高冷到底。全靠这段描述。</view>
-             <textarea class="textarea large" style="height: 300rpx;" v-model="formData.personalityNormal" placeholder="AI将严格遵循此逻辑行动..." maxlength="-1" />
+             <text class="label">🧠 固定核心行为 (Core Logic - 不会随关系变化)</text>
+             <view class="help-text">写“设定级原则”：世界观、底线、职业操守、稳定边界。动态偏置不得与此冲突。</view>
+             <textarea class="textarea large" style="height: 240rpx;" v-model="formData.personalityCore" placeholder="例：她永远保持专业守时；公共场合克制；被冒犯会冷处理..." maxlength="-1" />
+           </view>
+           
+           <view class="textarea-item" style="margin-top: 20rpx;">
+             <text class="label">🧩 关系动态偏置 (Dynamic Bias - 会随关系变化)</text>
+             <view class="help-text">写“对玩家的亲疏尺度/语气/边界策略”：陌生/暧昧/恋人/冷战时分别如何互动。必须声明不违反核心。</view>
+             <textarea class="textarea large" style="height: 240rpx;" v-model="formData.personalityDynamic" placeholder="例：陌生人保持距离；暧昧会试探但不越界；恋人私下更亲密但工作优先..." maxlength="-1" />
            </view>
         </view>
       </view>
@@ -832,6 +838,8 @@ const formData = ref({
   speakingStyle: '', 
   likes: '',          
   dislikes: '',       
+  personalityCore: '',
+  personalityDynamic: '',
   personalityNormal: '', 
   evolutionLevel: 1,    // ✨ 新增：进化等级
 
@@ -1132,6 +1140,8 @@ const applyTemplate = (key) => {
     formData.value.speakingStyle = t.style;
     formData.value.likes = t.likes;
     formData.value.dislikes = t.dislikes;
+    formData.value.personalityCore = t.logic;
+    formData.value.personalityDynamic = '';
     formData.value.personalityNormal = t.logic; 
     
     uni.showToast({ title: `已应用: ${t.label}`, icon: 'none' });
@@ -1204,6 +1214,8 @@ const loadCharacterData = async (id) => { // 🌟 必须加 async
             formData.value.speakingStyle = target.settings.speakingStyle || ''; 
             formData.value.likes = target.settings.likes || '';                  
             formData.value.dislikes = target.settings.dislikes || '';            
+            formData.value.personalityCore = target.settings.personalityCore || target.settings.personalityNormal || '';
+            formData.value.personalityDynamic = target.settings.personalityDynamic || '';
             formData.value.personalityNormal = target.settings.personalityNormal || '';
             formData.value.evolutionLevel = target.settings.evolutionLevel || 1;       // ✨ 新增
             
@@ -1322,7 +1334,9 @@ const saveCharacter = () => {
         userAppearance: formData.value.userAppearance, 
         userFeatures: formData.value.userFeatures,
         worldLore: formData.value.worldLore,
-        personalityNormal: formData.value.personalityNormal,
+        personalityCore: formData.value.personalityCore || formData.value.personalityNormal,
+        personalityDynamic: formData.value.personalityDynamic || '',
+        personalityNormal: formData.value.personalityCore || formData.value.personalityNormal,
         evolutionLevel: formData.value.evolutionLevel,       // ✨ 新增
     },
     lastMsg: isEditMode.value ? undefined : '新角色已创建', 

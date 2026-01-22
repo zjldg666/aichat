@@ -43,7 +43,8 @@ export function buildSystemPrompt({
     const ageInfo = (s.age) ? `[Age: ${s.age}] ` : "";
     const personalityInfo = (s.personality) ? `[Personality: ${s.personality}] ` : ""; // ✨ 新增
     const charBio = ageInfo + personalityInfo + (s.bio || "No bio provided.");
-    const charLogic = s.personalityNormal || "React naturally based on your bio.";
+    const coreLogic = s.personalityCore || s.personalityNormal || "React naturally based on your bio.";
+    const dynamicBias = s.personalityDynamic || "";
     
     // 日记目录注入逻辑
     const diaryKey = `diary_logs_${role.id || 'default'}`;
@@ -64,7 +65,7 @@ export function buildSystemPrompt({
     const finalRelation = isRelationValid ? relation : (s.userRelation || '初相识，还没有具体印象');
     const relationAnchor = `\n\n【RELATIONSHIP STATUS (HARD FACT)】\nCURRENT STATUS: ${finalRelation}`;
     
-    const dynamicLogic = `${charLogic}${diaryIndexText}${memoryBlock}${relationAnchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${finalRelation}`;
+    const dynamicLogic = `${coreLogic}\n\n【关系动态行为偏置 (Relation-based Bias)】\n${dynamicBias || '（无额外偏置）'}${diaryIndexText}${memoryBlock}${relationAnchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${finalRelation}`;
 
     // 5. 模板替换 
     let prompt = CORE_INSTRUCTION_LOGIC_MODE
@@ -75,6 +76,8 @@ export function buildSystemPrompt({
         .replace(/{{bio}}/g, charBio)
         .replace(/{{evolution_level}}/g, s.evolutionLevel || 1)
         .replace(/{{logic}}/g, dynamicLogic)
+        .replace(/{{core_logic}}/g, coreLogic)
+        .replace(/{{dynamic_logic}}/g, dynamicBias || '（关系基线：无额外偏置）')
         .replace(/{{likes}}/g, s.likes || "Unknown")
         .replace(/{{dislikes}}/g, s.dislikes || "Unknown")
         .replace(/{{speaking_style}}/g, s.speakingStyle || "Normal")
