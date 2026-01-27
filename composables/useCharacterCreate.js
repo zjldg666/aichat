@@ -169,116 +169,137 @@ export function useCharacterCreate(formData, targetId) {
         }
     };
 
-    // 3. 自动生成行为逻辑 (升级版：静态高精度人设)
-    // 3. 自动生成行为逻辑 (大师级：心理侧写冰山模型 + 自动补全)
-    const autoGenerateBehavior = async () => {
-        if (!formData.value.bio || formData.value.bio.length < 5) return uni.showToast({ title: '请先填写"背景故事"', icon: 'none' });
-        
-        uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
-        
-        // 构造更丰富的输入信息
-        const roleInfo = `【角色本体】
-姓名: ${formData.value.name || '未命名'}
-性别: ${formData.value.gender || '未知'}
-职业: ${formData.value.occupation || '未设定'}
-背景故事: ${formData.value.bio}
-人物性格: ${formData.value.personality || '未设定'}
-说话风格: ${formData.value.speakingStyle || '未设定 (请生成)'}
-喜好: ${formData.value.likes || '未设定 (请生成)'}
-厌恶: ${formData.value.dislikes || '未设定 (请生成)'}
-
-【玩家设定 (对手戏对象)】
-玩家昵称: ${formData.value.userNameOverride || '玩家'}
-玩家性别: ${formData.value.userGender || '未知'}
-当前关系: ${formData.value.userRelation || '未设定 (请根据背景故事自行推断)'}`;
-
-        // ✨✨✨ 核心修改：升级为“人格操作系统” Prompt ✨✨✨
-        const prompt = `[System: Deep Psyche Architect & Character Designer]
-目标：构建一个有血有肉、逻辑自洽的灵魂。如果【角色档案】中缺少细节，请基于背景故事进行补全。
-
-【角色档案】
-${roleInfo}
-
-【任务要求】
-请分析角色，输出 JSON 格式。
-
-1. **补全设定** (如果原设定已提供，则基于原设定优化；如果未提供，请根据人设自动生成):
-   - speaking_style: 说话风格/口癖 (例: 语气慵懒，喜欢叫人“小弟弟”)。
-   - likes: 喜好 (例: 红茶，古典音乐)。
-   - dislikes: 雷点 (例: 轻浮的举动)。
-
-
-3. **行为逻辑拆分**:
-   A) behavior_core (固定核心逻辑 - 设定级原则，长期不变):
-      - **禁止**列举“遇到A做B”的流水账。
-      - **必须**定义一套通用的“人格操作系统”，包含：
-        a) [认知滤镜] 她如何理解玩家的意图与世界；
-        b) [矛盾张力] 她的反差与内在拉扯；
-        c) [防御机制] 面对压力/尴尬的本能反应；
-        d) [表现锚点] 2个具体微动作习惯。
-      - 语气：精准、深刻，像心理医生诊断书。限 150 字。
-   B) relation_behavior (关系动态偏置 - 随关系变化的互动策略):
-      - 定义在不同关系状态下的互动偏好与语气尺度（如：陌生人/暧昧/恋人/冷战）。
-      - 必须声明“不得违反 behavior_core”，并给出简短可执行的偏置规则。
-      - 限 150 字。
-
-【输出格式 JSON】
-{
-  "speaking_style": "...",
-  "likes": "...",
-  "dislikes": "...",
-  "core_drive": "...",
-  "deep_fear": "...",
-  "behavior_core": "...",
-  "relation_behavior": "..."
-}`;
-
-        try {
-            const config = getCurrentLlmConfig();
-            if (!config || !config.apiKey) throw new Error('请配置 API');
+        const autoGenerateBehavior = async () => {
+            if (!formData.value.bio || formData.value.bio.length < 5) return uni.showToast({ title: '请先填写"背景故事"', icon: 'none' });
             
-            const result = await LLM.chat({
-                config, 
-                messages: [{ role: 'user', content: prompt }], 
-                systemPrompt: "You are an expert Character Psychologist. Analyze deeply. Output JSON only.", 
-                temperature: 0.8, // 稍微提高温度，增加灵性
-                jsonMode: true 
-            });
+            uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
             
-            let json = null;
+            // 构造输入信息
+            const roleInfo = `【角色本体】
+    姓名: ${formData.value.name || '未命名'}
+    性别: ${formData.value.gender || '未知'}
+    背景故事: ${formData.value.bio}
+    人物性格: ${formData.value.personality || '未设定'}
+    说话风格: ${formData.value.speakingStyle || '未设定 (请生成)'}
+    喜好: ${formData.value.likes || '未设定 (请生成)'}
+    厌恶: ${formData.value.dislikes || '未设定 (请生成)'}
+    
+    【玩家设定 (对手戏对象)】
+    玩家昵称: ${formData.value.userNameOverride || '玩家'}
+    玩家性别: ${formData.value.userGender || '未知'}
+    当前关系: ${formData.value.userRelation || '未设定 (请根据背景故事自行推断)'}`;
+    
+            // ✨✨✨ 核心修改：改为结构化文本 Prompt，放弃 JSON ✨✨✨
+                    const prompt = `[System: Expert Character Designer & Novelist]
+            目标：构建一个有血有肉的真实人类灵魂。
+            ⚠️ 核心原则 (CRITICAL): 
+            1. **性格决定行为**：所有的行为逻辑必须基于她的【人物性格】。不要生成与性格割裂的行事风格。
+            2. **拒绝长篇大论**：喜好和雷点必须简短、有力。
+            3. **锁定当前关系**：只分析她与玩家【当前】的关系状态。
+            
+            【角色档案】
+            ${roleInfo}
+            
+            【任务要求】
+            请分析角色，输出带有标签的结构化文本：
+            
+            1. **基础设定补全**:
+               - 说话风格 (Speaking Style): 语气、口癖、常用语助词。
+               - 喜好 (Likes): 3-5 个**简短词汇**或**短语** (例如：甜食、睡懒觉、恐怖片)。禁止写原因。
+               - 雷点 (Dislikes): 3-5 个**简短词汇**或**短语** (例如：香菜、迟到)。禁止写原因。
+            
+            2. **行为逻辑拆分**:
+               A) 核心行为逻辑 (Behavior Core) —— **性格驱动的处世风格**:
+                  - 请深度推导她的**性格**是如何决定她的**行事作风**和**待人接物之道**的？
+                  - 例如：如果她性格傲娇，她是如何处理关心的（口是心非）？如果她性格软弱，遇到冲突是如何解决的（隐忍退让）？
+                  - 描述她在面对问题、处理人际关系时的**本能反应**。
+                  - 重点描写**外在表现出的性格特质**。
+                  - 限 200 字以内。
+               B) 关系偏置 (Relation Behavior):
+                  - **仅针对**当前关系：“${formData.value.userRelation || '未设定'}”。
+                  - 描述在该关系下，她对玩家的**具体**互动策略、语气尺度和底线。
+            
+            【输出格式】
+            [SPEAKING_STYLE]
+            (内容...)
+            
+            [LIKES]
+            (短语1，短语2，短语3...)
+            
+            [DISLIKES]
+            (短语1，短语2，短语3...)
+            
+            [BEHAVIOR_CORE]
+            (内容...)
+            
+            [RELATION_BEHAVIOR]
+            (内容...)`;
+    
             try {
-                const cleanStr = result.replace(/```json|```/g, '').trim();
-                json = JSON.parse(cleanStr);
+                const config = getCurrentLlmConfig();
+                if (!config || !config.apiKey) throw new Error('请配置 API');
+                
+                const result = await LLM.chat({
+                    config, 
+                    messages: [{ role: 'user', content: prompt }], 
+                    systemPrompt: "You are an expert Character Psychologist. Analyze deeply. Output structured text with tags.", 
+                    temperature: 0.8,
+                    jsonMode: false // 🔴 关闭 JSON 模式，避免格式校验报错
+                });
+                
+                console.log("==========================================");
+                console.log("🚀 [AI 行为逻辑生成 - 文本模式]:", result);
+                console.log("==========================================");
+    
+                // 🛠️ 手动解析器：提取 [TAG] 之间的内容
+                const extract = (tag) => {
+                    // 匹配 [TAG] 开始，直到下一个 [ 出现或者是结尾
+                    const regex = new RegExp(`\\[${tag}\\]\\s*([\\s\\S]*?)(?=\\[|$)`, 'i');
+                    const match = result.match(regex);
+                    return match ? match[1].trim() : '';
+                };
+    
+                const extractedData = {
+                    speaking_style: extract('SPEAKING_STYLE'),
+                    likes: extract('LIKES'),
+                    dislikes: extract('DISLIKES'),
+                    core_drive: extract('CORE_DRIVE'),
+                    deep_fear: extract('DEEP_FEAR'),
+                    behavior_core: extract('BEHAVIOR_CORE'),
+                    relation_behavior: extract('RELATION_BEHAVIOR')
+                };
+    
+                console.log("✅ [正则解析结果]:", extractedData);
+    
+                // 只要解析出了核心逻辑，就视为成功
+                if (extractedData.behavior_core) {
+                    // 只有当用户没有填写时，才覆盖这三个基础字段，防止覆盖用户手写的
+                    if (!formData.value.speakingStyle) formData.value.speakingStyle = extractedData.speaking_style;
+                    if (!formData.value.likes) formData.value.likes = extractedData.likes;
+                    if (!formData.value.dislikes) formData.value.dislikes = extractedData.dislikes;
+    
+                    formData.value.coreDrive = extractedData.core_drive;
+                    formData.value.deepFear = extractedData.deep_fear;
+                    formData.value.personalityCore = extractedData.behavior_core;
+                    formData.value.personalityDynamic = extractedData.relation_behavior;
+                    formData.value.personalityNormal = formData.value.personalityCore; // 兼容旧字段
+                    
+                    uni.showToast({ title: '灵魂注入完成', icon: 'success' });
+                } else {
+                    // 兜底：如果解析完全失败，把原始内容填进去，至少让用户能看到生成了什么
+                    formData.value.personalityCore = result;
+                    formData.value.personalityNormal = result;
+                    formData.value.personalityDynamic = '';
+                    uni.showToast({ title: '解析不完整，已填入原文', icon: 'none' });
+                }
+                
             } catch (e) {
-                console.warn('JSON Parse failed, using raw text fallback');
+                console.error(e);
+                uni.showToast({ title: '生成失败', icon: 'none' });
+            } finally {
+                uni.hideLoading();
             }
-
-            if (json) {
-                // 如果用户没填，就用生成的；如果用户填了，也可以考虑用生成的优化版（这里选择如果为空则填入）
-                if (!formData.value.speakingStyle) formData.value.speakingStyle = json.speaking_style;
-                if (!formData.value.likes) formData.value.likes = json.likes;
-                if (!formData.value.dislikes) formData.value.dislikes = json.dislikes;
-
-                formData.value.coreDrive = json.core_drive || '';
-                formData.value.deepFear = json.deep_fear || '';
-                formData.value.personalityCore = json.behavior_core || json.behavior_logic || '';
-                formData.value.personalityDynamic = json.relation_behavior || '';
-                formData.value.personalityNormal = formData.value.personalityCore || '';
-                uni.showToast({ title: '灵魂注入完成', icon: 'success' });
-            } else {
-                formData.value.personalityCore = result;
-                formData.value.personalityNormal = result;
-                formData.value.personalityDynamic = '';
-                uni.showToast({ title: '已生成 (格式可能有误)', icon: 'none' });
-            }
-            
-        } catch (e) {
-            console.error(e);
-            uni.showToast({ title: '生成失败', icon: 'none' });
-        } finally {
-            uni.hideLoading();
-        }
-    };
+        };
 
     // 4. 生成头像 (ComfyUI)
     const generateAvatar = async () => {
