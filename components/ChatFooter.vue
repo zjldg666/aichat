@@ -14,20 +14,24 @@
     <view class="input-container" v-else>
       
       <view class="camera-popup" v-if="showCameraMenu" @click.stop>
-        <view class="popup-arrow"></view> <view class="camera-actions">
-           <view class="action-item" @click="handleSubCameraClick('clickCamera')">
-              <view class="icon">📸</view>
-              <text class="label">直拍</text>
-              <text class="desc">有声/自然互动</text>
-           </view>
-           <view class="divider"></view>
-           <view class="action-item" @click="handleSubCameraClick('clickStealthCamera')">
-              <view class="icon">👁️</view>
-              <text class="label">偷拍</text>
-              <text class="desc">静音/观察视角</text>
-           </view>
-        </view>
-      </view>
+              <view class="popup-arrow"></view>
+              <view class="camera-actions">
+                 <view class="action-item" @click="handleSubCameraClick('clickCamera')">
+                    <view class="icon">📸</view>
+                    <text class="label">直拍</text>
+                 </view>
+                 
+                 <view class="action-item" @click="handleSubCameraClick('clickStealthCamera')">
+                    <view class="icon">👁️</view>
+                    <text class="label">偷拍</text>
+                 </view>
+      
+                 <view class="action-item" @click="handleSubCameraClick('clickGroupCamera')">
+                    <view class="icon">✌️</view>
+                    <text class="label">合拍</text>
+                 </view>
+              </view>
+            </view>
 
       <view class="toolbar-compact" v-if="isToolbarOpen">
         <scroll-view class="tool-scroll" scroll-x="true" show-scrollbar="false">
@@ -117,7 +121,7 @@ const emit = defineEmits([
   'toggleToolbar', 'update:modelValue', 'send',
   'clickTime', 'clickLocation', 'sleepTimeChange',
   'clickCamera', 'clickStealthCamera', 
-  'clickContinue', 'toggleThought', 'clickWardrobe'
+  'clickContinue', 'toggleThought', 'clickWardrobe','clickGroupCamera'
 ]);
 
 // 📸 相机菜单状态
@@ -222,23 +226,26 @@ watch(() => props.isToolbarOpen, (val) => {
 .tool-icon { font-size: 36rpx; margin-bottom: 6rpx; }
 .tool-text { font-size: 20rpx; color: var(--text-sub); }
 
-/* 🆕 相机二级菜单悬浮层 */
+/* 🆕 相机二级菜单悬浮层 (横向版) */
 .camera-popup {
     position: absolute;
-    bottom: 240rpx; /* 根据工具栏高度调整，大概在工具栏上方 */
+    bottom: 230rpx; /* 根据实际位置微调 */
     left: 50%;
-    transform: translateX(-50%); /* 居中 */
+    transform: translateX(-50%);
     
-    width: 320rpx;
-    background: rgba(40, 40, 40, 0.95); /* 深色背景 */
+    /* 宽度调整为自适应或更宽，以容纳横向图标 */
+    width: auto;
+    min-width: 380rpx; 
+    
+    background: rgba(40, 40, 40, 0.95);
     backdrop-filter: blur(10px);
     border-radius: 20rpx;
-    padding: 10rpx 0;
+    padding: 16rpx 20rpx; /* 增加一点内边距 */
     box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.3);
     z-index: 1000;
     animation: fadeInUp 0.2s ease-out;
     
-    /* 小三角箭头 (指向下方) */
+    /* 小三角箭头 */
     .popup-arrow {
         position: absolute;
         bottom: -12rpx;
@@ -250,29 +257,42 @@ watch(() => props.isToolbarOpen, (val) => {
         border-top: 12rpx solid rgba(40, 40, 40, 0.95);
     }
 
+    /* 容器改为横向排列 */
     .camera-actions {
         display: flex;
-        flex-direction: column;
+        flex-direction: row; /* 横向 */
+        justify-content: space-around; /* 均匀分布 */
+        align-items: center;
     }
 
+    /* 按钮样式改为 上图标-下文字 */
     .action-item {
         display: flex;
+        flex-direction: column; /* 纵向堆叠 */
         align-items: center;
-        padding: 24rpx 30rpx;
+        justify-content: center;
+        padding: 10rpx 20rpx;
+        border-radius: 12rpx;
         
         &:active {
             background: rgba(255,255,255,0.1);
         }
 
-        .icon { font-size: 40rpx; margin-right: 24rpx; }
-        .label { font-size: 30rpx; color: #fff; font-weight: bold; margin-right: 10rpx; }
-        .desc { font-size: 22rpx; color: #aaa; margin-left: auto; }
-    }
-
-    .divider {
-        height: 1px;
-        background: rgba(255,255,255,0.15);
-        margin: 0 20rpx;
+        .icon { 
+            font-size: 44rpx; 
+            margin-right: 0; /* 移除右边距 */
+            margin-bottom: 8rpx; /* 增加下边距 */
+        }
+        
+        .label { 
+            font-size: 24rpx; 
+            color: #fff; 
+            font-weight: normal;
+            margin-right: 0;
+        }
+        
+        /* 隐藏原本的描述文字，横向放不下 */
+        .desc { display: none; }
     }
 }
 

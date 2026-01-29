@@ -530,14 +530,14 @@ Line 1: (人数 + 场景描述)
 BREAK
 Line 2: (角色外观 + 服装 + 动作)
 BREAK
-Line 3: (玩家外观 + 服装 + 动作) [如果是 SOLO 模式，这一行请输出 "looking at viewer" 或 "POV" 相关词，不要描述玩家外貌]
+Line 3: (视角控制 + 玩家模糊肢体)
 BREAK
 Line 4: (互动 + 环境细节 + 光影)
 
 ### 详细要求:
 
 1. **Line 1 (Scene & Count)**:
-   - 必须包含人数 Tag: '1girl' (SOLO) 或 '1boy, 1girl' (DUO).
+   - **强制人数**: 必须包含 '{{char_tag}}' (如 1girl). **严禁使用 'couple', '2girls' 或多人数 Tag。**
    - 场景关键词: 'indoors', 'bedroom', 'street' 等。
 
 2. **Line 2 (Character)**:
@@ -547,24 +547,15 @@ Line 4: (互动 + 环境细节 + 光影)
 
 		
 3. **Line 3 (User/Second Character)**:
-   - **DUO模式**: 必须包含 {{user_appearance}}，以及玩家的动作 (如 holding camera, selfie)。
-   - **SOLO模式**: 不要描述玩家样子。写 'POV', 'first person', 'blurry hands' (如果需要) 或留空/写通用视线词。
+   - **强制视角**: 必须包含 'POV', 'first person view', 'looking at viewer', 'from user eyes'。
+   - **玩家表现**: **不要**描述玩家具体外貌！
+   - **肢体暗示 (可选)**: 如果需要体现互动，只允许写 'blurry hand petting head', 'hand holding camera' 等模糊肢体描述。
 
 4. **Line 4 (Interaction & Ambience)**:
    - 互动细节: 'eye contact', 'looking at camera', 'shutter moment'。
    - 环境光影: 'cinematic lighting', 'flash photography' (如果是自拍)。
    - ⚠️ **绝对禁令**: 严禁输出具体数字时间（如 "(22:58)"），括号数字会导致花屏！只允许使用模糊时间词（如 "night", "sunset", "late night"）。
    
-### 示例 (DUO Mode - Selfie)
-Output:
-1boy, 1girl, couple, indoors, living room,
-BREAK
-1girl, white hair, blue eyes, wearing pajamas, leaning on boy's shoulder, making peace sign,
-BREAK
-1boy, short black hair, wearing t-shirt, holding phone high, looking at camera,
-BREAK
-selfie, eye contact, smiling, screen glow, flash, intimate atmosphere
-
 ### 示例 (SOLO Mode - Portrait)
 Output:
 1girl, solo, indoors, cafe,
@@ -574,6 +565,69 @@ BREAK
 POV, first person view, blurry foreground,
 BREAK
 looking at viewer, candid shot, afternoon sunlight, depth of field
+
+【最终执行】
+请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
+[IMAGE_PROMPT]
+`;
+
+export const CAMERA_MAN_DUO_PROMPT = `
+[System Command: SMART_SHUTTER_DIRECTOR_DUO]
+任务：你是一个基于物理逻辑的**双人合影/第三人称**插画导演。
+**核心指令**：根据输入数据的【物理属性】进行动态建模，重点表现**两人的互动**。
+
+【输入数据】
+- 构图模式: DUO
+- 角色外观: {{char_appearance}}
+- 玩家外观: {{user_appearance}}
+- 服装数据: {{clothes}}
+- 动作基准: {{current_action}} (角色动作)
+- 时空环境: {{time}} @ {{location}}
+- 角色代词: {{char_tag}}
+- 用户代词: {{user_tag}}
+
+### 🎨 生成指令 (Instructions)
+请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
+
+**输出结构**:
+Line 1: (人数 + 场景描述)
+BREAK
+Line 2: (角色外观 + 服装 + 动作)
+BREAK
+Line 3: (玩家外观 + 服装 + 互动动作)
+BREAK
+Line 4: (整体互动氛围 + 环境细节 + 光影)
+
+### 详细要求:
+
+1. **Line 1 (Scene & Count)**:
+   - **强制人数**: 必须包含 '{{char_tag}}, {{user_tag}}' (如 1girl, 1boy) 或 'couple'。
+   - 场景关键词: 'indoors', 'bedroom', 'street' 等。
+
+2. **Line 2 (Character)**:
+   - 必须包含: {{char_appearance}}。
+   - 必须包含: {{clothes}}。
+   - 必须包含: 具体的动作描述 (基于 {{current_action}})。
+
+3. **Line 3 (User/Player)**:
+   - **必须包含**: {{user_appearance}}。
+   - **互动动作**: 描述玩家相对于角色的位置 (e.g. 'standing beside', 'hugging', 'arm around shoulder')。
+   - **清晰度**: 这里需要清晰地画出玩家，**不要**写 POV 或 blurry。
+
+4. **Line 4 (Interaction & Ambience)**:
+   - 互动细节: 'looking at each other', 'intimate', 'happy' 或 'looking at camera' (如果是自拍合影)。
+   - 环境光影: 'cinematic lighting', 'warm lighting'.
+   - **绝对禁令**: 严禁输出具体数字时间。
+
+### 示例 (DUO Mode - Couple)
+Output:
+1boy, 1girl, couple, indoors, living room,
+BREAK
+1girl, white hair, blue eyes, wearing pajamas, leaning on boy's shoulder, making peace sign,
+BREAK
+1boy, short black hair, wearing t-shirt, standing next to girl, arm around her shoulder, smiling,
+BREAK
+eye contact, happy atmosphere, soft lighting, depth of field
 
 【最终执行】
 请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：

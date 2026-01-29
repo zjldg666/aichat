@@ -47,25 +47,25 @@
 
     <!-- 3. 底部工具栏 -->
     <ChatFooter 
-      :isEditMode="isEditMode"
-      :selectedCount="selectedIds.length"
-      :isToolbarOpen="isToolbarOpen"
-      v-model="inputText"
-      :wakeTime="wakeTime"
-      :showThought="showThought"
-      @cancelEdit="cancelEdit"
-      @confirmDelete="confirmDelete"
-      @toggleToolbar="toggleToolbar"
-      @send="sendMessage(false)"
-      @clickTime="showTimePanel = true"
-      @clickLocation="showLocationPanel = true"
-      @sleepTimeChange="onSleepTimeChange"
-      @clickCamera="handleCameraSend"
-	  @clickStealthCamera="handleStealthCameraSend"
-      @clickContinue="triggerNextStep"
-      @toggleThought="toggleThought"
-      @clickWardrobe="showWardrobePanel = true"
-    />
+          :isEditMode="isEditMode"
+          :selectedCount="selectedIds.length"
+          :isToolbarOpen="isToolbarOpen"
+          v-model="inputText"
+          :wakeTime="wakeTime"
+          :showThought="showThought"
+          @cancelEdit="cancelEdit"
+          @confirmDelete="confirmDelete"
+          @toggleToolbar="toggleToolbar"
+          @send="sendMessage(false)"
+          @clickTime="showTimePanel = true"
+          @clickLocation="showLocationPanel = true"
+          @sleepTimeChange="onSleepTimeChange"
+          @clickCamera="handleCameraSend"
+          @clickStealthCamera="handleStealthCameraSend"
+          @clickGroupCamera="handleGroupCameraSend"  @clickContinue="triggerNextStep"
+          @toggleThought="toggleThought"
+          @clickWardrobe="showWardrobePanel = true"
+        />
     
     <!-- 4. 弹窗面板 -->
     <ChatModals 
@@ -478,7 +478,7 @@ const { executeEvolution, isEvolving } = useEvolution();
 const {
     runSceneCheck, runRelationCheck, runVisualDirectorCheck, runCameraManCheck, 
     checkAndRunSummary, runDayEndSummary,isArchiving,
-    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration,isSceneAnalyzing
+    checkHistoryRecall ,fetchActiveMemoryContext,retryAgentGeneration,isSceneAnalyzing,runGroupCameraCheck
 } = useAgents({chatId,
     messageList, currentRole, chatName, currentLocation, currentClothing, currentAction,
     interactionMode, currentRelation, 
@@ -586,6 +586,33 @@ const handleRetry = async (msg) => {
     }
 };
 
+
+// 2. 定义处理合照函数
+const handleGroupCameraSend = async () => {
+    // A. 严格限制：必须是 Face 模式
+    if (interactionMode.value !== 'face') {
+        return uni.showToast({ title: '距离太远，无法合影', icon: 'none' });
+    }
+
+    // B. UI 反馈
+    messageList.value.push({ 
+        role: 'system', 
+        content: '✌️ (你凑过去，举起手机准备拍张合影...)', 
+        isSystem: true 
+    });
+    scrollToBottom();
+    
+    // C. 动作同步等待 (确保角色已经到了身边)
+    await waitForActionSync(); 
+
+    // D. ⚡️ 调用新的独立函数 ⚡️
+    // 我们不需要分析用户文本，因为这是一个明确的UI动作，所以传通用上下文即可
+    await runGroupCameraCheck("System: User initiated a group selfie", "");
+
+    // E. 剧本反应：发送合影后的反应指令
+    const soundContext = "(随着“咔嚓”一声，你们两人的笑脸被定格在了屏幕上)";
+    sendCameraReactionPrompt(soundContext);
+};
 // --- 新增: 图片加载失败兜底 (可选) ---
 // 如果 ComfyUI 返回了 URL 但图片实际无法加载，也视为失败
 const handleImageLoadError = (msg) => {
@@ -635,17 +662,12 @@ const processAIResponse = async (rawText) => {
     if (mainContent) {
             // ✨✨✨ 【智能粘合逻辑】 ✨✨✨
             
-            // 🧬 进化系统：不再通过进度条积累，完全依赖 Gatekeeper
-            // const progressDelta = calculateProgress(messageList.value);
-            // evolutionProgress.value = ... 
-            
             saveCharacterState(); // 保存进度
 
             let formattedText = mainContent
                 // 步骤1：先标准化换行符
                 .replace(/(\r\n|\r)/g, '\n')
                 
-              
                 .replace(/([）\)])\s*\n\s*([“"‘])/g, '$1\n$2')
                 
                 // 步骤3：处理剩下的孤立换行符 (把连续换行合并为一个切割符)
@@ -696,36 +718,36 @@ const processAIResponse = async (rawText) => {
         console.log(`📅 时间: ${formattedTime.value}`);
         console.log(`📱 模式: ${interactionMode.value === 'phone' ? '手机聊天' : '当面互动'}`);
         console.log('-----------------------------------------------------------');
-		// 👇👇👇 【新增】纯净版剧本日志 👇👇👇
-		console.log('\n📖 ================= [ 当前剧本回放 ] ================= 📖');
-		messageList.value.forEach((msg, index) => {
-		    // 1. 跳过不想看的系统提示（比如生图的loading，或者时间流逝提示），只看对话
-		    // 如果你想看所有系统消息，注释掉下面这行
-		    // if (msg.isSystem && msg.content.includes('显影中')) return;
-		
-		    // 2. 格式化角色名
-		    let roleName = '';
-		    let emoji = '';
-		    
-		    if (msg.role === 'user') {
-		        roleName = '我';
-		        emoji = '🗣️';
-		    } else if (msg.role === 'model' || msg.role === 'assistant') {
-		        roleName = chatName.value; // AI名字
-		        emoji = '🌸';
-		    } else {
-		        roleName = '系统';
-		        emoji = '⚙️';
-		    }
-		
-		    // 3. 格式化内容 (去除 <think> 标签，让阅读更流畅)
-		    let cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-		    if (!cleanContent) cleanContent = "(心理活动/空)";
-		
-		    // 4. 打印一行
-		    // console.log(`${emoji} [${roleName}]: ${cleanContent}`);
-		});
-		console.log('📖 ======================================================\n');
+        // 👇👇👇 【新增】纯净版剧本日志 👇👇👇
+        console.log('\n📖 ================= [ 当前剧本回放 ] ================= 📖');
+        messageList.value.forEach((msg, index) => {
+            // 1. 跳过不想看的系统提示（比如生图的loading，或者时间流逝提示），只看对话
+            // 如果你想看所有系统消息，注释掉下面这行
+            // if (msg.isSystem && msg.content.includes('显影中')) return;
+        
+            // 2. 格式化角色名
+            let roleName = '';
+            let emoji = '';
+            
+            if (msg.role === 'user') {
+                roleName = '我';
+                emoji = '🗣️';
+            } else if (msg.role === 'model' || msg.role === 'assistant') {
+                roleName = chatName.value; // AI名字
+                emoji = '🌸';
+            } else {
+                roleName = '系统';
+                emoji = '⚙️';
+            }
+        
+            // 3. 格式化内容 (去除 <think> 标签，让阅读更流畅)
+            let cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            if (!cleanContent) cleanContent = "(心理活动/空)";
+        
+            // 4. 打印一行
+            // console.log(`${emoji} [${roleName}]: ${cleanContent}`);
+        });
+        console.log('📖 ======================================================\n');
 
     
         
@@ -762,8 +784,15 @@ const processAIResponse = async (rawText) => {
                              runCameraManCheck(lastUserMsg, rawText);
                         });
                     } else {
-                        // 自动生图：将场景分析的 Promise 传递进去，实现并行 Gatekeeper
-                        runVisualDirectorCheck(lastUserMsg, rawText, null, sceneCheckPromise);
+                        // 🔥🔥🔥 【修改点】 自动生图逻辑：增加模式前置判断 🔥🔥🔥
+                        if (interactionMode.value === 'phone') {
+                            // 只有在【手机模式】下，才呼叫视觉导演 (AI决定是否发自拍)
+                            console.log('📱 [流程] Phone模式，启动自动生图检测...');
+                            runVisualDirectorCheck(lastUserMsg, rawText, null, sceneCheckPromise);
+                        } else {
+                            // Face 模式，直接跳过 (收回AI生图权，仅保留手动拍照)
+                            console.log('🛑 [流程] Face模式，跳过自动生图步骤');
+                        }
                     }
                     
                 }, 500);
