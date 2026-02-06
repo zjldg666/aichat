@@ -7,14 +7,14 @@ import {
     SCENE_KEEPER_PROMPT, 
     RELATIONSHIP_PROMPT, 
     SNAPSHOT_TRIGGER_PHONE,
-    SNAPSHOT_TRIGGER_FACE, 
+ 
     IMAGE_GENERATOR_PROMPT, 
     CAMERA_MAN_PROMPT,
     SUMMARY_PROMPT,
     IMAGE_GENERATOR_OPENAI_PROMPT,
     CAMERA_MAN_OPENAI_PROMPT,
 	SNAPSHOT_COMPOSITION_JUDGE,
-	VISUAL_CONTENT_ANALYZER,
+
 	 CAMERA_MAN_DUO_PROMPT
 } from '@/utils/prompts.js';
 import { STYLE_PROMPT_MAP } from '@/utils/constants.js'; // ✨ 引入画风映射表
@@ -252,7 +252,7 @@ export function useAgents(context) {
 	                temperature: 0.5, maxTokens: 300
 	            });
 	
-	            console.log(`✌️ [合拍] 动态描述:`, res.slice(0, 5000) + "...");
+	            console.log(`✌️ [合拍] 动态描述:`, res.slice(0, 10000) + "...");
 	            
 	            // 提取 Prompt
 	            let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
@@ -489,8 +489,9 @@ Character: "${aiResponseText}"`;
 
 
         
-    const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null, sceneCheckPromise = null) => {
-                // 🛡️ 1. 强力防抖：如果列表里已经有正在生成的占位符，直接拒绝，防止双重触发
+    // 3. 替换 runVisualDirectorCheck (极简版：只处理手机发图)
+        const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null, sceneCheckPromise = null) => {
+                // 🛡️ 1. 基础拦截
                 const isGenerating = messageList.value.some(m => 
                     m.isSystem && (m.content === '📷 正在构图...' || m.content === '📷 显影中...')
                 );
@@ -498,14 +499,16 @@ Character: "${aiResponseText}"`;
                     console.log('🚧 [生图拦截] 上一张图正在生成中...');
                     return;
                 }
-        
-                // 2. 冷却检查
                 if (!existingMsgId && Date.now() - lastImageGenerationTime.value < IMAGE_COOLDOWN_MS) return;
                 
+                // 🛡️ 2. 模式双重保险 (虽然 chat.vue 拦截了，这里再拦一次更稳)
+                if (interactionMode.value !== 'phone') {
+                    return; 
+                }
+    
                 const config = getCurrentLlmConfig();
                 if (!config || !config.apiKey) return;
                 
-                // 3. 文本清洗
                 const rawAiText = aiResponseText || "";
                 const cleanAiText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
                 const promptAiMsg = cleanAiText.length > 0 ? cleanAiText : rawAiText;
@@ -514,22 +517,12 @@ Character: "${aiResponseText}"`;
                 // ============================
                 // A. 门卫检查 (Gatekeeper)
                 // ============================
-                let compositionType = 'SOLO'; // 默认值
-                
+                // 既然只在 Phone 模式运行，直接用 SNAPSHOT_TRIGGER_PHONE
                 if (!existingMsgId) {
-                    console.log('🕵️ [门卫] 启动检查...');
-    
-                    // 🔥🔥🔥 [核心修改] Face 模式下彻底阻断自动生图 🔥🔥🔥
-                    // 只有 Phone 模式才允许 AI 自动发图
-                    if (interactionMode.value !== 'phone') {
-                        console.log('🛑 [门卫] Face模式下自动生图已禁用 (仅限手动)');
-                        return;
-                    }
+                    console.log('📱 [自动生图] 启动检查 (Phone Mode)...');
                     
-                    let gatekeeperPrompt = "";
                     const allowSelfImage = currentRole.value?.settings?.allowSelfImage !== false ? 'TRUE' : 'FALSE';
-                    
-                    gatekeeperPrompt = SNAPSHOT_TRIGGER_PHONE
+                    const gatekeeperPrompt = SNAPSHOT_TRIGGER_PHONE
                         .replace('{{user_msg}}', promptUserMsg)
                         .replace('{{ai_msg}}', promptAiMsg)
                         .replace('{{allow_self_image}}', allowSelfImage);
@@ -539,123 +532,86 @@ Character: "${aiResponseText}"`;
                         temperature: 0.1, maxTokens: 100
                     });
                     
-                    let result = false;
                     const resultTag = parseTags(gateRes, 'RESULT');
-                    // Phone 模式下通常是 SOLO，但保留解析能力以备扩展
-                    const compTag = parseTags(gateRes, 'COMPOSITION');
-                    if (compTag && compTag.toUpperCase().includes('DUO')) {
-                        compositionType = 'DUO';
-                    }
                     const looseMatch = /\bTRUE\b/i.test(gateRes); 
                 
                     if ((resultTag && resultTag.toUpperCase().includes('TRUE')) || looseMatch) {
-                        result = true;
+                        console.log('✅ [门卫] 放行：准备发送照片');
+                    } else {
+                        console.log('🚫 [门卫] 拦截：无需发图');
+                        return;
                     }
-                    console.log(result ? `✅ [门卫] 通过 (构图: ${compositionType})` : '🚫 [门卫] 拦截');
-                    if (!result) return;
                 }
     
-                // =========================================================
-                // 🔥 并行流水线同步点 (Synchronization Point)
-                // =========================================================
+                // ============================
+                // B. 并行同步 (等场景分析完)
+                // ============================
                 if (sceneCheckPromise) {
-                    try {
-                        await sceneCheckPromise;
-                        console.log('✅ [流水线] 场景数据同步完成，开始生图。');
-                    } catch (e) {
-                        console.warn('⚠️ 场景同步失败，将使用旧数据继续:', e);
-                    }
-                }
-        
-                // =========================================================
-                // 🗑️ B. 视觉解耦层 (已移除 - Merged into Director)
-                // =========================================================
-                
-                let finalVisualAction = currentAction.value || "Standing";
-                let finalComposition = compositionType; 
-                let hardwareBan = false; 
-    
-                // Face 模式下的防御性硬件屏蔽 (虽然现在已经进不来了，但为了健壮性保留)
-                if (interactionMode.value === 'face') {
-                    hardwareBan = true;
+                    try { await sceneCheckPromise; } catch (e) {}
                 }
         
                 // ============================
                 // C. 生图逻辑 (Director)
                 // ============================
                 const { handleAsyncImageGeneration } = useChatGallery({ 
-                    currentRole, 
-                    interactionMode, 
-                    messageList, 
-                    chatId, 
-                    chatName,
-                    saveHistory, 
-                    scrollToBottom,
-                    userAppearance: ref('') 
+                    currentRole, interactionMode, messageList, chatId, chatName,
+                    saveHistory, scrollToBottom, userAppearance: ref('') 
                 });
                 
+                // 1. 占位符
                 let placeholderId = existingMsgId;
                 if (!placeholderId) {
-                    placeholderId = `img-loading-${Date.now()}-${Math.random()}`;
-                    messageList.value.push({ role: 'system', content: '📷 正在构图...', isSystem: true, id: placeholderId });
+                    placeholderId = `img-auto-${Date.now()}`;
+                    messageList.value.push({ role: 'system', content: '📷 正在发送图片...', isSystem: true, id: placeholderId });
                 }
                 scrollToBottom();
                 saveHistory();
                 
+                // 2. 准备变量 (默认就是单人 SOLO)
+                const settings = currentRole.value?.settings || {};
+                const gender = settings.gender || '女';
+                const charTag = gender === '女' ? '1girl' : '1boy';
+                const pronoun = gender === '女' ? 'She' : 'He';
+                const fullAppearance = settings.appearance || settings.appearanceSafe || "a beautiful girl";
+                const clothingDesc = settings.clothingTags ? settings.clothingTags : (currentClothing.value || "Casual");
+        
+                // 3. 构建 Prompt (直接使用 simplified IMAGE_GENERATOR_PROMPT)
                 const imgConfig = uni.getStorageSync('app_image_config') || {};
                 const isOpenAI = imgConfig.provider === 'openai';
                 
-                // 🟢 1. 获取性别与样貌
-                const settings = currentRole.value?.settings || {};
-                const gender = settings.gender || '女';
-                const userGender = settings.userGender || '男';
-        
-                const charTag = gender === '女' ? '1girl' : '1boy';
-                const userTag = userGender === '男' ? '1boy' : '1girl';
-                const pronoun = gender === '女' ? 'She' : 'He';
-                const possessive = gender === '女' ? 'Her' : 'His';
-        
-                let fullAppearance = settings.appearance || settings.appearanceSafe || (gender === '女' ? "a beautiful girl" : "a handsome boy");
-                if (fullAppearance.endsWith('.')) fullAppearance = fullAppearance.slice(0, -1);
-                
-                // 🟢 2. 构建 Prompt 给 AI
+                // 如果是 OpenAI，用它的模板；如果是 ComfyUI，用我们刚改的 IMAGE_GENERATOR_PROMPT
                 const template = isOpenAI ? IMAGE_GENERATOR_OPENAI_PROMPT : IMAGE_GENERATOR_PROMPT;
-                const clothingDesc = settings.clothingTags ? settings.clothingTags : (currentClothing.value || "Casual");
-        
-                if (hardwareBan) {
-                    finalVisualAction += ", (holding phone:0), (holding camera:0), hands free";
-                }
-        
+    
                 const directorPrompt = template
                     .replace('{{clothes}}', clothingDesc) 
                     .replace('{{location}}', currentLocation.value || "Indoor") 
                     .replace('{{time}}', formattedTime.value)
                     .replace('{{user_msg}}', promptUserMsg)
                     .replace('{{ai_msg}}', promptAiMsg)
-                    .replace('{{current_action}}', finalVisualAction)
-                    .replace('{{composition}}', finalComposition) 
+                    .replace('{{current_action}}', currentAction.value || "Standing")
                     .replace('{{char_appearance}}', fullAppearance) 
-                    .replace('{{user_appearance}}', userAppearance.value || "1boy, casual clothes") 
+                    // Phone 模式下不需要 user_appearance
+                    .replace('{{user_appearance}}', "") 
                     .replace(/{{char_tag}}/g, charTag) 
-                    .replace(/{{user_tag}}/g, userTag) 
-                    .replace(/{{pronoun}}/g, pronoun)   
-                    .replace(/{{possessive}}/g, possessive); 
+                    .replace(/{{pronoun}}/g, pronoun);
                 
+                // 4. 请求 Prompt
                 try {
                     const dirRes = await safeTagChat({
                         config, messages: [{ role: 'user', content: directorPrompt }],
                         temperature: 0.7, maxTokens: 300
                     });
                 
-                    console.log(`🎨 [导演] 动态部分生成:`, dirRes);
+                    console.log(`🎨 [导演] 生成Prompt:`, dirRes.slice(0,5000));
                     let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
                     if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
                 
                     if (dynamicPart) {
                         lastImageGenerationTime.value = Date.now();
                         const idx = messageList.value.findIndex(m => m.id === placeholderId);
-                        if (idx !== -1) messageList.value[idx].content = '📷 显影中...';
+                        if (idx !== -1) messageList.value[idx].content = '📷 图片接收中...';
                 
+                        // 拼接风格
                         let finalPrompt = "";
                         if (isOpenAI) {
                             const stylePrefix = getOpenAIStylePrefix(imgConfig.style); 
@@ -668,8 +624,8 @@ Character: "${aiResponseText}"`;
                             finalPrompt = `${stylePart},\n${dynamicPart}`;
                         }
                                         
-                        console.log(`🧩 [最终拼接Prompt]`, finalPrompt);
-                        handleAsyncImageGeneration(finalPrompt, placeholderId, finalComposition);
+                        // 强制 SOLO 模式
+                        handleAsyncImageGeneration(finalPrompt, placeholderId, 'SOLO');
                     } else {
                         throw new Error("生成内容无效");
                     }
@@ -677,9 +633,8 @@ Character: "${aiResponseText}"`;
                     console.warn('Director failed:', e);
                     const idx = messageList.value.findIndex(m => m.id === placeholderId);
                     if (idx !== -1) {
-                        messageList.value[idx].content = '❌ 构图失败';
+                        messageList.value[idx].content = '❌ 图片发送失败';
                         messageList.value[idx].hasError = true;
-                        messageList.value[idx].retryContext = { lastUserMsg, aiResponseText: rawAiText };
                         saveHistory();
                     }
                 }

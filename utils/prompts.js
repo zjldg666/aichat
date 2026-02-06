@@ -336,170 +336,99 @@ export const RELATIONSHIP_PROMPT = `
 `;
 
 
-// 🟢 1. 手机模式专用门卫 (允许角色主动发图)
+// 🟢 1. 手机模式专用门卫 (已修复：以 AI 意愿为准，拒绝不发图)
 export const SNAPSHOT_TRIGGER_PHONE = `
 [System Command: VISUAL_GATEKEEPER_PHONE]
-任务：你是一个严谨的“手机相册门卫”。请判断当前对话是否涉及图片传输。
-
-
-
-【对话内容】
-玩家: "{{user_msg}}"
-角色: "{{ai_msg}}"
-
-【判定逻辑 (Phone Mode Only)】
-✅ **[TRUE] 放行条件**:
-1. **玩家索取**: 明确要求看照片、自拍、私房照 (e.g., "发张图", "看看你", "自拍呢").
-2. **玩家追问**: 在发图语境下要求更多 (e.g., "再来一张", "还要").
-
-
-🛑 **[FALSE] 拦截条件**:
-1. 玩家只是闲聊或夸奖文字 ("你好美")，未提及图片。
-3. 视频通话请求 (Video call) -> 拦截 (这不是发图).
-
-【输出格式】
-[RESULT] TRUE 或 FALSE
-`;
-
-// 🟢 2. 当面模式专用门卫 (极度严格，仅限玩家发起)
-export const SNAPSHOT_TRIGGER_FACE = `
-[System Command: VISUAL_GATEKEEPER_FACE]
-任务：你是一个严谨的“摄影快门门卫”。请判断**玩家**是否发起了拍照指令。
-
-【对话内容】
-玩家: "{{user_msg}}"
-角色: "{{ai_msg}}"
-
-【判定逻辑 (Face Mode Only)】
-✅ **[TRUE] 放行条件 (仅限玩家指令)**:
-1. **玩家发起拍照**: 明确要求合影、拍照、记录 (e.g., "拍张照", "茄子", "留个念", "合个影", "我们拍一个").
-2. **玩家追问**: 在拍照语境下要求继续 (e.g., "再拍一张", "不够", "换个姿势").
-
-🛑 **[FALSE] 拦截条件 (绝对执行)**:
-1. **角色动作误判**: 角色说“看着我”、“凑近点”、“整理头发” -> **一律拦截** (这是动作描写，不是拍照).
-2. **普通互动**: 拥抱、接吻、单纯的看、检查伤口 -> **拦截** (没有快门动作).
-3. 玩家只是夸奖 ("真好看") 但没说要拍.
-
-【人数判定 (Composition Logic)】
-请基于**摄影镜头语言**自主决策：
-
-1. **DUO (双人模式)**: 
-   - **核心逻辑**: 画面需要体现**“我们”**的概念，或者**肢体互动**是画面的主体。
-   - **适用语境**: 
-     - 两人发生了**无法分割**的互动（如拥抱、接吻、背起、膝枕、壁咚）。
-     - 需要展示**双方体型差**或**张力**的场景。
-     - 自拍或合影（Camera is looking at both）。
-
-2. **SOLO (单人模式)**:
-   - **核心逻辑**: 画面体现**“我看着你”**的概念 (POV)，焦点完全在**对方**身上。
-   - **适用语境**: 
-     - 玩家处于**观察者**视角，静静欣赏对方。
-     - 玩家给对方拍照。
-     - 互动的重点在于**对方的反应**（如摸头时，重点是她享受的表情，而不是你的手，此时依然算 SOLO）。
-  
-【输出格式】
-[RESULT] TRUE 或 FALSE
-[COMPOSITION] SOLO 或 DUO
-`;
-
-// 🔥🔥🔥 新增：视觉内容解耦分析器 🔥🔥🔥
-// AiChat/utils/prompts.js
-
-export const VISUAL_CONTENT_ANALYZER = `
-[System Command: VISUAL_CONTENT_DECOUPLER]
-任务：你是一个AI摄影导演。请根据对话上下文，**提取照片里应该出现的画面内容**。
+任务：你是一个严谨的“手机相册门卫”。你的职责是只有在**AI角色明确打算发送照片**时才放行。
 
 【输入数据】
-- 玩家指令: "{{user_msg}}"
-- 角色回复: "{{ai_msg}}"
-- 角色实时物理状态: "{{real_time_action}}"
+玩家: "{{user_msg}}"
+角色: "{{ai_msg}}"
 
-【分析逻辑 (Decoupling Logic)】
- **去手机化 (De-Phone Protocol) - 核心任务**:
-   - 如果玩家要求“合影/拍照/看现在的你”，且非对着镜子自拍：
-     - **必须**给角色分配一个**占用手部**的动作，以防止AI自动补全手机。
-     - **推荐动作**: "making peace sign" (比耶), "hand on cheek" (托腮), "waving" (招手), "fixing hair" (撩头发), "hands on hips" (叉腰), "clasping hands" (握手)。
-     - **禁止**: 不要输出 "holding phone", "taking photo"。
+【判定逻辑】
+✅ **[TRUE] 放行 (必须满足 AI 的意愿)**:
+1. **主动发送**: AI 的回复包含明确的发图动作或描述 (e.g., "发给你", "看这张", "刚拍的", "Photo sent").
+2. **同意请求**: 玩家索取照片，且 AI **明确答应** (e.g., "好吧", "真拿你没办法", "就一张哦").
+3. **隐性配合**: AI 虽然嘴上抱怨但行为上配合 (e.g., "真害羞...给你看一眼").
 
+🛑 **[FALSE] 拦截 (优先级最高 - 遇到以下情况一律拦截)**:
+1. **拒绝**: AI 说“不行”、“不给看”、“下次”。
+2. **推脱/借口**: AI 找理由不发 (e.g., "衣服太厚了", "光线不好", "没洗澡", "拍不出效果").
+3. **无实际动作**: 玩家求图，AI 只是纯文字调情、转移话题或只是口头描述，**没有实际给出的迹象**。
+4. **纯粹索取**: 玩家单方面要图，AI 尚未答应或正在犹豫中。
+
+【重要原则】
+- **玩家请求不等于同意**：即使玩家疯狂求图，如果 AI 拒绝或打岔，必须返回 FALSE！
+- **借口即拒绝**：如果 AI 说“衣服太厚看不清”，这意味着她**不打算**发这张废片，必须拦截！
 
 【输出格式】
-请直接输出 JSON 格式（不要Markdown）：
-{
-  "visual_action": "此处填写画面动作，例如: 'standing close, making peace sign with fingers'",
-  "hardware_ban": true
-}
+[RESULT] TRUE 或 FALSE
 `;
 
 
-
+// 🟢 2. 简化的生图导演 (专用于手机发图 - 强制 SOLO)
 export const IMAGE_GENERATOR_PROMPT = `
-[System Command: VISUAL_DIRECTOR_V3]
-任务：你是 Stable Diffusion (ComfyUI) 的**摄影构图导演**。
-**目标**：将对话转化为画面 Prompt。**核心原则：绝对禁止使用 "selfie" 或 "phone" 单词！**
+[System Command: VISUAL_DIRECTOR_PHONE]
+任务：你是 Stable Diffusion 的摄影导演。
+场景：**角色正在通过手机给玩家发送一张自己的照片**。
+目标：生成一张**单人 (SOLO)** 的生活照 Prompt。
 
 【输入数据】
-- 构图模式: {{composition}} (SOLO/DUO)
 - 角色外观: {{char_appearance}}
-- 玩家外观: {{user_appearance}}
 - 服装: {{clothes}}
 - 地点: {{location}}
 - 时间: {{time}}
-- 动作基准: {{current_action}} (已由解耦器清洗)
+- 动作基准: {{current_action}}
 - 角色代词: {{char_tag}} ({{pronoun}})
-- 用户代词: {{user_tag}}
 
 【上下文】
 User: "{{user_msg}}"
 AI: "{{ai_msg}}"
 
 ### 📸 避坑指南 (Anti-Artifact Rules)
-1. **违禁词库 (Banned Words)**:
-   - **绝对不要输出**: "selfie", "phone", "camera", "holding device".
-   - **自拍视角的正确写法**: 使用 **"looking at viewer, from front, close-up"**。不要写 "selfie angle"！
-2. **手部占位**: 
-   - 确保 Line 2 的角色动作里包含具体的**手势 Tag** (如 v sign, hand on cheek, waving)，不要让手闲着。
+1. **去手机化**: 既然是“发过来的照片”，画面内容是**角色本人**，而不是“角色对着镜子拿手机自拍”。
+2. **绝对禁令**: **严禁输出** "selfie", "holding phone", "holding camera", "mirror", "reflection"。
+3. **视角**: 使用 **"looking at viewer, from front"** 模拟对方看着镜头的感觉。
 
 ### 🎨 生成指令 (Instructions)
 请输出 4 段式 Prompt Block。
 
 **输出结构**:
-Line 1: (人数 + 场景描述 + **from front, looking at viewer**)
+Line 1: (人数 + 场景 + 视角)
 BREAK
 Line 2: (角色外观 + 服装 + 动作 + 表情)
 BREAK
-Line 3: (玩家/第二人外观 + 动作) [DUO模式必填]
+Line 3: (手部动作占位 + 视线控制)
 BREAK
-Line 4: (互动 + 光影 + **no mirror, no reflection**)
+Line 4: (光影 + 氛围 + 负面词)
 
 ### 详细要求:
 
 1. **Line 1 (Scene)**:
-   - 必须包含: '1girl/couple' + 场景。
-   - **强制视角**: 必须使用 **'from front', 'looking at viewer'**。**严禁使用 'selfie'！**
+   - 必须包含: '{{char_tag}}, solo' + 场景。
+   - 必须包含: **'from front', 'looking at viewer'**。
 
 2. **Line 2 (Character)**:
    - 必须包含: {{char_appearance}}, {{clothes}}。
-   - **动作**: 直接填入 {{current_action}}。
+   - 动作: 基于 {{current_action}}，如果是发呆/闲聊，可以写 "sitting", "standing casual"。
 
-3. **Line 3 (User/Second Character)**:
-   - **DUO模式**:
-      - 必须包含 {{user_appearance}}。
-      - 玩家动作: "arm around shoulder", "standing next to girl", "smiling". 
-      - **绝对不要写** "holding phone" 或 "taking photo"！
+3. **Line 3 (Details)**:
+   - **手部动作**: 为了防止手乱画，请给一个明确动作，如 "making peace sign", "hand on cheek", "waving", "hands on lap"。
+   - **视线**: 再次强调 'eye contact', 'looking at viewer'。
 
-4. **Line 4 (Interaction)**:
-   - 必须包含: 'eye contact', 'intimate atmosphere'。
-   - **负面暗示**: 只写 **, no mirror, no reflection**。**不要写 no phone** (会起反作用)！
+4. **Line 4 (Quality)**:
+   - 必须包含: 'intimate atmosphere', 'phone camera quality' (手机画质感)。
+   - **负面**: **, no mirror, no reflection, no holding phone**。
 
-### 示例 (DUO - 合影)
+### 示例 (Phone - Sending Photo)
 Output:
-couple, 1boy, 1girl, indoors, bedroom, from front, looking at viewer,
+1girl, solo, indoors, bedroom, from front, looking at viewer,
 BREAK
-1girl, white hair, blue eyes, pajamas, standing close, making peace sign, smiling at viewer,
+1girl, white hair, blue eyes, wearing pajamas, sitting on bed, smiling,
 BREAK
-1boy, short black hair, casual shirt, standing next to girl, arm around her shoulder, smiling,
+hand on cheek, eye contact, relaxed pose,
 BREAK
-eye contact, happy atmosphere, soft lighting, no mirror, no reflection
+soft lighting, cozy atmosphere, phone camera quality, no mirror, no reflection, no holding phone
 
 【最终执行】
 请直接输出包含 BREAK 的 Tag 字符串：
@@ -507,11 +436,10 @@ eye contact, happy atmosphere, soft lighting, no mirror, no reflection
 `;
 
 
-
 export const CAMERA_MAN_PROMPT = `
 [System Command: SMART_SHUTTER_DIRECTOR]
 任务：你是一个基于物理逻辑的第一人称视角插画导演。
-**核心指令**：根据输入数据的【物理属性】进行动态建模。
+**核心指令**：模拟玩家眼中的画面（手机屏幕画面），**画面中绝对不能出现相机或手机设备**。
 
 【输入数据】
 - 构图模式: {{composition}} (SOLO/DUO)
@@ -523,48 +451,47 @@ export const CAMERA_MAN_PROMPT = `
 
 
 ### 🎨 生成指令 (Instructions)
-请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
+请严格按照以下 **5行格式** 输出 (包含 BREAK 的 4个部分)：
 
 **输出结构**:
 Line 1: (人数 + 场景描述)
 BREAK
 Line 2: (角色外观 + 服装 + 动作)
 BREAK
-Line 3: (视角控制 + 玩家模糊肢体)
+Line 3: (POV视角控制 + 隐形相机)
 BREAK
-Line 4: (互动 + 环境细节 + 光影)
+Line 4: (互动 + 环境细节 + 手机闪光感)
 
 ### 详细要求:
 
 1. **Line 1 (Scene & Count)**:
-   - **强制人数**: 必须包含 '{{char_tag}}' (如 1girl). **严禁使用 'couple', '2girls' 或多人数 Tag。**
+   - **强制人数**: 必须包含 '{{char_tag}}' (如 1girl).
    - 场景关键词: 'indoors', 'bedroom', 'street' 等。
 
 2. **Line 2 (Character)**:
-   - 必须包含: {{char_appearance}}。
-   - 必须包含: {{clothes}}。
+   - 必须包含: {{char_appearance}}, {{clothes}}。
    - 必须包含: 具体的动作描述 (基于 {{current_action}})。
+   - **视线**: 必须包含 'looking at viewer' (看着镜头)。
 
-		
-3. **Line 3 (User/Second Character)**:
-   - **强制视角**: 必须包含 'POV', 'first person view', 'looking at viewer', 'from user eyes'。
-   - **玩家表现**: **不要**描述玩家具体外貌！
-   - **肢体暗示 (可选)**: 如果需要体现互动，只允许写 'blurry hand petting head', 'hand holding camera' 等模糊肢体描述。
+3. **Line 3 (User POV)**:
+   - **强制视角**: 必须包含 'POV', 'first person view', 'from user eyes'。
+   - **禁令**: **严禁**出现 'holding camera', 'holding phone'！
+   - **肢体暗示 (可选)**: 只有当发生**肢体接触**时才描述手（如 'blurry hand petting head', 'hand touching cheek'）。如果是纯拍照，**这一行只写 POV 相关词**。
 
 4. **Line 4 (Interaction & Ambience)**:
-   - 互动细节: 'eye contact', 'looking at camera', 'shutter moment'。
-   - 环境光影: 'cinematic lighting', 'flash photography' (如果是自拍)。
-   - ⚠️ **绝对禁令**: 严禁输出具体数字时间（如 "(22:58)"），括号数字会导致花屏！只允许使用模糊时间词（如 "night", "sunset", "late night"）。
+   - 互动细节: 'eye contact', 'shy', 'smile' 等表情。
+   - 环境光影: 'flash photography' (强制闪光灯感，模拟手机直拍), 'hard light'。
+   - **绝对禁令**: 严禁输出具体数字时间。
    
 ### 示例 (SOLO Mode - Portrait)
 Output:
 1girl, solo, indoors, cafe,
 BREAK
-1girl, white hair, blue eyes, wearing dress, sitting across table, holding coffee cup,
+1girl, white hair, blue eyes, wearing dress, sitting across table, holding coffee cup, looking at viewer,
 BREAK
-POV, first person view, blurry foreground,
+POV, first person view, from user eyes,
 BREAK
-looking at viewer, candid shot, afternoon sunlight, depth of field
+eye contact, candid shot, flash photography, depth of field
 
 【最终执行】
 请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
@@ -573,8 +500,9 @@ looking at viewer, candid shot, afternoon sunlight, depth of field
 
 export const CAMERA_MAN_DUO_PROMPT = `
 [System Command: SMART_SHUTTER_DIRECTOR_DUO]
-任务：你是一个基于物理逻辑的**双人合影/第三人称**插画导演。
-**核心指令**：根据输入数据的【物理属性】进行动态建模，重点表现**两人的互动**。
+任务：你是一个基于物理逻辑的**双人自拍/合影**插画导演。
+**核心指令**：生成一张**玩家手持手机的前置摄像头自拍 (Front-facing Selfie)**。
+⚠️ **关键逻辑**：手机是镜头本身，**画面中绝对不要出现手机本体**！重点表现**玩家伸出的手臂**和**两人的亲密互动**。
 
 【输入数据】
 - 构图模式: DUO
@@ -587,52 +515,55 @@ export const CAMERA_MAN_DUO_PROMPT = `
 - 用户代词: {{user_tag}}
 
 ### 🎨 生成指令 (Instructions)
-请严格按照以下 **5行格式** 输出 (第一行由系统处理，你从第二行开始生成，但为了完整性，请输出包含 BREAK 的 4个部分)：
+请严格按照以下 **5行格式** 输出 (包含 BREAK 的 4个部分)：
 
 **输出结构**:
-Line 1: (人数 + 场景描述)
+Line 1: (人数 + 自拍视角 + 场景)
 BREAK
-Line 2: (角色外观 + 服装 + 动作)
+Line 2: (角色外观 + 动作 + **看镜头**)
 BREAK
-Line 3: (玩家外观 + 服装 + 互动动作)
+Line 3: (玩家外观 + **伸展手臂动作** + **看镜头**) [不要写 holding phone]
 BREAK
-Line 4: (整体互动氛围 + 环境细节 + 光影)
+Line 4: (互动氛围 + 光影)
 
 ### 详细要求:
 
 1. **Line 1 (Scene & Count)**:
-   - **强制人数**: 必须包含 '{{char_tag}}, {{user_tag}}' (如 1girl, 1boy) 或 'couple'。
+   - **强制人数**: '{{char_tag}}, {{user_tag}}' (如 1girl, 1boy) 或 'couple'。
+   - **强制构图**: 必须包含 'selfie', 'from front', 'wide angle' (广角感), 'close-up'。
    - 场景关键词: 'indoors', 'bedroom', 'street' 等。
 
 2. **Line 2 (Character)**:
-   - 必须包含: {{char_appearance}}。
-   - 必须包含: {{clothes}}。
-   - 必须包含: 具体的动作描述 (基于 {{current_action}})。
+   - 必须包含: {{char_appearance}}, {{clothes}}。
+   - **动作**: 靠近玩家 (leaning on viewer, cheek to cheek, head to head)。
+   - **视线**: **必须**包含 'looking at viewer' (看着镜头)。
 
 3. **Line 3 (User/Player)**:
-   - **必须包含**: {{user_appearance}}。
-   - **互动动作**: 描述玩家相对于角色的位置 (e.g. 'standing beside', 'hugging', 'arm around shoulder')。
-   - **清晰度**: 这里需要清晰地画出玩家，**不要**写 POV 或 blurry。
+   - 必须包含: {{user_appearance}}。
+   - **关键动作**: 'arm extended' (手臂伸长), 'arm reaching towards camera' (手伸向镜头), 'hand off frame' (手在画外)。
+   - **位置**: 'standing beside {{char_tag}}', 'shoulder to shoulder'。
+   - **禁令**: ❌ 严禁写 'holding phone' (否则手机会出现在画面里)。
 
 4. **Line 4 (Interaction & Ambience)**:
-   - 互动细节: 'looking at each other', 'intimate', 'happy' 或 'looking at camera' (如果是自拍合影)。
-   - 环境光影: 'cinematic lighting', 'warm lighting'.
+   - 互动细节: 'intimate', 'happy', 'smile', 'blushing'。
+   - 环境光影: 'screen lighting' (屏幕补光感), 'flash' (闪光灯感)。
    - **绝对禁令**: 严禁输出具体数字时间。
 
-### 示例 (DUO Mode - Couple)
+### 示例 (DUO Mode - Selfie)
 Output:
-1boy, 1girl, couple, indoors, living room,
+1boy, 1girl, couple, selfie, wide angle, from front, indoors, bedroom,
 BREAK
-1girl, white hair, blue eyes, wearing pajamas, leaning on boy's shoulder, making peace sign,
+1girl, white hair, blue eyes, wearing pajamas, leaning on boy's shoulder, making peace sign, looking at viewer, smile,
 BREAK
-1boy, short black hair, wearing t-shirt, standing next to girl, arm around her shoulder, smiling,
+1boy, short black hair, wearing t-shirt, standing next to girl, arm extended, arm reaching towards camera, looking at viewer,
 BREAK
-eye contact, happy atmosphere, soft lighting, depth of field
+cheek to cheek, intimate atmosphere, soft lighting, depth of field
 
 【最终执行】
 请直接输出包含 BREAK 的 Tag 字符串，不要包含任何解释：
 [IMAGE_PROMPT]
 `;
+
 
 // =============================================================================
 // 🆕 OpenAI (DALL-E 3) 专用生图指令 - 【拼接版：只生成动态部分】
