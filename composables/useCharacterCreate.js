@@ -175,28 +175,26 @@ export function useCharacterCreate(formData, targetId) {
             uni.showLoading({ title: 'AI正在注入灵魂...', mask: true });
             
             // 构造输入信息
-            const roleInfo = `【角色本体】
-    姓名: ${formData.value.name || '未命名'}
-    性别: ${formData.value.gender || '未知'}
-    背景故事: ${formData.value.bio}
-    人物性格: ${formData.value.personality || '未设定'}
-    说话风格: ${formData.value.speakingStyle || '未设定 (请生成)'}
-    喜好: ${formData.value.likes || '未设定 (请生成)'}
-    厌恶: ${formData.value.dislikes || '未设定 (请生成)'}
-    
-    【玩家设定 (对手戏对象)】
-    玩家昵称: ${formData.value.userNameOverride || '玩家'}
-    玩家性别: ${formData.value.userGender || '未知'}
-    当前关系: ${formData.value.userRelation || '未设定 (请根据背景故事自行推断)'}`;
-    
             const prompt = `[System: Expert Persona Architect]
             目标：构建一个具有高度逻辑自洽性、反差张力和执行力的真实角色灵魂。
             
             【输入档案】
-            ${roleInfo}
+            [角色本体]
+            姓名: ${formData.value.name || '未命名'}
+            性别: ${formData.value.gender || '未知'}
+            背景故事: ${formData.value.bio || '未设定'}
+            人物性格: ${formData.value.personality || '未设定'}
+            说话风格: ${formData.value.speakingStyle || '未设定 (请基于性格推演)'}
+            喜好: ${formData.value.likes || '未设定 (请基于性格推演)'}
+            厌恶: ${formData.value.dislikes || '未设定 (请基于性格推演)'}
+            
+            [玩家设定 (对手戏对象)]
+            玩家昵称: ${formData.value.userNameOverride || '玩家'}
+            玩家性别: ${formData.value.userGender || '未知'}
+            当前关系: ${formData.value.userRelation || '未设定 (请根据背景故事自行推断)'}
             
             【核心任务】
-            请基于上述档案，深度解析并输出**指导 AI 扮演该角色**的结构化指令。
+            请基于上述【输入档案】，深度解析并输出**指导 AI 扮演该角色**的结构化指令。
             不要写“她是一个...的人”，要写“她必须...”、“她禁止...”。
             
             【输出要求】
@@ -207,21 +205,17 @@ export function useCharacterCreate(formData, targetId) {
             
             2. **[LIKES] & [DISLIKES]**:
                - 各列出 3-5 个**具体名词**。
-               - 必须与背景故事有强关联，体现生活气息（不要写“和平”、“正义”这种大词，要写“热牛奶”、“下雨天的泥土味”）。
+               - 必须与【背景故事】有强关联，体现生活气息（不要写“和平”、“正义”这种大词，要写“热牛奶”、“下雨天的泥土味”）。
             
             3. **[BEHAVIOR_CORE] 核心行为逻辑 (Immutable Core)**:
-               - **这是角色的“宪法”**。请提取出 3-4 条**绝对不可违背**的行为准则。
-               - 包含：她绝对不会做的事、她的底层驱动力（欲望/恐惧）、她对世界的根本态度。
-               - **格式**：使用断言句。例如：“无论发生什么，绝对不能承认自己的软弱。”、“必须时刻保持贵族的礼仪，即使在盛怒之下。”
+               - 请结合【背景故事】与【人物性格】写出角色的几条基本行为准则，这是角色的底层色彩。
             
             4. **[RELATION_BEHAVIOR] 关系动态偏置 (Dynamic Bias)**:
-               - 仅针对当前关系：【${formData.value.userRelation || '未设定'}】。
-               - 定义玩家的**“特权”**与**“边界”**。
-               - 描述：在这个关系下，她对玩家的语气是更亲密还是更冷淡？她允许玩家做哪些别人不能做的事？
-               - **格式**：例如：“在手机聊天时会表现出极度的依赖感，但在公开场合必须装作不认识。”
+               - 深度分析当前关系：【${formData.value.userRelation || '未设定'}】。
+               - 根据角色的[BEHAVIOR_CORE]，该怎么和玩家相处。
             
             【输出格式】
-            请严格按照以下标签格式输出内容：
+            请严格按照以下标签格式输出内容（只输出内容，不要多余的寒暄）：
             
             [SPEAKING_STYLE]
             关键词：(词1, 词2...)
@@ -234,9 +228,7 @@ export function useCharacterCreate(formData, targetId) {
             (内容...)
             
             [BEHAVIOR_CORE]
-            1. (准则1...)
-            2. (准则2...)
-            ...
+			(内容...)
             
             [RELATION_BEHAVIOR]
             (内容...)`;

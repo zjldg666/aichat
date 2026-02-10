@@ -43,7 +43,7 @@ export function buildSystemPrompt({
     const ageInfo = (s.age) ? `[Age: ${s.age}] ` : "";
     const personalityInfo = (s.personality) ? `[Personality: ${s.personality}] ` : ""; // ✨ 新增
     const charBio = ageInfo + personalityInfo + (s.bio || "No bio provided.");
-    const coreLogic = s.personalityCore || s.personalityNormal || "React naturally based on your bio.";
+    const coreLogic = s.personalityCore || s.personalityNormal || "以背景故事与性格为准，像真人一样自然互动；保持一致的动机、底线与说话风格。";
     const dynamicBias = s.personalityDynamic || "";
     
     // 日记目录注入逻辑

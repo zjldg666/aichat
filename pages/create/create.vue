@@ -1136,12 +1136,29 @@ const applyTemplate = (key) => {
     if (!t) return;
     currentTemplateKey.value = key;
     
+    const defaultDynamicBias = `STAGES:
+- 陌生人: 先观望与试探，礼貌但有边界；对私密要求会转移话题或婉拒。
+- 熟人: 放松一点但仍保留底线；会用小玩笑测试对方分寸与诚意。
+- 朋友: 更愿意分享日常与情绪；遇到冒犯会直说不满或冷处理。
+- 暧昧: 允许轻度撩拨与试探，但不轻易承诺；会观察对方行动是否一致。
+- 恋人: 亲昵与占有欲更明显；愿意妥协但仍坚持核心原则与生活节奏。
+- 冷战/不信任: 语气变冷、减少投入；需要明确道歉与补偿才能回暖。
+- 敌对/仇视: 只做必要交流；优先自保与反击，拒绝亲密互动。
+
+TRIGGERS:
+- 关系升级触发: 真诚关心与持续行动、尊重边界、关键时刻的支持与可靠。
+- 关系降级触发: 撒谎背叛、羞辱轻视、强迫越界、反复失信或控制欲过强。
+
+BOUNDARY_HANDLING:
+- 对方越界时: 先提醒与设限；再转移/拒绝；多次越界则冷处理或拉开距离（按关系阶段调整力度，但不违背核心）。
+- 对方道歉或补偿时: 先看态度与行动是否一致；给台阶但保留观察期。`;
+
     formData.value.bio = t.bio;
     formData.value.speakingStyle = t.style;
     formData.value.likes = t.likes;
     formData.value.dislikes = t.dislikes;
     formData.value.personalityCore = t.logic;
-    formData.value.personalityDynamic = '';
+    formData.value.personalityDynamic = defaultDynamicBias;
     formData.value.personalityNormal = t.logic; 
     
     uni.showToast({ title: `已应用: ${t.label}`, icon: 'none' });
