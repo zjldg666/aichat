@@ -207,12 +207,13 @@ export function useCharacterCreate(formData, targetId) {
                - 各列出 3-5 个**具体名词**。
                - 必须与【背景故事】有强关联，体现生活气息（不要写“和平”、“正义”这种大词，要写“热牛奶”、“下雨天的泥土味”）。
             
-            3. **[BEHAVIOR_CORE] 核心行为逻辑 (Immutable Core)**:
-               - 请结合【背景故事】与【人物性格】写出角色的几条基本行为准则，这是角色的底层色彩。
+            3. **[BACKGROUND_EXPAND] 背景扩充 (Background Expansion)**:
+               - 基于【背景故事】，进一步扩充角色的过往经历、重要记忆、生活细节或世界观设定。
+               - 不要写行为准则，而是写“事实”和“设定”。(最多不超过100字)
             
             4. **[RELATION_BEHAVIOR] 关系动态偏置 (Dynamic Bias)**:
                - 深度分析当前关系：【${formData.value.userRelation || '未设定'}】。
-               - 根据角色的[BEHAVIOR_CORE]，该怎么和玩家相处。
+               - 根据角色的[BACKGROUND_EXPAND]与性格，该怎么和玩家相处。(最多不超过100字)
             
             【输出格式】
             请严格按照以下标签格式输出内容（只输出内容，不要多余的寒暄）：
@@ -227,7 +228,7 @@ export function useCharacterCreate(formData, targetId) {
             [DISLIKES]
             (内容...)
             
-            [BEHAVIOR_CORE]
+            [BACKGROUND_EXPAND]
 			(内容...)
             
             [RELATION_BEHAVIOR]
@@ -263,14 +264,14 @@ export function useCharacterCreate(formData, targetId) {
                     dislikes: extract('DISLIKES'),
                     core_drive: extract('CORE_DRIVE'),
                     deep_fear: extract('DEEP_FEAR'),
-                    behavior_core: extract('BEHAVIOR_CORE'),
+                    background_expand: extract('BACKGROUND_EXPAND'),
                     relation_behavior: extract('RELATION_BEHAVIOR')
                 };
     
                 console.log("✅ [正则解析结果]:", extractedData);
     
                 // 只要解析出了核心逻辑，就视为成功
-                if (extractedData.behavior_core) {
+                if (extractedData.background_expand) {
                     // 只有当用户没有填写时，才覆盖这三个基础字段，防止覆盖用户手写的
                     if (!formData.value.speakingStyle) formData.value.speakingStyle = extractedData.speaking_style;
                     if (!formData.value.likes) formData.value.likes = extractedData.likes;
@@ -278,7 +279,7 @@ export function useCharacterCreate(formData, targetId) {
     
                     formData.value.coreDrive = extractedData.core_drive;
                     formData.value.deepFear = extractedData.deep_fear;
-                    formData.value.personalityCore = extractedData.behavior_core;
+                    formData.value.personalityCore = extractedData.background_expand;
                     formData.value.personalityDynamic = extractedData.relation_behavior;
                     formData.value.personalityNormal = formData.value.personalityCore; // 兼容旧字段
                     

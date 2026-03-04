@@ -573,15 +573,15 @@
            <view class="input-item" style="margin-top: 30rpx; padding: 20rpx; background: #e3f2fd; border-radius: 16rpx; border: 1px dashed #2196f3;">
               <view style="text-align: center;">
                   <view style="font-size: 28rpx; font-weight: bold; color: #1976d2; margin-bottom: 10rpx;">✨ AI 行为逻辑生成</view>
-                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">AI 会拆分生成：固定核心行为 + 随关系变化的动态偏置。</view>
-                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成核心 + 动态</button>
+                  <view style="font-size: 22rpx; color: #666; margin-bottom: 20rpx;">AI 会拆分生成：背景扩充 + 随关系变化的动态偏置。</view>
+                  <button @click="autoGenerateBehavior" style="background: #2196f3; color: white; font-size: 26rpx; border-radius: 40rpx; width: 80%;">🚀 生成背景 + 动态</button>
               </view>
            </view>
 
            <view class="textarea-item" style="margin-top: 20rpx;">
-             <text class="label">🧠 固定核心行为 (Core Logic - 不会随关系变化)</text>
-             <view class="help-text">写“设定级原则”：世界观、底线、职业操守、稳定边界。动态偏置不得与此冲突。</view>
-             <textarea class="textarea large" style="height: 240rpx;" v-model="formData.personalityCore" placeholder="例：她永远保持专业守时；公共场合克制；被冒犯会冷处理..." maxlength="-1" />
+             <text class="label">🧠 背景扩充 (Background Expansion - 补充世界观与设定)</text>
+             <view class="help-text">写“背景补充”：补充世界观细节、过去经历、生活习惯等。</view>
+             <textarea class="textarea large" style="height: 240rpx;" v-model="formData.personalityCore" placeholder="例：她出生在古老的魔法世家；曾经因为一次实验事故失去了魔力..." maxlength="-1" />
            </view>
            
            <view class="textarea-item" style="margin-top: 20rpx;">
