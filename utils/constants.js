@@ -22,10 +22,10 @@ export const STYLE_PROMPT_MAP = {
 // 2. 负面提示词 (Negative Prompt)
 export const NEGATIVE_PROMPTS = {
     // 单人模式
-    SOLO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, 2girls, 2boys, multiple girls, multiple boys, couple, multiple views, split screen, censor, mosaic, bar, blurry",
+    SOLO: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers",
     
     // 双人模式 (允许出现 boy/couple，但依然禁止 child/loli 和 马赛克)
-    DUO: " (low quality, worst quality:1.2), bad anatomy, bad hands, missing fingers, extra digit, fewer digits, fused fingers, bad composition, inaccurate eyes, (extra arms:1.2), (extra legs), error, jpeg artifacts, signature, watermark, username, artist name, text, child, loli, underage, multiple views, grid, collage, split screen, censor, mosaic, bar, blurry"
+    DUO: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, child, loli, underage, multiple boys, multiple views, deformed, missing limbs, extra arms, extra legs, fused fingers"
 };
 
 // 3. ComfyUI 工作流模板
@@ -171,21 +171,46 @@ export const COMFY_WORKFLOW_TEMPLATE = {
 };
 // ... 原有的代码保持不变 ...
 
-// 4. 捏人界面的画风预设 (Create Page)
 export const FACE_STYLES_MAP = {
-    'cute': 'cute face, childlike face, round face, large sparkling eyes, doe eyes, small nose, soft cheeks, big head small body ratio, kawaii',
-    'cool': 'mature face, sharp eyes, narrow eyes, long eyelashes, perfect eyebrows, pale skin, defined jawline, elegant features, intimidating beauty',
-    'sexy': 'mature beauty, milf, mature female face,mature eyes, defined cheekbones, full lips, lipstick, exquisite makeup, mole under eye, long loose hair, ara ara',
-    'energetic': 'wide open eyes, bright eyes, fang, ahoge, messy hair, vivid eyes, sun-kissed skin, energetic vibe',
-    'emotionless': 'pale skin, straight bangs, flat chest, doll-like face, empty eyes, lifeless eyes',
-    'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes'
+    // 原有风格（微调 cute）
+    'cute': 'cute face, youthful face, round face, large sparkling eyes, small nose, soft facial features',
+    'cool': 'mature face, sharp eyes, narrow eyes, defined jawline, elegant features, intimidating beauty',
+    'sexy': 'mature female face, seductive eyes, full lips, glossy lipstick, beauty mole under eye',
+    'energetic': 'wide open eyes, bright vivid eyes, lively expression, energetic vibe',
+    'emotionless': 'pale skin, straight bangs, doll-like face, empty eyes, emotionless expression',
+    'yandere': 'shadowed face, sanpaku eyes, dark circles under eyes, sickly pale skin, hollow eyes',
+
+    // 扩展风格
+    'alluring': 'alluring face, half-lidded eyes, seductive gaze, sharp eyelashes, enchanting expression',
+    'dominant': 'dominant female face, cold confident eyes, arrogant expression, strong gaze, commanding presence',
+    'gentle': 'gentle face, soft eyes, warm smile, delicate features, kind expression',
+    'villainess': 'villainous beauty, sly smile, sharp eyes, confident smirk, dangerous elegance',
+    'obsessive': 'obsessive gaze, intense eyes, flushed cheeks, unstable expression, desperate affection',
+    'mysterious': 'mysterious face, half-shadowed eyes, calm expression, distant gaze, quiet elegance',
+    'elegant_mature': 'elegant mature face, refined features, calm confident eyes, subtle makeup, classy beauty',
+    'teasing': 'teasing expression, playful eyes, naughty smile, flirtatious gaze',
+    'vampire': 'vampire-like beauty, pale elegant face, crimson eyes, cold predatory gaze',
+    'mannequin': 'porcelain doll face, flawless skin, empty gaze, unnatural beauty, emotionless calm'
 };
 
 export const FACE_LABELS = {
+    // 原有
     'cute': '🍭 可爱/幼态',
     'cool': '❄️ 高冷/御姐',
     'sexy': '💋 成熟/人妻',
     'energetic': '🌟 元气/活泼',
     'emotionless': '😐 三无/冷淡',
-    'yandere': '🔪 病娇/黑化'
+    'yandere': '🔪 病娇/黑化',
+
+    // 扩展
+    'alluring': '🖤 妖艳/魔性',
+    'dominant': '👑 女王/支配',
+    'gentle': '🌸 温柔/贤惠',
+    'villainess': '😈 邪气/反派',
+    'obsessive': '🫦 痴迷/执念',
+    'mysterious': '🌙 神秘/冷艳',
+    'elegant_mature': '🍷 成熟/冷艳',
+    'teasing': '🐱 撩人/小恶魔',
+    'vampire': '🩸 吸血鬼/冷血',
+    'mannequin': '🪞 人偶/非人感'
 };
