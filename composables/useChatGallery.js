@@ -2,6 +2,7 @@
 import { Comfy } from '@/services/comfyui.js';
 import { saveToGallery } from '@/utils/gallery-save.js';
 import { STYLE_PROMPT_MAP } from '@/utils/constants.js';
+import { DB } from '@/utils/db.js';
 
 export function useChatGallery(context) {
     const { 
@@ -73,56 +74,56 @@ export function useChatGallery(context) {
     // ✅ 2. ComfyUI 优化器 (已升级为接收门卫指令)
     // 🆕 参数：isDuoModeStr (来自门卫)
     const optimizePromptForComfyUI = async (actionAndSceneDescription, isDuoModeStr) => {
-        let aiTags = actionAndSceneDescription || "";
-        const settings = currentRole.value?.settings || {};
-        const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
+            let aiTags = actionAndSceneDescription || "";
+            const settings = currentRole.value?.settings || {};
+            const appearanceSafe = settings.appearanceSafe || settings.appearance || "1girl"; 
+            
+            // 🆕 核心逻辑：不再瞎猜，直接听门卫的
+            let isDuo = (isDuoModeStr === 'DUO'); 
+            
+            // 🛡️ Phone 模式双重保险 (虽然门卫已经挡了一道，但这里的清洗逻辑必须保留，防止 Tag 冲突)
+            if (interactionMode.value === 'phone') {
+                isDuo = false; 
+                const subjectKeywords = /\b(couple|2people|1boy|boys|man|men|male|shota)\b/i;
+                aiTags = aiTags.replace(subjectKeywords, "");
+                aiTags = aiTags.replace(/\b(multiple|penis|testicles|cum)\b/gi, "");
+                aiTags = aiTags.replace(/\b(doggystyle|missionary|paizuri|sex|fellatio|cuddling|hug)\b/gi, "kneeling, all fours");
+            } else {
+                // Face 模式：如果门卫说是 DUO，那就清除 SOLO 标签
+                if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
+            }
         
-        // 🆕 核心逻辑：不再瞎猜，直接听门卫的
-        let isDuo = (isDuoModeStr === 'DUO'); 
+            let parts = [];
+            
+            // 🆕 智能补全：根据门卫指令补全主体
+            if (isDuo) {
+                if (!aiTags.includes('couple') && !aiTags.includes('2people')) parts.push("couple, 2people");
+            } else {
+                if (!aiTags.includes('solo')) parts.push("solo");
+            }
+            
+            // 画风注入 (完全保留)
+            const imgConfig = uni.getStorageSync('app_image_config') || {};
+            const styleSetting = imgConfig.style || 'anime';
+            const presetPrompt = STYLE_PROMPT_MAP[styleSetting];
+            
+            if (presetPrompt) {
+                parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
+                parts.push(presetPrompt);
+            } else {
+                parts.push("masterpiece, best quality, highres"); 
+                parts.push(`(${styleSetting}:1.2)`); 
+            }
+            
+            parts.push(appearanceSafe);
         
-        // 🛡️ Phone 模式双重保险 (虽然门卫已经挡了一道，但这里的清洗逻辑必须保留，防止 Tag 冲突)
-        if (interactionMode.value === 'phone') {
-            isDuo = false; 
-            const subjectKeywords = /\b(couple|2people|1boy|boys|man|men|male|shota)\b/i;
-            aiTags = aiTags.replace(subjectKeywords, "");
-            aiTags = aiTags.replace(/\b(multiple|penis|testicles|cum)\b/gi, "");
-            aiTags = aiTags.replace(/\b(doggystyle|missionary|paizuri|sex|fellatio|cuddling|hug)\b/gi, "kneeling, all fours");
-        } else {
-            // Face 模式：如果门卫说是 DUO，那就清除 SOLO 标签
-            if (isDuo) aiTags = aiTags.replace(/\bsolo\b/gi, ""); 
-        }
-    
-        let parts = [];
-        
-        // 🆕 智能补全：根据门卫指令补全主体
-        if (isDuo) {
-            if (!aiTags.includes('couple') && !aiTags.includes('2people')) parts.push("couple, 2people");
-        } else {
-            if (!aiTags.includes('solo')) parts.push("solo");
-        }
-        
-        // 画风注入 (完全保留)
-        const imgConfig = uni.getStorageSync('app_image_config') || {};
-        const styleSetting = imgConfig.style || 'anime';
-        const presetPrompt = STYLE_PROMPT_MAP[styleSetting];
-        
-        if (presetPrompt) {
-            parts.push("masterpiece, best quality, anime style, flat color, cel shading, vibrant colors, clean lines, highres");
-            parts.push(presetPrompt);
-        } else {
-            parts.push("masterpiece, best quality, highres"); 
-            parts.push(`(${styleSetting}:1.2)`); 
-        }
-        
-        parts.push(appearanceSafe);
-    
-        if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
-        if (aiTags) parts.push(`(${aiTags}:1.2)`);
-        
-        let rawPrompt = parts.join(', ');
-        let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
-        return uniqueTags.join(', ');
-    };
+            if (isDuo) parts.push(userAppearance.value || "1boy, male focus");
+            if (aiTags) parts.push(`(${aiTags}:1.2)`);
+            
+            let rawPrompt = parts.join(', ');
+            let uniqueTags = [...new Set(rawPrompt.split(/[,，]/).map(t => t.replace(/[^\x00-\x7F]+/g, '').trim()).filter(t => t))];
+            return uniqueTags.join(', ');
+        };
 
     // ✅ 3. 生图总控 (接收 compositionType)
     const generateChatImage = async (sceneDescription, compositionType) => {
@@ -153,26 +154,36 @@ export function useChatGallery(context) {
     // ✅ 4. 异步处理 (新增参数)
     const handleAsyncImageGeneration = async (imgDesc, placeholderId, compositionType = 'SOLO') => {
             try {
-                // 🔥 核心修复一：强制使用 1024x1024，彻底解决国内 API 敏感报错问题
-                // (注意：这里我们虽然是在 generateChatImage 里改的，但为了保险，
-                //  请确保你去 generateOpenAIImage 里把 size: "2048x2048" 改成了 "1024x1024")
-                
                 const imgUrl = await generateChatImage(imgDesc, compositionType);
                 const idx = messageList.value.findIndex(m => m.id === placeholderId);
                 
                 if (idx !== -1 && imgUrl) {
                     // 成功逻辑
                     const localPath = await saveToGallery(imgUrl, chatId.value, chatName.value, imgDesc);
+                    
+                    // 1. 更新内存状态
                     messageList.value[idx] = { 
                         role: 'model', 
                         type: 'image', 
                         content: localPath, 
                         id: placeholderId 
                     };
-                    saveHistory(); 
+                    
+                    // 2. 🔥【核心修复】强制更新数据库中该条消息的内容和类型
+                    // 如果只调用 saveHistory()，它通常是 INSERT 操作，可能会导致主键冲突或存不进去
+                    // 所以我们直接执行 SQL UPDATE
+                    try {
+                        await DB.execute(
+                            `UPDATE messages SET content = ?, type = ?, isSystem = 0 WHERE id = ?`,
+                            [localPath, 'image', placeholderId]
+                        );
+                        console.log(`💾 [DB] 图片消息已持久化: ${placeholderId}`);
+                    } catch (dbErr) {
+                        console.error('❌ 图片存库失败:', dbErr);
+                    }
+    
                     scrollToBottom();
                 } else if (idx !== -1) {
-                    // 失败逻辑（但不是异常，是没返回图）
                     throw new Error("API未返回有效图片");
                 }
             } catch(e) {
@@ -192,9 +203,7 @@ export function useChatGallery(context) {
                         originalPrompt: imgDesc, // 🌟 关键：把提示词藏在这里！
                         id: placeholderId 
                      };
-                     // 注意：saveHistory 默认只存 SQLite 的 content 字段。
-                     // 如果重启 App，originalPrompt 会丢失（因为没存数据库）。
-                     // 但在当前会话中，你点击重试是绝对好用的。
+                     
                      saveHistory();
                 }
             }
