@@ -60,9 +60,7 @@
 		onUnload,
 		onNavigationBarButtonTap
 	} from '@dcloudio/uni-app';
-	import {
-		DB
-	} from '@/utils/db.js';
+
 	import {
 		LLM
 	} from '@/services/llm.js';
@@ -88,6 +86,13 @@
 	import {
 		useEvolution
 	} from '@/composables/useEvolution.js'; // ✨ 新增
+	import {
+		useCharacterStore
+	} from '@/stores/useCharacterStore';
+	import {
+		messageService
+	} from '@/services/messageService.js';
+	const characterStore = useCharacterStore();
 
 	// 引入新组件
 	import ChatHeader from '@/components/ChatHeader.vue';
@@ -116,7 +121,8 @@
 	const inputText = ref('');
 	const isLoading = ref(false);
 	const scrollIntoView = ref('');
-
+	const currentAffection = ref(0);
+	const currentLust = ref(0);
 	// 角色状态
 	const currentAction = ref('站立/闲逛');
 	const userName = ref('你');
@@ -290,40 +296,18 @@
 	const saveHistory = async (msg) => {
 		if (!chatId.value) return;
 
-		// 🛠️ 兼容性处理：如果没有传 msg，则自动取 messageList 的最后一条
 		const targetMsg = msg || (messageList.value.length > 0 ? messageList.value[messageList.value.length - 1] :
 			null);
 		if (!targetMsg) return;
 
-		try {
-			// 1. 物理保存到 SQLite 数据库
-			await DB.execute(
-				`INSERT OR REPLACE INTO messages (id, chatId, role, content, type, isSystem, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				[
-					targetMsg.id || (Date.now() + Math.random()), // 确保有ID
-					String(chatId.value),
-					targetMsg.role,
-					targetMsg.content,
-					targetMsg.type || 'text',
-					targetMsg.isSystem ? 1 : 0,
-					Date.now()
-				]
-			);
+		// 1. 呼叫服务站：把消息存进数据库
+		await messageService.saveMessage(chatId.value, targetMsg);
 
-			// 2. 🌟 同步更新列表页预览 (Index 页面显示用)
-			let list = uni.getStorageSync('contact_list') || [];
-			const index = list.findIndex(item => String(item.id) === String(chatId.value));
-			if (index !== -1) {
-				// 设置预览文字
-				list[index].lastMsg = targetMsg.isSystem ? `[系统] ${targetMsg.content}` : targetMsg.content;
-				list[index].lastTime = "刚刚";
-				uni.setStorageSync('contact_list', list);
-			}
-
-			// console.log('💾 [DB] 消息已保存且预览已更新');
-		} catch (e) {
-			console.error('❌ 数据库保存失败', e);
-		}
+		// 2. 呼叫管家：更新列表页的“最后一条消息”预览
+		characterStore.saveCharacterData({
+			lastMsg: targetMsg.isSystem ? `[系统] ${targetMsg.content}` : targetMsg.content,
+			lastTime: "刚刚"
+		});
 	};
 
 	const getCurrentLlmConfig = () => {
@@ -332,45 +316,31 @@
 		return (schemes.length > 0 && schemes[idx]) ? schemes[idx] : uni.getStorageSync('app_api_config');
 	};
 
-	const saveCharacterState = (newTime, newSummary, newLocation, newClothes, newMode) => {
-
+	const saveCharacterState = (newScore, newTime, newSummary, newLocation, newClothes, newMode, newLust) => {
+		// 1. 如果有新值传进来，先更新当前页面的变量
+		if (newScore !== undefined) currentAffection.value = Math.max(0, Math.min(100, newScore));
+		if (newLust !== undefined) currentLust.value = Math.max(0, Math.min(100, newLust));
 		if (newTime !== undefined) currentTime.value = newTime;
 		if (newSummary !== undefined) currentSummary.value = newSummary;
 		if (newLocation !== undefined) currentLocation.value = newLocation;
 		if (newClothes !== undefined) currentClothing.value = newClothes;
 		if (newMode !== undefined) interactionMode.value = newMode;
 
+		// 2. 将所有最新状态交给管家一键保存！
 		if (chatId.value) {
-			const list = uni.getStorageSync('contact_list') || [];
-			const index = list.findIndex(item => String(item.id) === String(chatId.value));
-			if (index !== -1) {
-				const item = list[index];
-				// 🗑️ 移除: 好感度/欲望值 (已废弃)
-				// item.affection = currentAffection.value;
-				// item.lust = currentLust.value;
-				item.lastTimeTimestamp = currentTime.value;
-				item.summary = currentSummary.value;
-				// 🌟 核心改动：保存玩家位置
-				item.playerLocation = playerLocation.value;
-				item.currentLocation = currentLocation.value;
-				item.clothing = currentClothing.value;
-				item.currentAction = currentAction.value;
-				item.interactionMode = interactionMode.value;
-				item.lastActivity = currentActivity.value;
-				item.relation = currentRelation.value;
-				// ✨ 保存进化状态
-				if (!item.settings) item.settings = {};
-
-				// 🔥 核心修复：全量合并 currentRole.settings，防止漏掉 personalityNormal 和 clothingTags
-				const currentSettings = currentRole.value?.settings || {};
-				item.settings = {
-					...item.settings, // 保留 Storage 里原有的
-					...currentSettings, // 合并内存中 currentRole 的修改 (包含 personalityNormal)
-					evolutionLevel: evolutionLevel.value // 确保 evolutionLevel 使用最新的 ref 值
-				};
-
-				uni.setStorageSync('contact_list', list);
-			}
+			characterStore.saveCharacterData({
+				affection: currentAffection.value,
+				lust: currentLust.value,
+				lastTimeTimestamp: currentTime.value,
+				summary: currentSummary.value,
+				playerLocation: playerLocation.value,
+				currentLocation: currentLocation.value,
+				clothing: currentClothing.value,
+				currentAction: currentAction.value,
+				interactionMode: interactionMode.value,
+				lastActivity: currentActivity.value,
+				relation: currentRelation.value
+			});
 		}
 	};
 
@@ -429,8 +399,8 @@
 					// 1. 内存删除
 					messageList.value = messageList.value.filter(m => !selectedIds.value.includes(m.id));
 					// 2. 数据库删除
-					const ids = selectedIds.value.map(id => `'${id}'`).join(',');
-					await DB.execute(`DELETE FROM messages WHERE id IN (${ids})`);
+					// 呼叫服务站：干掉它们
+					await messageService.deleteMessages(selectedIds.value);
 
 					cancelEdit();
 					uni.showToast({
@@ -1071,7 +1041,7 @@
 		if (isLoading.value) return;
 		sendMessage(true,
 			`[System Command: NARRATIVE_CONTINUATION]\n**Status**: User waiting.\n**Task**: Finish msg or initiate action.\n**Rules**: No repeat.`
-			);
+		);
 	};
 
 
@@ -1180,8 +1150,8 @@
 	};
 
 	const loadRoleData = (id) => {
-		const list = uni.getStorageSync('contact_list') || [];
-		const target = list.find(item => String(item.id) === String(id));
+		characterStore.setCurrentId(id);
+		const target = characterStore.currentCharacter;
 		if (target) {
 			currentRole.value = target;
 			chatName.value = target.name;
@@ -1277,22 +1247,13 @@
 			chatId.value = options.id;
 			loadRoleData(options.id);
 
-			// ❌ 旧代码：const history = uni.getStorageSync(...)
-			// ✅ 新代码：从 SQLite 异步加载该角色的历史消息
-			try {
-				const history = await DB.select(
-					`SELECT * FROM messages WHERE chatId = ? ORDER BY timestamp ASC`,
-					[String(options.id)]
-				);
-				if (history && history.length > 0) {
-					// 将数据库的 0/1 转回布尔值
-					messageList.value = history.map(m => ({
-						...m,
-						isSystem: !!m.isSystem
-					}));
-				}
-			} catch (e) {
-				console.error('加载数据库历史失败', e);
+			// 呼叫服务站：拿历史记录
+			const history = await messageService.getMessages(options.id);
+			if (history.length > 0) {
+				messageList.value = history.map(m => ({
+					...m,
+					isSystem: !!m.isSystem
+				}));
 			}
 		}
 	});
