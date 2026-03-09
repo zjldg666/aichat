@@ -163,10 +163,12 @@ async function safeJsonChat({
 export function useAgents(context) {
 	const charStore = useCharacterStore();
 const {
-        messageList, chatName, formattedTime,
-        enableSummary, summaryFrequency, 
-        saveHistory, scrollToBottom, getCurrentLlmConfig
-    } = context;
+		chatId, messageList, currentRole, chatName, currentLocation, currentClothing,
+		currentAction, interactionMode, currentRelation, currentActivity, formattedTime,
+		playerLocation, enableSummary, summaryFrequency, currentSummary, saveCharacterState,
+		saveHistory, scrollToBottom, getCurrentLlmConfig, handleAsyncImageGeneration,
+		userAppearance, executeEvolution
+	} = context;
 
 
 
@@ -382,21 +384,31 @@ const {
 			// 2. 模式判定 (物理法则)
 			let aiDecidedMode = newMode ? newMode.toLowerCase() : interactionMode.value;
 
-			// ⚡️ 物理距离熔断: 如果两人地点不一致，强制切回 PHONE
-			// 忽略简单的包含关系检测（比如 "医院" 和 "医院大厅" 算在一起），只处理明显的不同
-			const isSamePlace = (locA, locB) => {
-				if (!locA || !locB) return false;
-				return locA === locB || locA.includes(locB) || locB.includes(locA);
-			};
-
-			if (!isSamePlace(currentLocation.value, playerLocation.value)) {
-				// 如果地点不同，强制 Phone
-				if (aiDecidedMode === 'face') {
-					console.log(
-						`🚧 [物理法则] 地点不一致 (${currentLocation.value} vs ${playerLocation.value})，强制修正为 PHONE`);
-					aiDecidedMode = 'phone';
-				}
-			}
+		// ⚡️ 物理距离熔断: 如果两人地点不一致，强制切回 PHONE
+					const isSamePlace = (locA, locB) => {
+						if (!locA || !locB) return false;
+						return locA === locB || locA.includes(locB) || locB.includes(locA);
+					};
+		
+					// ✨ 修复：获取动态室内房间列表
+					const s = currentRole.value?.settings || {};
+					const indoorRooms = s.homeRooms || ['客厅', '卧室', '厨房', '卫生间'];
+					const isPlayerIndoor = indoorRooms.includes(playerLocation.value);
+					const isAiIndoor = indoorRooms.includes(currentLocation.value);
+		
+					if (!isSamePlace(currentLocation.value, playerLocation.value)) {
+						// ✨ 修复：如果你们都在房子里的不同房间，允许保持 face(当面) 模式
+						if (isPlayerIndoor && isAiIndoor) {
+							// 隔空对话，不强制切断
+						} else {
+							// 否则（有一方在室外），强制 Phone
+							if (aiDecidedMode === 'face') {
+								console.log(
+									`🚧 [物理法则] 地点不一致 (${currentLocation.value} vs ${playerLocation.value})，强制修正为 PHONE`);
+								aiDecidedMode = 'phone';
+							}
+						}
+					}
 
 			if (aiDecidedMode && aiDecidedMode !== interactionMode.value) {
 				interactionMode.value = aiDecidedMode;

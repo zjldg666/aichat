@@ -35,48 +35,36 @@
 					</view>
 
 					<view class="sub-group">
-						<view class="sub-header" @click="toggleSubSection('charWork')">
-							<text class="sub-title">🏢 工作与作息</text>
-							<text class="sub-arrow">{{ subSections.charWork ? '▼' : '▶' }}</text>
+						<view class="sub-header" @click="toggleSubSection('charRooms')">
+							<text class="sub-title">🏠 房屋室内场景 (房间)</text>
+							<text class="sub-arrow">{{ subSections.charRooms ? '▼' : '▶' }}</text>
 						</view>
 
-						<view v-show="subSections.charWork" class="sub-content">
-							<view class="setting-tip">设定后，工作时间去她家可能会扑空，去单位能偶遇。</view>
+						<view v-show="subSections.charRooms" class="sub-content">
+							<view class="setting-tip">自定义家中的房间。玩家在这些房间内移动时，会自动判定为在室内移动（面对面）。</view>
 
 							<view class="input-item">
-								<text class="label">工作场所</text>
-								<input class="input" v-model="formData.workplace"
-									placeholder="例：公司 / 学校 / 医院 (留空则默认为'公司')" />
-							</view>
-
-							<view class="input-item">
-								<text class="label">工作时间 (24小时制)</text>
-								<view class="time-range-box">
-									<view class="time-input-wrapper">
-										<input class="mini-input" type="number"
-											v-model.number="formData.workStartHour" />
-										<text class="suffix">:00</text>
-									</view>
-									<text class="separator">至</text>
-									<view class="time-input-wrapper">
-										<input class="mini-input" type="number" v-model.number="formData.workEndHour" />
-										<text class="suffix">:00</text>
-									</view>
+								<text class="label">添加房间</text>
+								<view style="display: flex; gap: 10rpx;">
+									<input class="input" style="flex: 1;" v-model="newRoomName"
+										placeholder="输入房间名 (如: 秘密地下室)" @confirm="addHomeRoom" />
+									<button class="gen-btn"
+										style="margin: 0; line-height: 80rpx; border-radius: 10rpx; height: 80rpx;"
+										@click="addHomeRoom">添加</button>
 								</view>
 							</view>
 
 							<view class="input-item" style="margin-bottom: 0;">
-								<text class="label">每周上班日</text>
-								<view class="weekday-selector">
-									<view class="day-chip" v-for="day in weekDayOptions" :key="day.value"
-										:class="{ 'active': formData.workDays.includes(day.value) }"
-										@click="toggleWorkDay(day.value)">
-										周{{ day.label }}
+								<text class="label">当前拥有的房间 (点击删除)</text>
+								<view class="quick-tags">
+									<view v-for="(room, idx) in formData.homeRooms" :key="idx" class="tag"
+										style="background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9;"
+										@click="removeHomeRoom(idx)">
+										{{ room }} ✕
 									</view>
+									<view v-if="formData.homeRooms.length === 0" style="font-size: 24rpx; color: #999;">
+										暂无房间，请添加</view>
 								</view>
-								<text class="tip-text" v-if="formData.workDays.length === 0">
-									(未选中任何日期，视为全职在家/自由职业)
-								</text>
 							</view>
 						</view>
 					</view>
@@ -407,15 +395,15 @@
 							<button class="mini-btn-gen" @click="generateEnglishPrompt">⬇️ 组装并翻译 Prompt</button>
 							<view class="textarea-item">
 								<text class="label">固定外貌 Prompt (英文 - 将直接用于生图)</text>
-								<textarea class="textarea large" v-model="formData.appearance" placeholder="1girl, cute face..."
-									maxlength="-1" />
+								<textarea class="textarea large" v-model="formData.appearance"
+									placeholder="1girl, cute face..." maxlength="-1" />
 								<view class="tip">Chat页面将直接使用此段 Prompt。</view>
 							</view>
-							
+
 							<view class="input-item">
 								<view class="label-row">
 									<text class="label" style="margin-bottom:0;">头像链接</text>
-							
+
 									<view class="gen-btn" :class="{ 'disabled': isGenerating }" @click="generateAvatar"
 										hover-class="gen-btn-hover">
 										{{ isGenerating ? loadingText : (imgProvider === 'openai' ? '✨ OpenAI 生成' : '🎨 ComfyUI 生成') }}
@@ -491,7 +479,8 @@
 								<picker mode="selector" :range="worldList" range-key="name" :value="userWorldIndex"
 									@change="handleUserWorldChange">
 									<view class="picker-box">
-										{{ selectedUserWorld ? selectedUserWorld.name : '🌐 与角色保持一致 (或默认)' }}</view>
+										{{ selectedUserWorld ? selectedUserWorld.name : '🌐 与角色保持一致 (或默认)' }}
+									</view>
 								</picker>
 							</view>
 							<template v-if="selectedUserWorld">
@@ -886,7 +875,7 @@
 
 	const subSections = ref({
 		charWorld: false,
-		charWork: false,
+		charRooms: false,
 		charLooks: false,
 		userWorld: false,
 		userLooks: false
@@ -941,11 +930,11 @@
 			vulvaType: ''
 		},
 
-		workplace: '',
-		workStartHour: 9,
-		workEndHour: 18,
-		workDays: [1, 2, 3, 4, 5],
-
+		// workplace: '',
+		// workStartHour: 9,
+		// workEndHour: 18,
+		// workDays: [1, 2, 3, 4, 5],
+		homeRooms: ['客厅', '卧室', '厨房', '卫生间'],
 		speakingStyle: '',
 		likes: '',
 		dislikes: '',
@@ -981,7 +970,22 @@
 		summaryFrequency: 20,
 		summary: ''
 	});
-
+	const newRoomName = ref('');
+	const addHomeRoom = () => {
+		const name = newRoomName.value.trim();
+		if (!name) return;
+		if (formData.value.homeRooms.includes(name)) {
+			return uni.showToast({
+				title: '房间已存在',
+				icon: 'none'
+			});
+		}
+		formData.value.homeRooms.push(name);
+		newRoomName.value = '';
+	};
+	const removeHomeRoom = (idx) => {
+		formData.value.homeRooms.splice(idx, 1);
+	};
 	onShow(() => {
 
 		applyNativeTheme();
@@ -1371,13 +1375,13 @@ BOUNDARY_HANDLING:
 				formData.value.userAge = target.settings.userAge || ''; // ✨ 新增
 				formData.value.userRelation = target.settings.userRelation || '';
 				formData.value.userPersona = target.settings.userPersona || '';
-				formData.value.workplace = target.settings.workplace || '';
-				formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings
-					.workStartHour : 9;
-				formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings
-					.workEndHour : 18;
-				formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
-
+				// formData.value.workplace = target.settings.workplace || '';
+				// formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings
+				// 	.workStartHour : 9;
+				// formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings
+				// 	.workEndHour : 18;
+				// formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
+				formData.value.homeRooms = target.settings.homeRooms || ['客厅', '卧室', '厨房', '卫生间'];
 				formData.value.appearance = target.settings.appearance || '';
 				formData.value.appearanceSafe = target.settings.appearanceSafe || '';
 				formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
@@ -1507,10 +1511,7 @@ BOUNDARY_HANDLING:
 				userAge: formData.value.userAge, // ✨ 新增
 				userRelation: formData.value.userRelation,
 				userPersona: formData.value.userPersona,
-				workplace: formData.value.workplace,
-				workStartHour: formData.value.workStartHour,
-				workEndHour: formData.value.workEndHour,
-				workDays: formData.value.workDays,
+				homeRooms: formData.value.homeRooms,
 				bio: formData.value.bio,
 				personality: formData.value.personality, // ✨ 新增
 				speakingStyle: formData.value.speakingStyle,

@@ -1,21 +1,18 @@
 <template>
 	<view class="container" :class="{ 'dark-mode': isDarkMode }">
-		<!-- 自定义导航栏 -->
 		<view class="custom-navbar">
 			<view class="status-bar"></view>
 			<view class="nav-content">
-				<text class="page-title">消息</text>
-				<view class="add-btn" @click="createNewContact">
+				<text class="page-title">我的空间</text> <view class="add-btn" @click="createNewContact">
 					<text class="add-icon">+</text>
 				</view>
 			</view>
 		</view>
 		<view class="nav-placeholder"></view>
 
-		<!-- 消息列表 -->
 		<view class="chat-list">
 			<view v-if="contactList.length === 0" class="empty-tip">
-				点击右上角 + 创建你的第一个 AI 角色
+				点击右上角 + 创建你的第一个虚拟空间
 			</view>
 
 			<view class="chat-item" v-for="(item, index) in contactList" :key="item.id" @click="goToChat(item)"
@@ -26,10 +23,15 @@
 				</view>
 				<view class="content-box">
 					<view class="row-top">
-						<text class="name">{{ item.name }}</text>
+						<text class="name">🏠 {{ item.location || item.name + '的家' }}</text>
 						<text class="time">{{ item.lastTime }}</text>
 					</view>
+					
 					<view class="row-bottom">
+						<view class="status-tag">
+							<text class="status-dot"></text>
+							<text class="status-text">{{ item.name }} · {{ item.currentLocation || '卧室' }}</text>
+						</view>
 						<text class="last-msg">{{ item.lastMsg }}</text>
 					</view>
 				</view>
@@ -83,7 +85,7 @@ const goToChat = (item) => {
 
 const showAction = (item, index) => {
   uni.showActionSheet({
-    itemList: ['编辑角色', '删除角色'],
+    itemList: ['编辑空间/角色', '删除此空间'],
     success: (res) => {
       if (res.tapIndex === 0) {
         uni.navigateTo({
@@ -110,7 +112,6 @@ const showAction = (item, index) => {
 <style lang="scss">
 	/* --- 1. 基础容器 --- */
 	.container {
-		/* 使用全局背景色 (#f5f5f5 / #121212) */
 		background-color: var(--bg-color);
 		min-height: 100vh;
 	}
@@ -121,11 +122,9 @@ const showAction = (item, index) => {
 		top: 0;
 		left: 0;
 		width: 100%;
-		/* 导航栏背景跟随全局背景 */
 		background-color: var(--bg-color);
 		z-index: 999;
 		padding-bottom: 10rpx;
-		/* 增加阴影，让它在白色背景下也有层次感，夜间模式更明显 */
 		box-shadow: 0 1px 0 var(--border-color);
 	}
 
@@ -147,26 +146,22 @@ const showAction = (item, index) => {
 		font-size: 36rpx;
 		font-weight: bold;
 		color: var(--text-color);
-		/* 适配文字颜色 */
 	}
 
 	.add-btn {
 		width: 60rpx;
 		height: 60rpx;
-		/* 按钮背景：白天用白色卡片色，夜间用深灰 */
 		background-color: var(--card-bg);
 		border-radius: 10rpx;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		/* 加一点边框让它在浅色背景下明显 */
 		border: 1px solid var(--border-color);
 	}
 
 	.add-icon {
 		font-size: 40rpx;
 		color: var(--text-color);
-		/* 图标变色 */
 		margin-top: -4rpx;
 	}
 
@@ -178,7 +173,6 @@ const showAction = (item, index) => {
 	.empty-tip {
 		text-align: center;
 		color: var(--text-sub);
-		/* 适配灰色文字 */
 		padding-top: 100rpx;
 		font-size: 28rpx;
 	}
@@ -186,7 +180,6 @@ const showAction = (item, index) => {
 	/* --- 3. 聊天列表 --- */
 	.chat-list {
 		background-color: var(--bg-color);
-		/* 列表底色 */
 		padding-bottom: 120rpx;
 	}
 
@@ -194,15 +187,12 @@ const showAction = (item, index) => {
 		display: flex;
 		padding: 24rpx 30rpx;
 		border-bottom: 1px solid var(--border-color);
-		/* 适配分割线 */
 		background: var(--card-bg);
-		/* 列表项背景 (白/深灰) */
 		transition: background-color 0.2s;
 	}
 
 	.chat-item:active {
 		background-color: var(--tool-bg);
-		/* 点击态变深一点 */
 	}
 
 	.avatar-box {
@@ -211,11 +201,10 @@ const showAction = (item, index) => {
 	}
 
 	.avatar {
-		width: 96rpx;
-		height: 96rpx;
-		border-radius: 10rpx;
+		width: 100rpx;
+		height: 100rpx;
+		border-radius: 20rpx;
 		background: var(--border-color);
-		/* 头像占位色 */
 	}
 
 	.badge {
@@ -223,7 +212,6 @@ const showAction = (item, index) => {
 		top: -6rpx;
 		right: -6rpx;
 		background: #fa5151;
-		/* 红色保持不变 */
 		color: #fff;
 		font-size: 22rpx;
 		padding: 0 10rpx;
@@ -240,29 +228,62 @@ const showAction = (item, index) => {
 	.row-top {
 		display: flex;
 		justify-content: space-between;
-		margin-bottom: 8rpx;
+		align-items: center;
+		margin-bottom: 12rpx;
 	}
 
 	.name {
-		font-size: 34rpx;
-		font-weight: 500;
+		font-size: 32rpx;
+		font-weight: bold;
 		color: var(--text-color);
-		/* 名字变色 */
 	}
 
 	.time {
 		font-size: 24rpx;
 		color: var(--text-sub);
-		/* 时间变灰 */
 	}
 
-	.last-msg {
-		font-size: 28rpx;
-		color: var(--text-sub);
-		/* 消息预览变灰 */
+	.row-bottom {
+		display: flex;
+		align-items: center;
+	}
+
+	/* ✨ 新增的状态标签样式 */
+	.status-tag {
+		display: flex;
+		align-items: center;
+		background-color: rgba(0, 122, 255, 0.1);
+		padding: 4rpx 12rpx;
+		border-radius: 8rpx;
+		margin-right: 16rpx;
+		flex-shrink: 0;
+	}
+
+	.status-dot {
+		width: 12rpx;
+		height: 12rpx;
+		background-color: #007aff;
+		border-radius: 50%;
+		margin-right: 8rpx;
+		box-shadow: 0 0 6rpx rgba(0, 122, 255, 0.5);
+	}
+
+	.status-text {
+		font-size: 22rpx;
+		color: #007aff;
+		font-weight: bold;
+		max-width: 160rpx;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
-		width: 500rpx;
+	}
+
+	.last-msg {
+		flex: 1;
+		font-size: 26rpx;
+		color: var(--text-sub);
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 	}
 </style>
