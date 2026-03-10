@@ -94,17 +94,18 @@ export const LLM = {
         }
     }
 
-    // ---------------------------------------------------------
-    // C. 发起请求 & 统一解析
-    // ---------------------------------------------------------
-    try {
-        const res = await uni.request({
-            url: targetUrl, 
-            method: 'POST', 
-            header, 
-            data: requestBody, 
-            sslVerify: false
-        });
+// ---------------------------------------------------------
+    // C. 发起请求 & 统一解析
+    // ---------------------------------------------------------
+    try {
+        const res = await uni.request({
+            url: targetUrl, 
+            method: 'POST', 
+            header, 
+            data: requestBody, 
+            sslVerify: false,
+            timeout: 180000 // 🌟 核心修复：给它 3 分钟的超时时间，耐心等它深度思考完！
+        });
 
         if (res.statusCode !== 200) {
             const errorMsg = res.data?.error?.message || `API 请求失败: ${res.statusCode}`;
@@ -118,17 +119,28 @@ export const LLM = {
         if (config.provider === 'gemini') {
             content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         } 
-        // 解析 OpenAI 响应
-        else {
-            let data = res.data;
-            // 兼容某些平台返回 string 的情况
-            if (typeof data === 'string') { 
-                try { data = JSON.parse(data); } catch(e){} 
-            }
-            content = data?.choices?.[0]?.message?.content;
-        }
-        
-        return content || '';
+ // 解析 OpenAI 响应
+         else {
+             let data = res.data;
+             // 兼容某些平台返回 string 的情况
+             if (typeof data === 'string') { 
+                 try { data = JSON.parse(data); } catch(e){} 
+             }
+             
+             // 1. 获取完整的 message 对象
+             const message = data?.choices?.[0]?.message || {};
+             content = message.content || '';
+ 
+             // 🌟 2. 核心魔法：抓取 DeepSeek 的原生思考过程！
+             if (message.reasoning_content) {
+                 // 手动包上 <think> 标签，拼接到正文前面
+                 content = `<think>\n${message.reasoning_content}\n</think>\n\n` + content;
+               
+             }
+         }
+         
+         return content || '';
+
     } catch (e) {
         console.error('[LLM Service Exception]', e);
         throw e;

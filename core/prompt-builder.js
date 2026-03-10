@@ -26,16 +26,27 @@ export function buildSystemPrompt({
     const workStart = `${String(startH).padStart(2, '0')}:00`;
     const workEnd = `${String(endH).padStart(2, '0')}:00`;
 
-    // 2. 构建玩家画像 (User Profile)
-    const finalUserName = s.userNameOverride || userName || appUser.name || 'User';
+    // 2. 🌍 动态获取世界观中的玩家档案 (World Player Info)
+        const worlds = uni.getStorageSync('app_world_settings') || [];
+        // 通过当前角色的 worldId 找到对应的世界
+        const charWorld = worlds.find(w => String(w.id) === String(role.worldId)) || {};
+        // 提取该世界专属的玩家设定
+        const worldPlayer = charWorld.playerInfo || {};
     
-    let myProfile = `[User Profile]\nName: ${finalUserName}`;
-    if (s.userAge || appUser.age) myProfile += `\nAge: ${s.userAge || appUser.age}`; // ✨ 新增：玩家年龄
-    if (s.userGender) myProfile += `\nGender: ${s.userGender}`; // ✨ 新增：玩家性别
-    if (s.userOccupation) myProfile += `\nOccupation: ${s.userOccupation}`;
-    if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
-    if (s.userPersona) myProfile += `\nPersonality: ${s.userPersona}`;        
-    if (s.userAppearance || appUser.appearance) myProfile += `\nAppearance: ${s.userAppearance || appUser.appearance}`;
+        // 拼装玩家画像 (优先使用世界观里的设定，兜底使用APP通用设定)
+        const finalUserName = worldPlayer.name || appUser.name || 'User';
+        
+        let myProfile = `[User Profile]\nName: ${finalUserName}`;
+        if (worldPlayer.age || appUser.age) myProfile += `\nAge: ${worldPlayer.age || appUser.age}`; 
+        if (worldPlayer.gender) myProfile += `\nGender: ${worldPlayer.gender}`; 
+        if (worldPlayer.identity) myProfile += `\nIdentity/Occupation: ${worldPlayer.identity}`; 
+        if (worldPlayer.appearance) myProfile += `\nAppearance: ${worldPlayer.appearance}`; 
+        
+        // 🔗 关系是跟角色强绑定的，所以依然从角色的 settings 里取
+        if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
+    
+        // 📍 同步修复物理纠错引擎：将玩家宏观大地址替换为世界观里的地址
+        s.userLocation = worldPlayer.address || '未知地点';
 
     // 3. 准备角色基础信息
     const charName = role.name || 'AI';
