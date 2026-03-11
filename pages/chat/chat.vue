@@ -5,13 +5,14 @@
 		</view>
 
 		<!-- 1. 顶部状态栏 -->
-		<ChatHeader :interactionMode="interactionMode" :currentLocation="currentLocation"
+		<ChatHeader :wallet="wallet" :interactionMode="interactionMode" :currentLocation="currentLocation"
 			:currentActivity="currentActivity" :playerLocation="playerLocation" :timeParts="timeParts"
 			@clickPlayer="showForceLocationPanel = true" @clickTime="showTimeSettingPanel = true"
 			@clickWallet="showShopPanel = true" @clickCourier="handleOpenContainer('快递箱')"
 			@clickContainer="handleOpenContainer" />
-		<ShopPanel :visible="showShopPanel" :wallet="currentRole?.economy?.wallet || 0" @close="showShopPanel = false"
-			@buy="handleBuyItem" />
+
+		<ShopPanel :visible="showShopPanel" :wallet="currentRole?.economy?.wallet || 0" :currentRole="currentRole"
+			@close="showShopPanel = false" @buy="handleBuyItem" />
 
 		<!-- 2. 聊天内容区 -->
 		<scroll-view class="chat-scroll" scroll-y="true" :scroll-into-view="scrollIntoView"
@@ -34,20 +35,19 @@
 			<text>💼 打工</text>
 		</view>
 		<!-- 3. 底部工具栏 -->
-		<ChatFooter :isEditMode="isEditMode" :selectedCount="selectedIds.length" :isToolbarOpen="isToolbarOpen"
+<ChatFooter :isEditMode="isEditMode" :selectedCount="selectedIds.length" :isToolbarOpen="isToolbarOpen"
 			v-model="inputText" :wakeTime="wakeTime" :showThought="showThought" @cancelEdit="cancelEdit"
 			@confirmDelete="confirmDelete" @toggleToolbar="toggleToolbar" @send="sendMessage(false)"
 			@clickTime="showTimePanel = true" @clickLocation="showLocationPanel = true"
 			@sleepTimeChange="onSleepTimeChange" @clickCamera="handleCameraSend"
 			@clickStealthCamera="handleStealthCameraSend" @clickGroupCamera="handleGroupCameraSend"
-			@clickContinue="triggerNextStep" @toggleThought="toggleThought" @clickWardrobe="showWardrobePanel = true" />
+			@clickContinue="triggerNextStep" @toggleThought="toggleThought" />
 
 		<!-- 4. 弹窗面板 -->
-		<ChatModals :visibleModal="activeModal" :locationList="locationList" :wardrobeList="wardrobeList"
-			:currentRole="currentRole" v-model:tempDateStr="tempDateStr" v-model:tempTimeStr="tempTimeStr"
-			v-model:tempTimeRatio="tempTimeRatio" @close="closeModal" @timeSkip="handleTimeSkip"
-			@confirmTime="confirmManualTime" @moveTo="handleMoveTo" @forceMove="handleForceMove"
-			@update:wardrobeList="handleWardrobeUpdate" @applyOutfit="handleApplyOutfit" />
+		<ChatModals :visibleModal="activeModal" :locationList="locationList"
+					:currentRole="currentRole" v-model:tempDateStr="tempDateStr" v-model:tempTimeStr="tempTimeStr"
+					v-model:tempTimeRatio="tempTimeRatio" @close="closeModal" @timeSkip="handleTimeSkip"
+					@confirmTime="confirmManualTime" @moveTo="handleMoveTo" @forceMove="handleForceMove" />
 		<ContainerPanel :visible="showContainerPanel" :containerName="activeContainerName"
 			:economy="currentRole?.economy" @close="showContainerPanel = false" @transfer="handleTransferItem"
 			@use="handleUseItem" />
@@ -69,9 +69,13 @@
 </template>
 
 <script setup>
-	import { useWorkActions } from '@/composables/useWorkActions.js';
-	import { LLM } from '@/services/llm.js';
-	
+	import {
+		useWorkActions
+	} from '@/composables/useWorkActions.js';
+	import {
+		LLM
+	} from '@/services/llm.js';
+
 	import {
 		useCameraActions
 	} from '@/composables/useCameraActions.js';
@@ -206,8 +210,7 @@
 	};
 	// --- 变量定义 ---
 	const showForceLocationPanel = ref(false);
-	const showWardrobePanel = ref(false); // ✨ 新增：衣柜面板开关
-	const wardrobeList = ref([]); // ✨ 新增：衣柜数据
+	
 	const forceCustomLocation = ref('');
 
 	// 🧠 心理活动显示开关 (默认关闭，或从缓存读取)
@@ -548,7 +551,8 @@
 		userHome,
 		charHome,
 		currentTime,
-		worldLocations
+		worldLocations,
+		playerLocation
 	});
 
 	// ✨ 修复顺序：先定义 Evolution，再传给 Agents
@@ -749,10 +753,21 @@
 	});
 
 	// ✨✨✨ 新增：引入打工赚钱控制中心 ✨✨✨
-		const { handleWork } = useWorkActions({
-			currentTime, formattedTime, playerLocation, interactionMode, currentLocation,
-			currentRole, charStore, messageList, saveHistory, sendMessage, userHome
-		});
+	const {
+		handleWork
+	} = useWorkActions({
+		currentTime,
+		formattedTime,
+		playerLocation,
+		interactionMode,
+		currentLocation,
+		currentRole,
+		charStore,
+		messageList,
+		saveHistory,
+		sendMessage,
+		userHome
+	});
 
 	const {
 		showShopPanel,
@@ -765,7 +780,8 @@
 		handleTransferItem,
 		handleUseItem,
 		confirmUseItem,
-		handleBuyItem
+		handleBuyItem,
+		wallet
 	} = useEconomy({
 		currentRole,
 		charStore,
@@ -843,21 +859,61 @@
 			userAppearance.value = target.settings?.userAppearance || '';
 
 			// 🌟 核心修复逻辑：判定见面模式 🌟
-			let pLoc = target.playerLocation || userHome.value;
-			let cLoc = target.currentLocation || target.location || '角色家';
-			let iMode = target.interactionMode;
+			// 判断是否同居
+			const isCohabitation = () => {
+				const u = (userHome.value || '').trim();
+				const c = (charHome.value || '').trim();
+				if (!u || !c || u === '未知地址' || c === '未知地址' || u === '角色家' || u === '玩家家') return false;
+				return u === c || u.includes(c) || c.includes(u);
+			};
+			const isTogether = isCohabitation();
 
-			if (!iMode || pLoc === cLoc) {
-				iMode = (pLoc === cLoc) ? 'face' : 'phone';
+			// 获取存档中的位置，如果没有则赋予默认值
+			let pLoc = target.playerLocation;
+			let cLoc = target.currentLocation || target.location || '卧室'; // 默认角色在卧室
+
+			// 根据同居状态初始化玩家的默认位置
+			if (!pLoc) {
+				if (isTogether) {
+					pLoc = cLoc; // 同居：直接进入角色的房间
+				} else {
+					pLoc = userHome.value; // 不同居：在玩家自己家
+				}
 			}
 
-			// 2. 将计算出的纠错数据（如位置模式）一次性存回管家兜底，同时更新页面响应
+			// ✨ 获取所有的室内场景名称（包含房间和宏观地址）
+			const s = target.settings || {};
+			const customRooms = s.homeRooms || ['客厅', '卧室', '厨房', '卫生间'];
+			const indoorRooms = [
+				...customRooms,
+				'角色家', '玩家家', '我们的家', '她的家', '我的家',
+				charHome.value, userHome.value
+			];
+
+			// 判断玩家和角色是否都在家中（无论是在具体房间还是宏观地址）
+			const isPlayerIndoor = indoorRooms.includes(pLoc);
+			const isCharIndoor = indoorRooms.includes(cLoc);
+
+			let iMode = target.interactionMode;
+
+			// ✨ 核心修改：增强初始状态的 face 判定
+			// 如果没有记录模式，或者需要重新判定
+			if (!iMode || pLoc === cLoc || (isTogether && isPlayerIndoor && isCharIndoor)) {
+				// 1. 位置完全相同
+				// 2. 或者：两人同居，且双方都在家的范围内（例如一个在客厅，一个在宏观住址）
+				if (pLoc === cLoc || (isTogether && isPlayerIndoor && isCharIndoor)) {
+					iMode = 'face';
+				} else {
+					iMode = 'phone';
+				}
+			}
+
+			// 2. 将计算出的纠错数据一次性存回管家兜底
 			charStore.saveCharacterData({
 				playerLocation: pLoc,
 				currentLocation: cLoc,
 				interactionMode: iMode
 			});
-
 			// 这三个非角色动态数据的变量保留手动赋值
 			enableSummary.value = target.enableSummary || false;
 			summaryFrequency.value = target.summaryFrequency || 20;
@@ -887,20 +943,12 @@
 					}];
 				}
 			}
-			// 👇👇👇【新增：加载衣柜数据】👇👇👇
-			const savedWardrobe = uni.getStorageSync(`wardrobe_data_${id}`);
-			if (savedWardrobe && Array.isArray(savedWardrobe)) {
-				wardrobeList.value = savedWardrobe;
-				console.log(`👗 已加载衣柜数据: ${savedWardrobe.length} 套`);
-			} else {
-				wardrobeList.value = [];
-			}
+
 		}
 	};
 
 	onShow(() => {
 		applyNativeTheme();
-		// 修正：不再在 onShow 里直接覆盖 worldLocations，全部逻辑交由 loadRoleData 处理
 		if (chatId.value) {
 			loadRoleData(chatId.value);
 			scrollToBottom();
@@ -973,7 +1021,6 @@
 		if (showTimeSettingPanel.value) return 'timeSetting';
 		if (showLocationPanel.value) return 'location';
 		if (showForceLocationPanel.value) return 'forceLocation';
-		if (showWardrobePanel.value) return 'wardrobe'; // ✨ 新增
 		return '';
 	});
 
@@ -982,68 +1029,11 @@
 		showTimeSettingPanel.value = false;
 		showLocationPanel.value = false;
 		showForceLocationPanel.value = false;
-		showWardrobePanel.value = false; // ✨ 新增
 	};
 
-	// --- 衣柜逻辑 ---
-	const handleWardrobeUpdate = (newList) => {
-		wardrobeList.value = newList;
-		// 持久化保存
-		if (chatId.value) {
-			uni.setStorageSync(`wardrobe_data_${chatId.value}`, newList);
-		}
-	};
-
-	const handleApplyOutfit = (outfit) => {
-		if (!outfit) return;
-
-		// 1. 生成描述字符串
-		const items = outfit.items || {};
-		const parts = [];
-		if (items.head) parts.push(`头饰: ${items.head}`);
-		if (items.top) parts.push(`上装: ${items.top}`);
-		if (items.bottom) parts.push(`下装: ${items.bottom}`);
-		if (items.socks) parts.push(`袜子: ${items.socks}`);
-		if (items.shoes) parts.push(`鞋子: ${items.shoes}`);
-		if (items.accessory) parts.push(`配饰: ${items.accessory}`);
-
-		const desc = `${outfit.name} (${parts.join(', ')})`;
-
-		// 2. 更新当前状态
-		currentClothing.value = desc;
-
-		// ✨ 保存英文 Tags (如果有)
-		if (outfit.tags) {
-			if (!currentRole.value.settings) currentRole.value.settings = {};
-			currentRole.value.settings.clothingTags = outfit.tags;
-		} else {
-			// 如果没有 Tags，清空旧的防止混淆
-			if (currentRole.value.settings) delete currentRole.value.settings.clothingTags;
-		}
-
-		saveCharacterState();
-
-		// 3. 构造玩家建议 (而非强制系统指令)
-		// 这样既增加了代入感，又避免了系统指令可能触发的奇怪逻辑(如自动拍照)
-		// 注意：不包含"拍"等关键词，避免触发 runCameraManCheck
-		const suggestion = `(你从衣柜中找出${outfit.name}递给她) "试试这套衣服怎么样？"`;
-		inputText.value = suggestion;
-
-		// 4. 发送消息 (false代表不是continue，由sendMessage内部处理inputText)
-		sendMessage(false);
-
-		// 5. 关闭面板
-		showWardrobePanel.value = false;
-		// uni.showToast({ title: `已建议换装`, icon: 'none' });
-	};
 </script>
 
 <style lang="scss" scoped>
-	/* 
-   重构后：大部分样式已移至子组件
-   仅保留页面级布局和全局变量容器
-*/
-
 	.chat-container {
 		display: flex;
 		flex-direction: column;
@@ -1169,11 +1159,13 @@
 		background: #007aff;
 		color: #fff;
 	}
+
 	/* 打工悬浮按钮 */
 	.work-float-btn {
 		position: absolute;
 		right: 30rpx;
-		bottom: 140rpx; /* 悬浮在输入框上方 */
+		bottom: 140rpx;
+		/* 悬浮在输入框上方 */
 		background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
 		color: #d81b60;
 		padding: 16rpx 30rpx;
@@ -1186,6 +1178,7 @@
 		align-items: center;
 		border: 1px solid #ffb8d2;
 	}
+
 	.work-float-btn:active {
 		transform: scale(0.95);
 		opacity: 0.8;

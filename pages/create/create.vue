@@ -649,6 +649,45 @@
 				</view>
 			</view>
 
+			<view class="form-section">
+				<view class="section-header" @click="toggleSection('economy')">
+					<view class="section-title-wrapper">
+						<view class="section-title" style="color: #f1c40f;">💰 经济与金钱系统</view>
+						<text class="section-subtitle">管理双方的钱包与收入</text>
+					</view>
+					<text class="arrow-icon">{{ activeSections.economy ? '▼' : '▶' }}</text>
+				</view>
+
+				<view v-show="activeSections.economy" class="section-content">
+					<view class="input-item"
+						style="display: flex; justify-content: space-between; align-items: center; background: #fffde7; padding: 20rpx; border-radius: 12rpx; border: 1px solid #fff59d;">
+						<text class="label" style="margin-bottom:0; color: #f57f17; font-weight: bold;">是否共享共同财产</text>
+						<switch :checked="formData.economy.isSharedWallet"
+							@change="(e) => formData.economy.isSharedWallet = e.detail.value" color="#f1c40f" />
+					</view>
+					<view class="tip" style="margin-bottom: 30rpx;">开启后，两人的钱加在一起算作共同财产（买东西扣总金额）；关闭则各自花各自的。</view>
+
+					<view class="input-item">
+						<text class="label">玩家钱包 (初始金额)</text>
+						<input class="input" type="number" v-model="formData.economy.userWallet"
+							placeholder="例如：1000" />
+					</view>
+
+					<view class="input-item">
+						<text class="label">角色钱包 (初始金额)</text>
+						<input class="input" type="number" v-model="formData.economy.charWallet"
+							placeholder="例如：1000" />
+					</view>
+
+					<view class="input-item">
+						<text class="label">角色每日收入 (零花钱/工资)</text>
+						<input class="input" type="number" v-model="formData.economy.dailyIncome"
+							placeholder="例如：100" />
+						<view class="tip">随着游戏时间跨天，角色每天会自动存入钱包的金额。</view>
+					</view>
+				</view>
+			</view>
+
 			<view class="form-section" v-if="isEditMode">
 				<view class="section-header" @click="toggleSection('danger')">
 					<view class="section-title" style="color: #ff4757;">危险区域</view>
@@ -789,7 +828,8 @@
 		core: false,
 		init: false,
 		memory: false,
-		danger: false
+		danger: false,
+		economy: false,
 	});
 	const toggleSection = (key) => {
 		activeSections.value[key] = !activeSections.value[key];
@@ -880,7 +920,14 @@
 		historyLimit: 20,
 		enableSummary: false,
 		summaryFrequency: 20,
-		summary: ''
+		summary: '',
+		// 经济系统默认数据
+		economy: {
+			isSharedWallet: false,
+			userWallet: 1000,
+			charWallet: 1000,
+			dailyIncome: 100
+		}
 	});
 	const newRoomName = ref('');
 	const addHomeRoom = () => {
@@ -1282,7 +1329,7 @@ BOUNDARY_HANDLING:
 			formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
 
 			if (target.settings) {
-			
+
 				formData.value.userRelation = target.settings.userRelation || '';
 				formData.value.homeRooms = target.settings.homeRooms || ['客厅', '卧室', '厨房', '卫生间'];
 				formData.value.appearance = target.settings.appearance || '';
@@ -1352,6 +1399,18 @@ BOUNDARY_HANDLING:
 			formData.value.diaryHistoryLimit = target.diaryHistoryLimit !== undefined ? target.diaryHistoryLimit :
 				30;
 			formData.value.activeMemoryDays = target.activeMemoryDays !== undefined ? target.activeMemoryDays : 3;
+
+			// 加载经济系统数据（包含旧版钱包向后兼容）
+			if (target.economy) {
+				formData.value.economy = {
+					isSharedWallet: target.economy.isSharedWallet || false,
+					// 如果没有 userWallet，说明是旧存档，读取原来的 wallet，否则默认 1000
+					userWallet: target.economy.userWallet !== undefined ? target.economy.userWallet : (target
+						.economy.wallet || 1000),
+					charWallet: target.economy.charWallet !== undefined ? target.economy.charWallet : 1000,
+					dailyIncome: target.economy.dailyIncome !== undefined ? target.economy.dailyIncome : 100
+				};
+			}
 		}
 	};
 
@@ -1377,15 +1436,48 @@ BOUNDARY_HANDLING:
 				`${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
 		}
 
+		// 提取旧的经济数据（为了保留包裹、容器里的物品不丢失）
+		let existingEconomy = {
+			courierBox: [],
+			containers: {
+				'厨房': {
+					'冰箱': [],
+					'橱柜': []
+				},
+				'卫生间': {
+					'浴室柜': []
+				},
+				'卧室': {
+					'床头柜': []
+				}
+			}
+		};
+		if (isEditMode.value) {
+			const index = list.findIndex(item => String(item.id) === String(targetId.value));
+			if (index !== -1 && list[index].economy) {
+				existingEconomy = list[index].economy; // 保留原有的容器数据
+			}
+		}
+
+		// 组装新的经济数据
+		const finalEconomy = {
+			...existingEconomy,
+			isSharedWallet: formData.value.economy.isSharedWallet,
+			userWallet: Number(formData.value.economy.userWallet) || 0,
+			charWallet: Number(formData.value.economy.charWallet) || 0,
+			dailyIncome: Number(formData.value.economy.dailyIncome) || 0,
+			wallet: Number(formData.value.economy.userWallet) || 0 // 兼容旧代码，防止部分没改到的地方报错
+		};
+		
 		const charData = {
 			name: formData.value.name,
 			avatar: formData.value.avatar || '/static/ai-avatar.png',
 			maxReplies: formData.value.maxReplies,
 			allowProactive: formData.value.allowProactive,
+			economy: finalEconomy,
 			proactiveInterval: formData.value.proactiveInterval,
 			proactiveNotify: formData.value.proactiveNotify,
 			historyLimit: formData.value.historyLimit,
-			// 🌟 关键：保存“可见天数”设置到存档，供 Agent 读取
 			diaryHistoryLimit: formData.value.diaryHistoryLimit,
 			activeMemoryDays: formData.value.activeMemoryDays,
 			enableSummary: formData.value.enableSummary,

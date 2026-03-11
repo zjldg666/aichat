@@ -32,7 +32,7 @@
         
         <view class="scene-item wallet" @click="$emit('clickWallet')">
           <text class="item-icon">💰</text>
-          <text class="item-name">¥{{ economy?.wallet || 0 }}</text>
+          <text class="item-name">¥{{ wallet}}</text>
         </view>
 
         <view class="scene-item courier" v-if="playerLocation === '客厅'" @click="$emit('clickCourier')">
@@ -65,7 +65,11 @@ const props = defineProps({
   currentActivity: { type: String, default: '休息中' },
   playerLocation: { type: String, default: '加载中...' },
   timeParts: { type: Object, default: () => ({ time: '--:--', week: '--' }) },
-  isEmbedded: { type: Boolean, default: false }
+  isEmbedded: { type: Boolean, default: false },
+  wallet: {
+      type: Number,
+      default: 0
+    }
 });
 
 watch(() => props.currentActivity, (newVal, oldVal) => {

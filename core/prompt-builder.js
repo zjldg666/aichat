@@ -16,15 +16,6 @@ export function buildSystemPrompt({
     // 1. 容错处理与数据格式化
     const s = role.settings || {};
     const appUser = uni.getStorageSync('app_user_info') || {};
-    
-    // 🔥 [修复 1]: 正确读取 create.vue 保存的 workStartHour (数字)，并转为 "HH:00" 格式
-    // 如果 s.workStartHour 存在(哪怕是0)，就用它，否则默认 9
-    const startH = (s.workStartHour !== undefined && s.workStartHour !== null) ? s.workStartHour : 9;
-    const endH = (s.workEndHour !== undefined && s.workEndHour !== null) ? s.workEndHour : 17;
-    
-    // 补零处理 (9 -> "09:00", 17 -> "17:00")
-    const workStart = `${String(startH).padStart(2, '0')}:00`;
-    const workEnd = `${String(endH).padStart(2, '0')}:00`;
 
     // 2. 🌍 动态获取世界观中的玩家档案 (World Player Info)
         const worlds = uni.getStorageSync('app_world_settings') || [];
@@ -80,9 +71,6 @@ export function buildSystemPrompt({
 
     // 5. 模板替换 
     let prompt = CORE_INSTRUCTION_LOGIC_MODE
-        // 🔥 [修复 2]: 使用正则全局替换 /g，确保所有位置的 {{work_start}} 都被替换
-        .replace(/{{work_start}}/g, workStart) 
-        .replace(/{{work_end}}/g, workEnd)   
         .replace(/{{char}}/g, charName)
         .replace(/{{bio}}/g, charBio)
         .replace(/{{evolution_level}}/g, s.evolutionLevel || 1)

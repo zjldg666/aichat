@@ -65,10 +65,6 @@
               <text class="tool-text">摄影</text>
             </view>
 
-            <view class="tool-item" @click="$emit('clickWardrobe')" v-if="!isEmbedded">
-              <view class="tool-icon">👕</view>
-              <text class="tool-text">衣柜</text>
-            </view>
             
             <view class="tool-item" @click="$emit('clickContinue')">
               <view class="tool-icon">👉</view>

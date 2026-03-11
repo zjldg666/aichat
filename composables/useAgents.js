@@ -15,6 +15,10 @@ import {
 	useCharacterStore
 } from '@/stores/useCharacterStore.js';
 import {
+	cleanAiResponse,
+	cleanSingleTag
+} from '@/utils/textUtils.js';
+import {
 	SCENE_KEEPER_PROMPT,
 	RELATIONSHIP_PROMPT,
 	SNAPSHOT_TRIGGER_PHONE,
@@ -320,6 +324,8 @@ export function useAgents(context) {
 				maxTokens: 300
 			});
 
+			if (!res) throw new Error("返回为空");
+			let cleanRes = cleanAiResponse(res);
 			console.log(`✌️ [合拍] 动态描述:`, res.slice(0, 10000) + "...");
 
 			// 提取 Prompt
@@ -382,21 +388,11 @@ export function useAgents(context) {
 				maxTokens: 500
 			});
 
-			// 🟢 核心修改：精准的权力划分
-			const newCharLoc = parseTags(res, 'CHAR_LOCATION'); // ✅ 允许：AI 可以自主移动自己
-			// 🟢 终极动作清洗器：只取第一行，专治各种牛皮癣标签和乱码
-						const cleanTag = (str) => {
-							if (!str) return "";
-							let s = str;
-							// 1. 暴力切除所有的 <think> 或 </think> (无视大小写)
-							s = s.replace(/<\/?think>/gi, "");
-							// 2. 物理截断：只取第一行的内容（直接抛弃换行符后面的所有脏数据）
-							s = s.split('\n')[0];
-							// 3. 剔除开头的逗号、句号、空格或特殊符号
-							s = s.replace(/^[,，。:：\s]+/, "");
-							return s.trim();
-						};
+			if (!res) return;
 
+			// 直接用工具函数洗净全身
+			let cleanRes = cleanAiResponse(res);
+			const newCharLoc = parseTags(res, 'CHAR_LOCATION'); // ✅ 允许：AI 可以自主移动自己
 			const newClothes = cleanTag(parseTags(res, 'CLOTHES'));
 			const newAction = cleanTag(parseTags(res, 'ACTION'));
 			const psychology = cleanTag(parseTags(res, 'PSYCHOLOGY'));
@@ -515,6 +511,10 @@ export function useAgents(context) {
 			maxTokens: 500
 		});
 
+		if (!res) return;
+
+		let cleanRes = cleanAiResponse(res);
+
 		// 🟢 提取标签
 		const newRelation = parseTags(res, 'RELATION');
 		const newActivity = parseTags(res, 'ACTIVITY');
@@ -600,7 +600,6 @@ export function useAgents(context) {
 
 
 
-	// 3. 替换 runVisualDirectorCheck (极简版：只处理手机发图)
 	const runVisualDirectorCheck = async (lastUserMsg, aiResponseText, existingMsgId = null, sceneCheckPromise =
 		null) => {
 		// 🛡️ 1. 基础拦截
@@ -739,7 +738,8 @@ export function useAgents(context) {
 				temperature: 0.7,
 				maxTokens: 300
 			});
-
+			if (!dirRes) throw new Error("返回为空");
+			let cleanDirRes = cleanAiResponse(dirRes);
 			console.log(`🎨 [导演] 生成Prompt:`, dirRes.slice(0, 5000));
 			let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
 			if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
@@ -789,7 +789,7 @@ export function useAgents(context) {
 		}
 	};
 
-	// 2. 替换 runCameraManCheck 函数 (专注 SOLO 模式)
+
 	const runCameraManCheck = async (lastUserMsg, aiResponseText) => {
 		// 🛑 1. 特权通道
 		const config = getCurrentLlmConfig();
@@ -825,21 +825,8 @@ export function useAgents(context) {
 			userAppearance: ref('')
 		});
 
-		// =========================================================
-		// 🟢 [简化] 构图判定逻辑
-		// =========================================================
-		// 这个函数现在专注于 SOLO，所以我们默认是 SOLO。
-		// 但为了保险（比如 AI 觉得现在不适合拍照），还是可以保留一个快速检查，
-		// 或者直接强行 SOLO。鉴于这是“直拍”按钮触发的，我们直接强行 SOLO。
-
 		let compositionType = 'SOLO';
 
-		// Face 模式下，为了保证 POV 视角的准确性，我们依然使用 CAMERA_MAN_PROMPT
-		// 它已经被修改为强制输出 POV 视角，所以不需要额外做 DUO 检测了。
-
-		// =========================================================
-		// 🟢 准备变量 (积木A)
-		// =========================================================
 		const settings = currentRole.value?.settings || {};
 		const gender = settings.gender || '女';
 		const userGender = settings.userGender || '男';
@@ -913,7 +900,8 @@ export function useAgents(context) {
 				temperature: 0.5,
 				maxTokens: 300
 			});
-
+			if (!res) throw new Error("返回为空");
+			let cleanRes = cleanAiResponse(res); // ✨ 优雅调用
 			console.log(`📸 [摄影师] 动态描述生成完毕:`, res.slice(0, 50) + "...");
 
 			// 提取 Prompt

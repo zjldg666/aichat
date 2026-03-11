@@ -1,7 +1,7 @@
 <template>
   <view class="wardrobe-panel" @click.stop>
     <view class="panel-header">
-      <text class="title">我的衣柜</text>
+      <text class="title">👗 制衣设计间 (设计图纸)</text>
       <view class="close-btn" @click="$emit('close')">×</view>
     </view>
 
@@ -30,7 +30,7 @@
           </view>
           
           <view class="header-actions">
-            <view class="action-btn wear-btn" @click.stop="$emit('apply', item)">穿上</view>
+            <view class="action-btn wear-btn" @click.stop="$emit('apply', item)">上架超市</view>
             <view class="action-btn delete-btn" @click.stop="deleteOutfit(index)">🗑️</view>
           </view>
         </view>

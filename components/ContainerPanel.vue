@@ -11,27 +11,42 @@
 				<view class="left-box">
 					<text class="sub-title">待收纳 ({{ sourceItems.length }})</text>
 					<scroll-view scroll-y class="scroll-area">
-						<view class="item-card" v-for="item in sourceItems" :key="item.id"
-							:class="{'selected': selectedItem?.id === item.id}" @click="selectedItem = item">
+						<view class="item-card" v-for="item in groupedSourceItems" :key="item.name"
+							:class="{'selected': selectedItem?.name === item.name}" @click="selectedItem = item">
 							<text class="item-icon">{{ item.icon }}</text>
 							<view class="item-info">
-								<text class="item-name">{{ item.name }}</text>
+								<text class="item-name">{{ item.name }} <text v-if="item.count > 1"
+										style="color:#007aff; font-size:24rpx;">x{{ item.count }}</text></text>
 								<text class="item-desc">{{ item.desc }}</text>
 							</view>
 						</view>
-						<view v-if="sourceItems.length===0" class="empty">纸箱空空如也</view>
+						<view v-if="groupedSourceItems.length===0" class="empty">纸箱空空如也</view>
 					</scroll-view>
 				</view>
 
 				<view class="right-box">
-					<text class="sub-title">放入目标容器</text>
+					<text class="sub-title">{{ selectedItem?.type === 'furniture' ? '布置到目标房间' : '放入目标容器' }}</text>
 					<scroll-view scroll-y class="scroll-area">
 						<view v-for="(rooms, rName) in allContainers" :key="rName" class="room-group">
 							<text class="room-name">📍 {{ rName }}</text>
-							<view class="target-btn" v-for="(items, cName) in rooms" :key="cName"
-								@click="transferItem(cName, rName)">
-								放入 {{ cName }} ({{ items.length }})
-							</view>
+
+							<template v-if="selectedItem?.type !== 'furniture'">
+								<view class="target-btn" v-for="(items, cName) in rooms" :key="cName"
+									@click="transferItem(cName, rName)">
+									放入 {{ cName }} ({{ items.length }})
+								</view>
+							</template>
+
+							<template v-else>
+								<view v-if="!rooms[selectedItem.name]" class="target-btn furniture-btn"
+									@click="transferItem('NEW_FURNITURE', rName)">
+									布置在 {{ rName }}
+								</view>
+								<view v-else class="target-btn disabled-btn">
+									已有 {{ selectedItem.name }}
+								</view>
+							</template>
+
 						</view>
 					</scroll-view>
 				</view>
@@ -40,13 +55,21 @@
 			<view v-else class="single-view">
 				<scroll-view scroll-y class="scroll-area-full">
 					<view class="item-grid">
-						<view class="goods-card" v-for="(item, idx) in targetContainerItems" :key="item.id">
+						<view class="goods-card" v-for="item in groupedTargetItems" :key="item.name">
 							<view class="goods-icon">{{ item.icon }}</view>
-							<text class="goods-name">{{ item.name }}</text>
-							<button class="use-btn" @click="$emit('use', item, containerName, idx)">拿出 / 使用</button>
+							<text class="goods-name">{{ item.name }} <text v-if="item.count > 1"
+									style="color:#e67e22; font-size:24rpx;">x{{item.count}}</text></text>
+							<text class="goods-desc" style="color:#4caf50; font-size:22rpx; margin-bottom:10rpx;"
+								v-if="(item.realItems[0].usesLeft !== undefined ? item.realItems[0].usesLeft : (item.realItems[0].maxUses || 1)) > 1">
+								(剩余
+								{{ item.realItems[0].usesLeft !== undefined ? item.realItems[0].usesLeft : item.realItems[0].maxUses }}
+								次)
+							</text>
+							<button class="use-btn" @click="$emit('use', item.realItems[0], containerName)">拿出 /
+								使用</button>
 						</view>
 					</view>
-					<view v-if="targetContainerItems.length===0" class="empty">里面空空如也</view>
+					<view v-if="groupedTargetItems.length===0" class="empty">里面空空如也</view>
 				</scroll-view>
 			</view>
 
@@ -93,6 +116,28 @@
 		return [];
 	});
 
+	// ✨ 新增：将一维数组转换成分组折叠的数组
+	const groupItems = (items) => {
+		if (!items || !Array.isArray(items)) return [];
+		const map = {};
+		items.forEach(item => {
+			if (!map[item.name]) {
+				map[item.name] = {
+					...item,
+					count: 0,
+					realItems: []
+				};
+			}
+			map[item.name].count++;
+			map[item.name].realItems.push(item);
+		});
+		return Object.values(map);
+	};
+
+	// ✨ 使用计算属性拿到分组后的数据
+	const groupedSourceItems = computed(() => groupItems(sourceItems.value));
+	const groupedTargetItems = computed(() => groupItems(targetContainerItems.value));
+
 	// 执行转移（点击右侧的放入按钮）
 	const transferItem = (targetContainerName, roomName) => {
 		if (!selectedItem.value) return uni.showToast({
@@ -100,11 +145,14 @@
 			icon: 'none'
 		});
 		emit('transfer', {
-			item: selectedItem.value,
+			item: selectedItem.value.realItems[0],
 			targetContainer: targetContainerName,
 			roomName
 		});
-		selectedItem.value = null; // 重置选中状态
+		// 如果转移后该组只剩1个(也就是转移完就没了)，则取消选中状态
+		if (selectedItem.value.count <= 1) {
+			selectedItem.value = null;
+		}
 	};
 </script>
 
@@ -308,4 +356,18 @@
 		font-size: 26rpx;
 		margin-top: 100rpx;
 	}
+	/* 家具布置按钮的专属样式 */
+		.furniture-btn {
+			background: #e8f5e9;
+			color: #2e7d32;
+			border: 1px solid #c8e6c9;
+		}
+		.furniture-btn:active {
+			background: #c8e6c9;
+		}
+		.disabled-btn {
+			background: #f5f5f5;
+			color: #9e9e9e;
+			border: 1px solid #e0e0e0;
+		}
 </style>
