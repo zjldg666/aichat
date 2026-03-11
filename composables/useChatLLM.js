@@ -509,6 +509,10 @@ export function useChatLLM(context) {
 		}
 
 		try {
+			console.log('==================================================');
+			console.log('📚 [前端完整的原始消息列表 (含系统提示)]: ', JSON.parse(JSON.stringify(messageList.value)));
+			console.log('📜 [即将发送给大模型的完整上下文]: ', JSON.parse(JSON.stringify(cleanHistoryForAI)));
+			console.log('==================================================');
 			const rawText = await LLM.chat({
 				config,
 				messages: cleanHistoryForAI,

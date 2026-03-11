@@ -139,7 +139,6 @@ function aggressiveJSONParse(str) {
 	return null;
 }
 
-// 🔧 4. JSON 稳定请求器 (仅供每日总结使用)
 async function safeJsonChat({
 	config,
 	messages,
@@ -156,7 +155,11 @@ async function safeJsonChat({
 				temperature,
 				maxTokens
 			});
-			const json = aggressiveJSONParse(res);
+
+			// 👇 新增清洗步骤：防止 <think> 标签干扰 JSON 解析或混入记忆数据
+			const cleanRes = cleanAiResponse(res);
+			const json = aggressiveJSONParse(cleanRes);
+
 			if (json) return json;
 		} catch (e) {
 			console.warn(`⚠️ [JSON重试 ${attempt + 1}/${maxRetries}] 请求失败...`);
@@ -327,10 +330,10 @@ export function useAgents(context) {
 			if (!res) throw new Error("返回为空");
 			let cleanRes = cleanAiResponse(res);
 			console.log(`✌️ [合拍] 动态描述:`, res.slice(0, 10000) + "...");
-
+			console.log(`✌️ [合拍] 动态描述:`, cleanRes.slice(0, 10000) + "...");
 			// 提取 Prompt
 			let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
-			if (!dynamicPart && res.length > 5) dynamicPart = res.replace(/Here is.*?:/i, '').trim();
+			if (!dynamicPart && cleanRes.length > 5) dynamicPart = cleanRes.replace(/Here is.*?:/i, '').trim();
 
 			if (dynamicPart) {
 				// 直接调用生图，传入 'DUO' 标记
@@ -390,12 +393,12 @@ export function useAgents(context) {
 
 			if (!res) return;
 
-			// 直接用工具函数洗净全身
+			// 修改后
 			let cleanRes = cleanAiResponse(res);
-			const newCharLoc = parseTags(res, 'CHAR_LOCATION'); // ✅ 允许：AI 可以自主移动自己
-			const newClothes = cleanTag(parseTags(res, 'CLOTHES'));
-			const newAction = cleanTag(parseTags(res, 'ACTION'));
-			const psychology = cleanTag(parseTags(res, 'PSYCHOLOGY'));
+			const newCharLoc = parseTags(cleanRes, 'CHAR_LOCATION'); // ✅ 允许：AI 可以自主移动自己
+			const newClothes = cleanSingleTag(parseTags(cleanRes, 'CLOTHES'));
+			const newAction = cleanSingleTag(parseTags(cleanRes, 'ACTION'));
+			const psychology = cleanSingleTag(parseTags(cleanRes, 'PSYCHOLOGY'));
 
 			let hasChange = false;
 
@@ -513,14 +516,15 @@ export function useAgents(context) {
 
 		if (!res) return;
 
+
 		let cleanRes = cleanAiResponse(res);
 
-		// 🟢 提取标签
-		const newRelation = parseTags(res, 'RELATION');
-		const newActivity = parseTags(res, 'ACTIVITY');
-		const newLabel = parseTags(res, 'LABEL');
-		const updateDynamic = parseTags(res, 'UPDATE_DYNAMIC');
-		const updateCore = parseTags(res, 'UPDATE_CORE');
+		// 🟢 提取标签 (全部换成 cleanRes)
+		const newRelation = parseTags(cleanRes, 'RELATION');
+		const newActivity = parseTags(cleanRes, 'ACTIVITY');
+		const newLabel = parseTags(cleanRes, 'LABEL');
+		const updateDynamic = parseTags(cleanRes, 'UPDATE_DYNAMIC');
+		const updateCore = parseTags(cleanRes, 'UPDATE_CORE');
 
 		// 🚨 【修复 Logic Gap】：不要因为没有 Relation/Activity 就直接 Return
 		// 只要有 updateCore 也要继续
@@ -739,10 +743,12 @@ export function useAgents(context) {
 				maxTokens: 300
 			});
 			if (!dirRes) throw new Error("返回为空");
+			// 修改后
 			let cleanDirRes = cleanAiResponse(dirRes);
-			console.log(`🎨 [导演] 生成Prompt:`, dirRes.slice(0, 5000));
-			let dynamicPart = parseTags(dirRes, 'IMAGE_PROMPT');
-			if (!dynamicPart && dirRes.length > 5) dynamicPart = dirRes.replace(/Here is.*?:/i, '').trim();
+			console.log(`🎨 [导演] 生成Prompt:`, cleanDirRes.slice(0, 5000));
+			let dynamicPart = parseTags(cleanDirRes, 'IMAGE_PROMPT');
+			if (!dynamicPart && cleanDirRes.length > 5) dynamicPart = cleanDirRes.replace(/Here is.*?:/i, '')
+				.trim();
 
 			if (dynamicPart) {
 				lastImageGenerationTime.value = Date.now();
@@ -901,12 +907,13 @@ export function useAgents(context) {
 				maxTokens: 300
 			});
 			if (!res) throw new Error("返回为空");
+			// 修改后
 			let cleanRes = cleanAiResponse(res); // ✨ 优雅调用
-			console.log(`📸 [摄影师] 动态描述生成完毕:`, res.slice(0, 50) + "...");
+			console.log(`📸 [摄影师] 动态描述生成完毕:`, cleanRes.slice(0, 50) + "...");
 
 			// 提取 Prompt
-			let dynamicPart = parseTags(res, 'IMAGE_PROMPT');
-			if (!dynamicPart && res.length > 5) dynamicPart = res.replace(/Here is.*?:/i, '').trim();
+			let dynamicPart = parseTags(cleanRes, 'IMAGE_PROMPT');
+			if (!dynamicPart && cleanRes.length > 5) dynamicPart = cleanRes.replace(/Here is.*?:/i, '').trim();
 
 			if (dynamicPart) {
 				lastImageGenerationTime.value = Date.now();
@@ -970,7 +977,9 @@ export function useAgents(context) {
 
 			try {
 				lastSummaryIndex.value = listLen;
-				const newSummary = await LLM.chat({
+
+				// 1. 注意这里声明的是 rawSummary
+				const rawSummary = await LLM.chat({
 					config: config,
 					messages: [{
 						role: 'user',
@@ -979,6 +988,10 @@ export function useAgents(context) {
 					temperature: 0.3,
 					maxTokens: 1000
 				});
+
+				// 2. 这里清洗后，再声明为 newSummary (整个块里 newSummary 只能声明这一次)
+				const newSummary = cleanAiResponse(rawSummary);
+
 				if (newSummary && newSummary.length > 5) {
 					saveCharacterState(undefined, undefined, newSummary);
 					console.log('✅ [Memory] 更新:', newSummary.slice(0, 30) + '...');
@@ -1019,7 +1032,6 @@ export function useAgents(context) {
         { "brief": "...", "new_memory": "..." }
         `;
 
-		// 🔥 继续使用 safeJsonChat，因为这里 Prompt 依然请求 JSON
 		const result = await safeJsonChat({
 			config,
 			messages: [{

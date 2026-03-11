@@ -15,7 +15,27 @@ export const cleanAiResponse = (rawText) => {
 	// 2. 清除 Markdown 格式的思考过程 (如 **思考**: ... )
 	cleanText = cleanText.replace(/(?:\*\*思考\*\*|思考)[\s]*[:：]\s*([\s\S]*?)(?=(?:\*\*回复\*\*|回复|Response)[\s]*[:：]|\[|$)/gi, '').trim();
 	
-	return cleanText;
+	// 🔥 3. 兜底救援：如果清理后什么都不剩了（大模型把回复吞进 think 里了）
+	if (cleanText.length === 0 && rawText.toLowerCase().includes('<think>')) {
+		console.warn('⚠️ [文本清洗] 检测到模型将回复写在了 <think> 内部，触发兜底救援！');
+		const match = rawText.match(/<think>([\s\S]*?)<\/think>/i);
+		if (match && match[1]) {
+			const innerText = match[1].trim();
+			// 提取最后一段（大模型通常会在思考的最后一段写出真正的回复）
+			const paragraphs = innerText.split('\n').filter(p => p.trim().length > 0);
+			if (paragraphs.length > 0) {
+				cleanText = paragraphs[paragraphs.length - 1].trim();
+			} else {
+				cleanText = innerText; 
+			}
+		} else {
+			// 如果连 </think> 都没闭合，直接取最后一段去标签
+			const paragraphs = rawText.split('\n').filter(p => p.trim().length > 0);
+			cleanText = paragraphs[paragraphs.length - 1].replace(/<\/?think>/gi, '').trim();
+		}
+	}
+	
+	return cleanText || rawText.replace(/<\/?think>/gi, '').trim(); // 实在不行就只去标签返回，防止对话卡死
 };
 
 /**
