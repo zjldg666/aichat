@@ -60,13 +60,32 @@
 	{
 		"path": "pages/mine/edit-profile",
 		"style": {
-			"navigationBarTitleText": ""
+			"navigationBarTitleText": "edit-profile"
 		}
 	},
 	{
 		"path": "pages/mine/gallery",
 		"style": {
-			"navigationBarTitleText": ""
+			"navigationBarTitleText": "gallery"
+		}
+	},
+	{
+		"path": "pages/scene/scene",
+		"style": {
+			"navigationBarTitleText": "",
+			"navigationBarBackgroundColor": "#ededed"
+		}
+	},
+	{
+		"path": "pages/town-relationship/town-relationship",
+		"style": {
+			"navigationBarTitleText": "town-relationship"
+		}
+	},
+	{
+		"path": "pages/town-resident/town-resident",
+		"style": {
+			"navigationBarTitleText": "town-resident"
 		}
 	}
   ],

@@ -1,71 +1,153 @@
 import { defineStore } from 'pinia';
+import { characterService } from '@/services/characterService.js';
+import { normalizeLegacyCharacter } from '@/services/legacyCharacterMigration.js';
+import {
+  buildLegacyRelationshipMirrors,
+  mergePlayerRelationshipState
+} from '@/utils/town/player-relationship.js';
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeNestedObjects(base = {}, patch = {}) {
+  const source = isPlainObject(base) ? base : {};
+  const incoming = isPlainObject(patch) ? patch : {};
+  const merged = { ...source };
+
+  Object.entries(incoming).forEach(([key, value]) => {
+    if (isPlainObject(value) && isPlainObject(source[key])) {
+      merged[key] = mergeNestedObjects(source[key], value);
+      return;
+    }
+
+    merged[key] = value;
+  });
+
+  return merged;
+}
+
+function buildRelationshipPatchFromLegacyData(data = {}) {
+  const patch = {};
+  const settingsPatch = isPlainObject(data.settings) ? data.settings : {};
+
+  if (data.relation !== undefined) {
+    patch.summaryText = data.relation;
+  } else if (settingsPatch.userRelation !== undefined) {
+    patch.summaryText = settingsPatch.userRelation;
+  }
+
+  if (settingsPatch.affinity !== undefined) {
+    patch.affinity = settingsPatch.affinity;
+  }
+
+  if (settingsPatch.relationshipArchetype !== undefined) {
+    patch.archetype = settingsPatch.relationshipArchetype;
+  }
+
+  return patch;
+}
 
 export const useCharacterStore = defineStore('character', {
   state: () => ({
-    contactList: [], 
-    currentCharacterId: null, // 当前聊天的对象 ID
+    contactList: [],
+    currentCharacterId: null
   }),
 
   getters: {
-    // 自动找到当前正在聊天的角色详细信息
     currentCharacter: (state) => {
-      return state.contactList.find(c => String(c.id) === String(state.currentCharacterId)) || null;
+      return state.contactList.find((item) => String(item.id) === String(state.currentCharacterId)) || null;
     }
   },
 
   actions: {
-    initContacts() {
-      const stored = uni.getStorageSync('contact_list');
-      if (stored) {
-        // ✨ 核心修改：数据结构升级与向下兼容 ✨
-        // 遍历所有角色/空间，如果没有财产和容器系统，就给他们补上默认值
-        let needSave = false;
-        this.contactList = stored.map(char => {
-          if (!char.economy) {
-            needSave = true;
-            char.economy = {
-              wallet: 1000, // 💰 玩家初始资金：1000元
-              courierBox: [], // 📦 客厅的快递纸箱（用来临时存放买来的东西）
-              containers: {
-                // 🏠 房间绑定的固定容器
-                '厨房': {
-                  '冰箱': [],     // 存放食材、饮料
-                  '橱柜': []      // 存放厨具、调料
-                },
-                '卫生间': {
-                  '浴室柜': []    // 存放洗浴用品
-                },
-                '卧室': {
-                  '床头柜': []    // 存放私密物品、礼物
-                }
-              }
-            };
-          }
-          return char;
-        });
-
-        // 如果发现旧存档被升级了，顺手保存覆盖一下本地缓存
-        if (needSave) {
-          uni.setStorageSync('contact_list', this.contactList);
-        }
-      }
+    async initContacts() {
+      await characterService.migrateLegacyCharactersIfNeeded();
+      const stored = await characterService.getAllCharacters();
+      this.contactList = Array.isArray(stored) ? stored.map((char) => normalizeLegacyCharacter(char)) : [];
     },
 
-    // 告诉管家现在正在和谁聊天
     setCurrentId(id) {
-        this.currentCharacterId = id;
+      this.currentCharacterId = id;
     },
 
-    // 一键保存/更新当前角色的任何数据，自动存入缓存
+    async loadCharacterById(id) {
+      const targetId = String(id);
+      const existing = this.contactList.find((item) => String(item.id) === targetId);
+
+      if (existing) {
+        this.currentCharacterId = id;
+        return existing;
+      }
+
+      const loaded = await characterService.getCharacterById(id);
+      if (!loaded) return null;
+
+      this.upsertCharacter(loaded);
+      this.currentCharacterId = id;
+      return loaded;
+    },
+
     saveCharacterData(data) {
       const char = this.currentCharacter;
       if (!char) return;
+      const nextSettings = data.settings
+        ? mergeNestedObjects(char.settings || {}, data.settings)
+        : (char.settings || {});
+      const nextPlayerRelationship = mergePlayerRelationshipState(
+        mergePlayerRelationshipState(
+          char.playerRelationship || {},
+          buildRelationshipPatchFromLegacyData(data)
+        ),
+        data.playerRelationship || {}
+      );
+      const relationshipMirrors = buildLegacyRelationshipMirrors(nextPlayerRelationship);
 
-      // 把传进来的新数据（如衣服、位置、好感度、经济数据等）合并到当前角色身上
-      Object.assign(char, data);
+      const nextChar = normalizeLegacyCharacter({
+        ...char,
+        ...data,
+        relation: relationshipMirrors.relation,
+        settings: {
+          ...nextSettings,
+          ...relationshipMirrors.settingsPatch
+        },
+        playerRelationship: relationshipMirrors.playerRelationship
+      });
 
-      // 统一保存回缓存
-      uni.setStorageSync('contact_list', this.contactList);
+      Object.assign(char, nextChar);
+      characterService.saveCharacter(nextChar);
+    },
+
+    savePlayerRelationshipPatch(patch = {}) {
+      this.saveCharacterData({
+        playerRelationship: patch
+      });
+    },
+
+    async addNewCharacter(newChar) {
+      const normalized = normalizeLegacyCharacter(newChar);
+      this.contactList.unshift(normalized);
+      await characterService.saveCharacter(normalized);
+    },
+
+    upsertCharacter(char) {
+      const normalized = normalizeLegacyCharacter(char);
+      const index = this.contactList.findIndex((item) => String(item.id) === String(normalized.id));
+      if (index === -1) {
+        this.contactList.unshift(normalized);
+        return;
+      }
+
+      this.contactList.splice(index, 1, normalized);
+    },
+
+    replaceCharacters(list = []) {
+      this.contactList = Array.isArray(list) ? list.map((item) => normalizeLegacyCharacter(item)) : [];
+    },
+
+    removeCharacter(id) {
+      this.contactList = this.contactList.filter((item) => String(item.id) !== String(id));
+      characterService.deleteCharacter(id);
     }
   }
 });
