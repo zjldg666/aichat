@@ -1,16 +1,16 @@
 <template>
   <view class="status-bar-wrapper">
     <view class="info-row">
-      <view class="location-box" :class="interactionMode === 'phone' ? 'mode-phone' : 'mode-face'">
+      <view class="location-box">
         <view class="icon-circle">
-          <text>{{ interactionMode === 'phone' ? '📱' : '📍' }}</text>
+          <text>📍</text>
         </view>
         <view class="status-content">
           <view class="loc-row">
-            <text class="mode-tag">{{ interactionMode === 'phone' ? '远程' : '当面' }}</text>
+            <text class="mode-tag">当面</text>
             <text class="location-text">{{ currentLocation }}</text>
           </view>
-          <text class="activity-text">状态: {{ currentActivity }}</text>
+          <text class="activity-text">状态：{{ currentActivity }}</text>
         </view>
       </view>
 
@@ -19,37 +19,41 @@
           <text class="pill-icon">👤</text>
           <text class="pill-text">{{ playerLocation }}</text>
         </view>
-  
-        <view class="status-pill time-pill" @click="$emit('clickTime')" v-if="!isEmbedded">
+
+        <view v-if="!isEmbedded" class="status-pill time-pill" @click="$emit('clickTime')">
           <text class="time-clock">{{ timeParts.time }}</text>
           <text class="time-week">{{ timeParts.week }}</text>
         </view>
       </view>
     </view>
 
-    <scroll-view scroll-x class="scene-banner" v-if="hasSceneItems && !isEmbedded">
+    <scroll-view v-if="hasSceneItems && !isEmbedded" scroll-x class="scene-banner">
       <view class="scene-items-flex">
-        
         <view class="scene-item wallet" @click="$emit('clickWallet')">
           <text class="item-icon">💰</text>
-          <text class="item-name">¥{{ economy?.wallet || 0 }}</text>
+          <text class="item-name">¥{{ wallet }}</text>
         </view>
 
-        <view class="scene-item courier" v-if="playerLocation === '客厅'" @click="$emit('clickCourier')">
+        <view
+          v-if="playerLocation === '客厅'"
+          class="scene-item courier"
+          @click="$emit('clickCourier')"
+        >
           <text class="item-icon">📦</text>
           <text class="item-name">快递箱({{ economy?.courierBox?.length || 0 }})</text>
         </view>
 
         <template v-if="currentRoomContainers">
-          <view class="scene-item container-item" 
-                v-for="(items, cName) in currentRoomContainers" 
-                :key="cName" 
-                @click="$emit('clickContainer', cName)">
+          <view
+            v-for="(items, cName) in currentRoomContainers"
+            :key="cName"
+            class="scene-item container-item"
+            @click="$emit('clickContainer', cName)"
+          >
             <text class="item-icon">{{ getContainerIcon(cName) }}</text>
             <text class="item-name">{{ cName }}</text>
           </view>
         </template>
-        
       </view>
     </scroll-view>
   </view>
@@ -58,50 +62,47 @@
 <script setup>
 import { computed } from 'vue';
 import { useCharacterStore } from '@/stores/useCharacterStore';
+import {
+  resolveCurrentRoomContainers,
+  shouldShowChatSceneBanner
+} from '@/utils/chat/chat-header-scene-items.js';
 
 const props = defineProps({
-  interactionMode: { type: String, default: 'phone' },
   currentLocation: { type: String, default: '未知位置' },
   currentActivity: { type: String, default: '休息中' },
   playerLocation: { type: String, default: '加载中...' },
   timeParts: { type: Object, default: () => ({ time: '--:--', week: '--' }) },
-  isEmbedded: { type: Boolean, default: false }
+  isEmbedded: { type: Boolean, default: false },
+  wallet: { type: Number, default: 0 },
+  residentEconomy: { type: Object, default: null }
 });
 
-// ✨ 新增了点击容器的 emit 事件
 defineEmits(['clickPlayer', 'clickTime', 'clickWallet', 'clickCourier', 'clickContainer']);
 
-// --- 引入管家，获取底层财产数据 ---
 const charStore = useCharacterStore();
 const currentRole = computed(() => charStore.currentCharacter);
-const economy = computed(() => currentRole.value?.economy);
+const economy = computed(() => props.residentEconomy || currentRole.value?.economy || null);
+const currentRoomContainers = computed(() =>
+  resolveCurrentRoomContainers(economy.value, props.playerLocation)
+);
+const hasSceneItems = computed(() =>
+  shouldShowChatSceneBanner({
+    economy: economy.value,
+    playerLocation: props.playerLocation,
+    currentRoomContainers: currentRoomContainers.value
+  })
+);
 
-// 动态计算：当前玩家所在的房间，有没有配置容器？
-const currentRoomContainers = computed(() => {
-  if (!economy.value || !economy.value.containers) return null;
-  // 直接通过玩家当前地点名字，去匹配 containers 字典
-  return economy.value.containers[props.playerLocation] || null;
-});
-
-// 判断是否需要显示底部的场景横幅
-const hasSceneItems = computed(() => {
-  if (!economy.value) return false;
-  // 只要在客厅(有快递箱) 或者 当前房间有容器，就显示横幅
-  return props.playerLocation === '客厅' || !!currentRoomContainers.value;
-});
-
-// 动态给容器分配小图标
-const getContainerIcon = (name) => {
+function getContainerIcon(name = '') {
   if (name.includes('冰箱')) return '🧊';
   if (name.includes('橱柜')) return '🗄️';
   if (name.includes('浴室柜')) return '🧴';
   if (name.includes('床头柜')) return '🗃️';
   return '📦';
-};
+}
 </script>
 
 <style lang="scss" scoped>
-/* 状态栏 - 磨砂玻璃效果 */
 .status-bar-wrapper {
   background-color: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
@@ -112,7 +113,7 @@ const getContainerIcon = (name) => {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 16rpx; /* 上下部分的间距 */
+  gap: 16rpx;
 }
 
 .info-row {
@@ -123,66 +124,73 @@ const getContainerIcon = (name) => {
   gap: 16rpx;
 }
 
-/* --- 左侧：角色位置卡片 --- */
 .location-box {
   flex: 1.4;
   display: flex;
   align-items: center;
   padding: 0 20rpx;
   border-radius: 20rpx;
-  border: 1px solid transparent;
-  transition: all 0.3s;
-
-  &.mode-phone {
-    background: var(--pill-bg);
-    border-color: var(--border-color);
-    .icon-circle { background: var(--bg-color); color: var(--text-sub); }
-    .mode-tag { background: var(--bg-color); color: var(--text-sub); }
-  }
-
-  &.mode-face {
-    background: linear-gradient(135deg, rgba(0,122,255,0.1) 0%, rgba(0,122,255,0.05) 100%);
-    border-color: rgba(0,122,255,0.3);
-    .icon-circle { background: var(--card-bg); color: #007aff; box-shadow: 0 2rpx 8rpx rgba(0,122,255,0.15); }
-    .mode-tag { background: var(--card-bg); color: #007aff; }
-  }
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.1) 0%, rgba(0, 122, 255, 0.05) 100%);
 }
 
 .icon-circle {
-  width: 64rpx; height: 64rpx;
+  width: 64rpx;
+  height: 64rpx;
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 32rpx;
   margin-right: 16rpx;
   flex-shrink: 0;
+  background: var(--card-bg);
+  color: #007aff;
+  box-shadow: 0 2rpx 8rpx rgba(0, 122, 255, 0.15);
 }
 
 .status-content {
-  flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .loc-row {
-  display: flex; align-items: center; margin-bottom: 4rpx;
+  display: flex;
+  align-items: center;
+  margin-bottom: 4rpx;
 }
 
 .mode-tag {
-  font-size: 18rpx; padding: 2rpx 8rpx; border-radius: 6rpx;
-  margin-right: 8rpx; font-weight: bold; flex-shrink: 0;
+  font-size: 18rpx;
+  padding: 2rpx 8rpx;
+  border-radius: 6rpx;
+  margin-right: 8rpx;
+  font-weight: bold;
+  flex-shrink: 0;
+  background: var(--card-bg);
+  color: #007aff;
 }
 
 .location-text {
-  font-size: 26rpx; font-weight: bold;
+  font-size: 26rpx;
+  font-weight: bold;
   color: var(--text-color);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .activity-text {
   font-size: 20rpx;
   color: var(--text-sub);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* --- 右侧：状态组 --- */
 .right-status-group {
   flex: 0.9;
   display: flex;
@@ -200,21 +208,40 @@ const getContainerIcon = (name) => {
   font-size: 22rpx;
 }
 
-.time-pill, .player-pill {
+.time-pill,
+.player-pill {
   background: var(--pill-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
 
-  .pill-icon { margin-right: 8rpx; font-size: 24rpx; }
-  .pill-text { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill-icon {
+    margin-right: 8rpx;
+    font-size: 24rpx;
+  }
 
-  .time-clock { font-weight: bold; font-size: 26rpx; font-family: Helvetica, sans-serif; }
-  .time-week { color: var(--text-sub); font-size: 20rpx; }
+  .pill-text {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-  &.time-pill { justify-content: space-between; }
+  .time-clock {
+    font-weight: bold;
+    font-size: 26rpx;
+    font-family: Helvetica, sans-serif;
+  }
+
+  .time-week {
+    color: var(--text-sub);
+    font-size: 20rpx;
+  }
+
+  &.time-pill {
+    justify-content: space-between;
+  }
 }
 
-/* ✨✨✨ 新增：场景横幅样式 ✨✨✨ */
 .scene-banner {
   width: 100%;
   white-space: nowrap;
@@ -256,12 +283,18 @@ const getContainerIcon = (name) => {
 .wallet {
   background: rgba(255, 153, 0, 0.1);
   border-color: rgba(255, 153, 0, 0.3);
-  .item-name { color: #e67e22; }
+
+  .item-name {
+    color: #e67e22;
+  }
 }
 
 .courier {
   background: rgba(0, 122, 255, 0.1);
   border-color: rgba(0, 122, 255, 0.3);
-  .item-name { color: #007aff; }
+
+  .item-name {
+    color: #007aff;
+  }
 }
 </style>

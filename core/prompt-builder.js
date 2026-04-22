@@ -1,92 +1,242 @@
-// AiChat/core/prompt-builder.js
-
 import { CORE_INSTRUCTION_LOGIC_MODE } from '@/utils/prompts.js';
+import { createWorldTemplateService } from '@/services/worldTemplateService.js';
+import { normalizePlayerRelationshipState } from '@/utils/town/player-relationship.js';
+
+const FALLBACK_STORAGE = {
+  getStorageSync() {
+    return undefined;
+  }
+};
+
+function getStorage() {
+  if (typeof uni !== 'undefined' && uni && typeof uni.getStorageSync === 'function') {
+    return uni;
+  }
+
+  return FALLBACK_STORAGE;
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function padHour(value, fallback) {
+  const parsed = Number(value);
+  const hour = Number.isFinite(parsed) ? parsed : fallback;
+  return `${String(hour).padStart(2, '0')}:00`;
+}
+
+function parseResidenceLocationId(locationId = '') {
+  const match = String(locationId || '').trim().match(/^residence:([^:]+):(.+)$/);
+  return {
+    zoneId: match?.[1] || '',
+    unitId: match?.[2] || ''
+  };
+}
+
+function findWorldLocationMeta(worldTemplate = {}, locationId = '', locationName = '') {
+  const normalizedLocationId = String(locationId || '').trim();
+  const locations = [
+    ...(Array.isArray(worldTemplate.locations) ? worldTemplate.locations : []),
+    ...(Array.isArray(worldTemplate.publicLocations) ? worldTemplate.publicLocations : [])
+  ];
+  const runtimeLocation = locations.find((item) => item.id === normalizedLocationId)
+    || locations.find((item) => item.name === locationName)
+    || null;
+  const parsedResidence = parseResidenceLocationId(normalizedLocationId || runtimeLocation?.id || '');
+
+  if (parsedResidence.zoneId && parsedResidence.unitId) {
+    const zone = (worldTemplate.residentialZones || []).find((item) => item.id === parsedResidence.zoneId);
+    const unit = (zone?.units || []).find((item) => item.id === parsedResidence.unitId);
+
+    if (zone && unit) {
+      return {
+        id: normalizedLocationId || runtimeLocation?.id || '',
+        name: runtimeLocation?.name || `${zone.name || zone.id} ${unit.label || unit.id}`,
+        access: unit.accessPolicy || runtimeLocation?.access || 'consent_required'
+      };
+    }
+  }
+
+  return {
+    id: runtimeLocation?.id || normalizedLocationId || '',
+    name: runtimeLocation?.name || locationName || '',
+    access: runtimeLocation?.access || 'public'
+  };
+}
+
+function buildUserProfile({
+  settings = {},
+  userName = '',
+  appUser = {},
+  worldPlayer = {},
+  relationText = ''
+}) {
+  const finalUserName = worldPlayer.name || settings.userNameOverride || userName || appUser.name || 'User';
+  const age = worldPlayer.age || settings.userAge || appUser.age;
+  const gender = worldPlayer.gender || settings.userGender;
+  const identity = worldPlayer.identity || settings.userOccupation;
+  const appearance = worldPlayer.appearance || settings.userAppearance || appUser.appearance;
+  const home = worldPlayer.address || settings.userLocation;
+
+  let profile = `[User Profile]\nName: ${finalUserName}`;
+  if (age) profile += `\nAge: ${age}`;
+  if (gender) profile += `\nGender: ${gender}`;
+  if (identity) profile += `\nIdentity/Occupation: ${identity}`;
+  if (relationText) profile += `\nRelation to Char: ${relationText}`;
+  if (settings.userPersona) profile += `\nPersonality: ${settings.userPersona}`;
+  if (appearance) profile += `\nAppearance: ${appearance}`;
+  if (home) profile += `\nHome: ${home}`;
+
+  return profile;
+}
+
+function buildCharacterBio(settings = {}) {
+  const segments = [];
+
+  if (settings.age) segments.push(`[Age: ${settings.age}]`);
+  if (settings.personality) segments.push(`[Personality: ${settings.personality}]`);
+  if (settings.flaws) segments.push(`[Flaws: ${settings.flaws}]`);
+  if (settings.secret) segments.push(`[Secret: ${settings.secret}]`);
+  if (settings.conflictMode) segments.push(`[Conflict Mode: ${settings.conflictMode}]`);
+
+  segments.push(`[Bio]: ${settings.bio || 'No bio provided.'}`);
+  return segments.join('\n');
+}
+
+function buildDiaryIndexText(storage, role = {}) {
+  const diaryKey = `diary_logs_${role.id || 'default'}`;
+  const logs = storage.getStorageSync(diaryKey) || [];
+  const limit = role.diaryHistoryLimit !== undefined ? role.diaryHistoryLimit : 5;
+
+  if (limit <= 0 || !Array.isArray(logs) || logs.length === 0) {
+    return '';
+  }
+
+  return `\n\n【往事大纲 (仅供连续性参考，除非用户提起细节，否则不要主动复述)】\n${
+    logs.slice(0, limit).map((log) => `- [${log.dateStr}]: ${log.brief}`).join('\n')
+  }`;
+}
+
+function formatActiveTracks(flags = {}) {
+  const trackLabels = [
+    ['householdTrackActive', 'household'],
+    ['familyTrackActive', 'family'],
+    ['workTrackActive', 'work'],
+    ['romanceTrackActive', 'romance']
+  ];
+
+  const active = trackLabels
+    .filter(([key]) => Boolean(flags[key]))
+    .map(([, label]) => label);
+
+  return active.join(', ') || 'none';
+}
+
+function buildRelationshipState(role = {}, relation = '') {
+  const settings = role.settings || {};
+  const structuredRelationship = normalizePlayerRelationshipState(role);
+  const defaultRelationText = '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。';
+  const looseRelation = String(relation || '').trim();
+  const hasLooseRelation = looseRelation && looseRelation !== defaultRelationText && looseRelation.length > 2;
+  const fallbackRelation = hasLooseRelation
+    ? looseRelation
+    : String(settings.userRelation || '').trim() || '初相识，还没有具体印象';
+  const structuredSummary = String(structuredRelationship.summaryText || '').trim();
+  const resolvedSummary = structuredSummary || fallbackRelation;
+  const activeTracks = formatActiveTracks(structuredRelationship.flags);
+  const anchor = [
+    '',
+    '',
+    '【RELATIONSHIP STATUS (HARD FACT)】',
+    `RELATIONSHIP ARCHETYPE: ${structuredRelationship.archetype}`,
+    `CURRENT SUMMARY: ${structuredSummary || resolvedSummary}`,
+    `CURRENT TEXT STATUS (fallback): ${resolvedSummary}`,
+    `CURRENT AFFINITY: ${structuredRelationship.affinity} / 100`,
+    `FAMILIARITY: ${structuredRelationship.familiarity}`,
+    `TRUST: ${structuredRelationship.trust}`,
+    `RESPECT: ${structuredRelationship.respect}`,
+    `TENSION: ${structuredRelationship.tension}`,
+    `ACTIVE TRACKS: ${activeTracks}`
+  ].join('\n');
+
+  return {
+    structuredRelationship,
+    resolvedSummary,
+    anchor
+  };
+}
 
 export function buildSystemPrompt({
-    role,
-    userName,
-    summary,
-    formattedTime,
-    location,
-    mode,
-    activity,
-    clothes,
-    relation
+  role,
+  userName,
+  summary,
+  formattedTime,
+  location,
+  mode,
+  activity,
+  clothes,
+  relation
 }) {
-    // 1. 容错处理与数据格式化
-    const s = role.settings || {};
-    const appUser = uni.getStorageSync('app_user_info') || {};
-    
-    // 🔥 [修复 1]: 正确读取 create.vue 保存的 workStartHour (数字)，并转为 "HH:00" 格式
-    // 如果 s.workStartHour 存在(哪怕是0)，就用它，否则默认 9
-    const startH = (s.workStartHour !== undefined && s.workStartHour !== null) ? s.workStartHour : 9;
-    const endH = (s.workEndHour !== undefined && s.workEndHour !== null) ? s.workEndHour : 17;
-    
-    // 补零处理 (9 -> "09:00", 17 -> "17:00")
-    const workStart = `${String(startH).padStart(2, '0')}:00`;
-    const workEnd = `${String(endH).padStart(2, '0')}:00`;
+  const safeRole = isPlainObject(role) ? role : {};
+  const settings = safeRole.settings || {};
+  const storage = getStorage();
+  const appUser = storage.getStorageSync('app_user_info') || {};
+  const worldService = createWorldTemplateService(storage);
+  const worldTemplate = safeRole.worldId ? worldService.getWorldTemplateById(safeRole.worldId) : null;
+  const worldPlayer = worldTemplate?.playerIdentityTemplates?.[0] || {};
+  const locationMeta = findWorldLocationMeta(
+    worldTemplate || {},
+    safeRole.townRuntime?.currentLocationId || '',
+    safeRole.townRuntime?.currentLocationName || location || ''
+  );
+  const { resolvedSummary, anchor } = buildRelationshipState(safeRole, relation);
+  const profileRelation = resolvedSummary || settings.userRelation || '';
+  const myProfile = buildUserProfile({
+    settings,
+    userName,
+    appUser,
+    worldPlayer,
+    relationText: profileRelation
+  });
+  const workStart = padHour(settings.workStartHour, 9);
+  const workEnd = padHour(settings.workEndHour, 17);
+  const charName = safeRole.name || 'AI';
+  const charBio = buildCharacterBio(settings);
+  const coreLogic = settings.personalityCore
+    || settings.personalityNormal
+    || '以背景故事与性格为准，像真人一样自然互动；保持一致的动机、底线与说话风格。';
+  const dynamicBias = settings.personalityDynamic || '';
+  const diaryIndexText = buildDiaryIndexText(storage, safeRole);
+  const memoryBlock = summary ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${summary}` : '';
+  const dynamicLogic = `${coreLogic}\n\n【关系动态行为偏置 (Relation-based Bias)】\n${
+    dynamicBias || '（无额外偏置）'
+  }${diaryIndexText}${memoryBlock}${anchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${
+    resolvedSummary
+  }`;
 
-    // 2. 构建玩家画像 (User Profile)
-    const finalUserName = s.userNameOverride || userName || appUser.name || 'User';
-    
-    let myProfile = `[User Profile]\nName: ${finalUserName}`;
-    if (s.userAge || appUser.age) myProfile += `\nAge: ${s.userAge || appUser.age}`; // ✨ 新增：玩家年龄
-    if (s.userGender) myProfile += `\nGender: ${s.userGender}`; // ✨ 新增：玩家性别
-    if (s.userOccupation) myProfile += `\nOccupation: ${s.userOccupation}`;
-    if (s.userRelation) myProfile += `\nRelation to Char: ${s.userRelation}`; 
-    if (s.userPersona) myProfile += `\nPersonality: ${s.userPersona}`;        
-    if (s.userAppearance || appUser.appearance) myProfile += `\nAppearance: ${s.userAppearance || appUser.appearance}`;
+  let prompt = CORE_INSTRUCTION_LOGIC_MODE
+    .replace(/{{work_start}}/g, workStart)
+    .replace(/{{work_end}}/g, workEnd)
+    .replace(/{{char}}/g, charName)
+    .replace(/{{bio}}/g, charBio)
+    .replace(/{{evolution_level}}/g, settings.evolutionLevel || 1)
+    .replace(/{{logic}}/g, dynamicLogic)
+    .replace(/{{core_logic}}/g, coreLogic)
+    .replace(/{{dynamic_logic}}/g, dynamicBias || '（关系基线：无额外偏置）')
+    .replace(/{{likes}}/g, settings.likes || 'Unknown')
+    .replace(/{{dislikes}}/g, settings.dislikes || 'Unknown')
+    .replace(/{{speaking_style}}/g, settings.speakingStyle || 'Normal')
+    .replace(/{{current_time}}/g, formattedTime || '')
+    .replace(/{{current_location}}/g, location || '')
+    .replace(/{{interaction_mode}}/g, mode || '')
+    .replace(/{{current_activity}}/g, activity || '')
+    .replace(/{{current_clothes}}/g, clothes || '')
+    .replace(/{{user_profile}}/g, myProfile);
 
-    // 3. 准备角色基础信息
-    const charName = role.name || 'AI';
-    // ✨ 注入角色年龄到 Bio 前面
-    const ageInfo = (s.age) ? `[Age: ${s.age}] ` : "";
-    const personalityInfo = (s.personality) ? `[Personality: ${s.personality}] ` : ""; // ✨ 新增
-    const charBio = ageInfo + personalityInfo + (s.bio || "No bio provided.");
-    const coreLogic = s.personalityCore || s.personalityNormal || "以背景故事与性格为准，像真人一样自然互动；保持一致的动机、底线与说话风格。";
-    const dynamicBias = s.personalityDynamic || "";
-    
-    // 日记目录注入逻辑
-    const diaryKey = `diary_logs_${role.id || 'default'}`;
-    const logs = uni.getStorageSync(diaryKey) || [];
-    const limit = (role.diaryHistoryLimit !== undefined) ? role.diaryHistoryLimit : 5;
-    let diaryIndexText = "";
-    if (limit > 0 && logs.length > 0) {
-        diaryIndexText = "\n\n【往事大纲 (仅供连续性参考，除非用户提起细节，否则不要主动复述)】\n" + 
-            logs.slice(0, limit).map(log => `- [${log.dateStr}]: ${log.brief}`).join('\n');
-    }
+  if (locationMeta.access === 'consent_required') {
+    prompt += '\n[Private Residence Rule]\nCurrent scene is a private residence. Treat entry as permission-based, not public access.';
+  }
 
-    // 4. 记忆与状态注入
-    const memoryBlock = summary ? `\n\n【长期记忆摘要 (Long-term Memory)】\n${summary}` : "";
-    
-    // 关系锚点注入
-    const defaultRelationText = '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。';
-    const isRelationValid = relation && relation !== defaultRelationText && relation.length > 2;
-    const finalRelation = isRelationValid ? relation : (s.userRelation || '初相识，还没有具体印象');
-    const relationAnchor = `\n\n【RELATIONSHIP STATUS (HARD FACT)】\nCURRENT STATUS: ${finalRelation}`;
-    
-    const dynamicLogic = `${coreLogic}\n\n【关系动态行为偏置 (Relation-based Bias)】\n${dynamicBias || '（无额外偏置）'}${diaryIndexText}${memoryBlock}${relationAnchor}\n\n【当前心理状态与对玩家印象 (Current Psychology)】\n${finalRelation}`;
-
-    // 5. 模板替换 
-    let prompt = CORE_INSTRUCTION_LOGIC_MODE
-        // 🔥 [修复 2]: 使用正则全局替换 /g，确保所有位置的 {{work_start}} 都被替换
-        .replace(/{{work_start}}/g, workStart) 
-        .replace(/{{work_end}}/g, workEnd)   
-        .replace(/{{char}}/g, charName)
-        .replace(/{{bio}}/g, charBio)
-        .replace(/{{evolution_level}}/g, s.evolutionLevel || 1)
-        .replace(/{{logic}}/g, dynamicLogic)
-        .replace(/{{core_logic}}/g, coreLogic)
-        .replace(/{{dynamic_logic}}/g, dynamicBias || '（关系基线：无额外偏置）')
-        .replace(/{{likes}}/g, s.likes || "Unknown")
-        .replace(/{{dislikes}}/g, s.dislikes || "Unknown")
-        .replace(/{{speaking_style}}/g, s.speakingStyle || "Normal")
-        .replace(/{{current_time}}/g, formattedTime)
-        .replace(/{{current_location}}/g, location)
-        .replace(/{{interaction_mode}}/g, mode)
-        .replace(/{{current_activity}}/g, activity)
-        .replace(/{{current_clothes}}/g, clothes)
-        .replace(/{{user_profile}}/g, myProfile);
-        
-    return prompt;
+  return prompt;
 }

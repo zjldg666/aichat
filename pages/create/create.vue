@@ -83,6 +83,10 @@
 										{{ selectedWorld ? selectedWorld.name : '🌐 默认/未选择 (点击选择)' }}
 									</view>
 								</picker>
+								<view v-if="selectedWorldIdentityTemplate" class="tip">
+									默认身份：{{ selectedWorldIdentityTemplate.identity || '未设定' }}，
+									默认住址：{{ selectedWorldIdentityTemplate.address || '未设定' }}
+								</view>
 							</view>
 							<view class="textarea-item">
 								<text class="label">🌍 世界观法则 (Lore)</text>
@@ -93,19 +97,49 @@
 									placeholder="例：这是一个赛博朋克世界，财阀统治一切..." maxlength="-1" />
 							</view>
 							<template v-if="selectedWorld">
-								<view class="input-item">
-									<text class="label">居住地址</text>
-									<input class="input" v-model="formData.location" placeholder="输入地址" />
-									<view class="quick-tags" v-if="selectedWorld.locations">
-										<view v-for="(loc, idx) in selectedWorld.locations" :key="idx" class="tag"
-											@click="formData.location = loc">{{ loc }}</view>
+								<template v-if="selectedResidentialZones.length">
+									<view class="input-item">
+										<text class="label">住宅区</text>
+										<picker mode="selector" :range="selectedResidentialZones" range-key="name"
+											:value="residenceZoneIndex" @change="handleResidenceZoneChange">
+											<view class="picker-box">{{ selectedResidenceZoneLabel }}</view>
+										</picker>
+										<view class="tip">私人住宅只能拜访，不能直接闯入。</view>
 									</view>
-								</view>
+									<view class="input-item">
+										<text class="label">门牌号</text>
+										<picker mode="selector" :range="availableResidenceUnits" range-key="label"
+											:value="residenceUnitIndex" @change="handleResidenceUnitChange">
+											<view class="picker-box">{{ selectedResidenceUnitLabel }}</view>
+										</picker>
+										<view class="quick-tags" v-if="availableResidenceUnits.length">
+											<view v-for="(unit, idx) in availableResidenceUnits" :key="unit.id || idx" class="tag"
+												@click="selectResidenceUnit(unit.id)">
+												{{ unit.label }}
+											</view>
+										</view>
+										<view v-else class="tip">当前住宅区没有可用门牌号，请更换住宅区或去世界观里补充住址。</view>
+									</view>
+									<view class="input-item">
+										<text class="label">当前住址</text>
+										<view class="picker-box">{{ formData.location || '尚未选择住址' }}</view>
+									</view>
+								</template>
+								<template v-else>
+									<view class="input-item">
+										<text class="label">居住地址</text>
+										<input class="input" v-model="formData.location" placeholder="输入地址" />
+										<view class="quick-tags" v-if="selectedWorldLocationNames.length">
+											<view v-for="(loc, idx) in selectedWorldLocationNames" :key="idx" class="tag"
+												@click="formData.location = loc">{{ loc }}</view>
+										</view>
+									</view>
+								</template>
 								<view class="input-item">
 									<text class="label">职业身份</text>
 									<input class="input" v-model="formData.occupation" placeholder="输入职业" />
-									<view class="quick-tags" v-if="selectedWorld.occupations">
-										<view v-for="(job, idx) in selectedWorld.occupations" :key="idx"
+									<view class="quick-tags" v-if="selectedWorldProfessionNames.length">
+										<view v-for="(job, idx) in selectedWorldProfessionNames" :key="idx"
 											class="tag job-tag" @click="formData.occupation = job">{{ job }}</view>
 									</view>
 								</view>
@@ -426,128 +460,46 @@
 			<view class="form-section">
 				<view class="section-header" @click="toggleSection('player')">
 					<view class="section-title-wrapper">
-						<view class="section-title" style="color: #2ecc71;">玩家设定 (你)</view>
-						<text class="section-subtitle">你的身份、世界、外貌</text>
+						<view class="section-title" style="color: #2ecc71;">🔗 玩家羁绊 (你)</view>
+						<text class="section-subtitle">你与该角色的专属关系</text>
 					</view>
 					<text class="arrow-icon">{{ activeSections.player ? '▼' : '▶' }}</text>
 				</view>
 
 				<view v-show="activeSections.player" class="section-content">
-					<view class="sub-group">
-						<view class="sub-header" @click="toggleSubSection('userWorld')">
-							<text class="sub-title">🌍 你的世界</text>
-							<text class="sub-arrow">{{ subSections.userWorld ? '▼' : '▶' }}</text>
-						</view>
-						<view v-show="subSections.userWorld" class="sub-content">
-							<view class="input-item">
-								<text class="label">你的昵称</text>
-								<input class="input" v-model="formData.userNameOverride"
-									placeholder="例：阿林 (留空则使用APP全局昵称)" />
-							</view>
+					<view class="setting-tip">💡 提示：你的个人信息（姓名、年龄、住址、外貌等）已统一移至“我的 -> 世界观设定”中管理。同一个世界下的角色将共享你的信息。</view>
 
-							<view class="input-item">
-								<text class="label">你的性别</text>
-								<scroll-view scroll-x class="chips-scroll">
-									<view class="chips-flex">
-										<view v-for="item in OPTIONS.gender" :key="item" class="chip"
-											:class="{active: formData.userGender === item}"
-											@click="formData.userGender = item">
-											{{item}}
-										</view>
-									</view>
-								</scroll-view>
-							</view>
-
-							<view class="input-item">
-								<text class="label">你的年龄</text>
-								<input class="input" v-model="formData.userAge" placeholder="例如：25 (留空默认未知)"
-									type="number" />
-							</view>
-
-							<view class="input-item">
-								<text class="label">你们的关系</text>
-								<input class="input" v-model="formData.userRelation"
-									placeholder="例：青梅竹马 / 刚认识的邻居 / 你的债主" />
-							</view>
-							<view class="textarea-item">
-								<text class="label">你的性格/人设</text>
-								<textarea class="textarea" style="height: 120rpx;" v-model="formData.userPersona"
-									placeholder="例：性格内向，容易害羞，不敢直视女生..." maxlength="-1" />
-							</view>
-							<view class="input-item">
-								<text class="label">所属世界</text>
-								<picker mode="selector" :range="worldList" range-key="name" :value="userWorldIndex"
-									@change="handleUserWorldChange">
-									<view class="picker-box">
-										{{ selectedUserWorld ? selectedUserWorld.name : '🌐 与角色保持一致 (或默认)' }}
-									</view>
-								</picker>
-							</view>
-							<template v-if="selectedUserWorld">
-								<view class="input-item"><text class="label">你的住址</text><input class="input"
-										v-model="formData.userLocation" /></view>
-								<view class="input-item"><text class="label">你的身份</text><input class="input"
-										v-model="formData.userOccupation" /></view>
-							</template>
-							<template v-else>
-								<view class="input-item"><text class="label">你的住址</text><input class="input"
-										v-model="formData.userLocation" /></view>
-								<view class="input-item"><text class="label">你的身份</text><input class="input"
-										v-model="formData.userOccupation" /></view>
-							</template>
-						</view>
+					<view class="input-item" style="margin-top: 20rpx;">
+						<text class="label">你们的关系 (Relation)</text>
+						<input class="input" v-model="formData.userRelation" placeholder="例：青梅竹马 / 合租室友 / 刚认识的邻居" />
 					</view>
 
-					<view class="sub-group">
-						<view class="sub-header" @click="toggleSubSection('userLooks')">
-							<text class="sub-title">🧔‍♂️ 你的外貌 (男性特征)</text>
-							<text class="sub-arrow">{{ subSections.userLooks ? '▼' : '▶' }}</text>
-						</view>
-						<view v-show="subSections.userLooks" class="sub-content">
-							<view class="category-block">
-								<text class="block-title">基本特征</text>
-								<view class="feature-row">
-									<text class="feat-label">发型</text>
-									<scroll-view scroll-x class="chips-scroll">
-										<view class="chips-flex">
-											<view v-for="item in OPTIONS.maleHair" :key="item" class="chip"
-												:class="{active: formData.userFeatures.hair === item}"
-												@click="setFeature('user', 'hair', item)">{{item}}</view>
-										</view>
-									</scroll-view>
-								</view>
-								<view class="feature-row">
-									<text class="feat-label">身材</text>
-									<scroll-view scroll-x class="chips-scroll">
-										<view class="chips-flex">
-											<view v-for="item in OPTIONS.maleBody" :key="item" class="chip"
-												:class="{active: formData.userFeatures.body === item}"
-												@click="setFeature('user', 'body', item)">{{item}}</view>
-										</view>
-									</scroll-view>
+					<view class="input-item">
+						<text class="label">关系原型</text>
+						<scroll-view scroll-x class="chips-scroll">
+							<view class="chips-flex">
+								<view v-for="item in RELATIONSHIP_ARCHETYPE_OPTIONS" :key="item.value" class="chip"
+									:class="{active: formData.relationshipArchetype === item.value}"
+									@click="formData.relationshipArchetype = item.value">
+									{{ item.label }}
 								</view>
 							</view>
-							<view class="category-block">
-								<text class="block-title">下体特征 (NSFW)</text>
-								<view class="feature-row">
-									<text class="feat-label">尺寸/状态</text>
-									<scroll-view scroll-x class="chips-scroll">
-										<view class="chips-flex">
-											<view v-for="item in OPTIONS.malePrivate" :key="item" class="chip"
-												:class="{active: formData.userFeatures.privates === item}"
-												@click="setFeature('user', 'privates', item)">{{item}}</view>
-										</view>
-									</scroll-view>
-								</view>
-							</view>
-							<button class="mini-btn-gen" @click="generateUserDescription">⬇️ 生成玩家 Prompt (英文)</button>
-						</view>
+						</scroll-view>
+						<view class="tip">不确定时保持“自动”，系统会根据你填写的文字关系和角色身份来推断。</view>
 					</view>
 
-					<view class="textarea-item">
-						<text class="label">玩家外貌 Prompt (英文 - 用于双人生图)</text>
-						<textarea class="textarea" v-model="formData.userAppearance" placeholder="1boy, short hair..."
-							maxlength="-1" />
+					<view class="input-item"
+						style="margin-top: 40rpx; background: rgba(255, 107, 129, 0.05); padding: 20rpx; border-radius: 12rpx; border: 1px dashed #ff6b81;">
+						<view class="slider-header">
+							<text class="label" style="color: #ff4757; font-weight: bold; margin-bottom: 0;">❤️ 初始好感度 /
+								羁绊值: {{ formData.affinity }}</text>
+						</view>
+						<slider :value="formData.affinity" min="0" max="100" step="1" show-value activeColor="#ff4757"
+							@change="(e) => formData.affinity = e.detail.value" />
+						<view class="tip" style="color: #666;">
+							0=极度厌恶/死敌，50=普通/刚认识，100=生死相随/至亲。
+							<br />AI 会结合上方的"文字关系"和这里的"数值深度"来决定对你的初始态度。
+						</view>
 					</view>
 				</view>
 			</view>
@@ -602,6 +554,22 @@
 						</view>
 					</view>
 
+					<view class="input-item"
+						style="margin-top: 30rpx; padding: 24rpx; background: #f4fbf6; border-radius: 16rpx; border: 1px solid #b9e7c5;">
+						<view class="slider-header" style="align-items: flex-start;">
+							<view style="flex: 1; padding-right: 20rpx;">
+								<text class="label"
+									style="margin-bottom: 8rpx; color: #1f7a3d; font-weight: 600;">启用 AI</text>
+								<view class="tip">让这个角色的日常生活行为使用更强的 AI 决策；关闭时继续使用轻量居民模拟。</view>
+								<view class="tip">只影响小镇中的生活行为，不影响正常聊天、头像生成或角色设定生成。</view>
+							</view>
+							<switch
+								:checked="formData.behaviorMode === 'agent'"
+								color="#2ecc71"
+								@change="(event) => formData.behaviorMode = event.detail.value ? 'agent' : 'lightweight'" />
+						</view>
+					</view>
+
 					<view class="textarea-item" style="margin-top: 20rpx;">
 						<text class="label">🧠 背景扩充 (Background Expansion - 补充世界观与设定)</text>
 						<view class="help-text">写“背景补充”：补充世界观细节、过去经历、生活习惯等。</view>
@@ -615,11 +583,43 @@
 						<textarea class="textarea large" style="height: 240rpx;" v-model="formData.personalityDynamic"
 							placeholder="例：陌生人保持距离；暧昧会试探但不越界；恋人私下更亲密但工作优先..." maxlength="-1" />
 					</view>
+
+					<view class="textarea-item" style="margin-top: 30rpx;">
+						<text class="label" style="color: #e74c3c;">💔 软肋与性格缺陷 (Flaws)</text>
+						<view class="help-text">完美的角色像假人。给她设定一些缺点、不擅长的事或性格瑕疵，她会更真实。</view>
+						<textarea class="textarea" style="height:120rpx;" v-model="formData.flaws"
+							placeholder="例：死鸭子嘴硬、重度路痴、极度缺乏安全感很容易吃醋..." maxlength="-1" />
+					</view>
+
+					<view class="textarea-item">
+						<text class="label" style="color: #8e44ad;">🎭 反差面与小秘密 (Secrets)</text>
+						<view class="help-text">她对外隐藏的一面是什么？（只有亲密的人才能发现的特质）</view>
+						<textarea class="textarea" style="height:120rpx;" v-model="formData.secret"
+							placeholder="例：白天是冰山女总裁，私下其实极度怕黑，睡觉要抱着小熊..." maxlength="-1" />
+					</view>
+
+					<view class="input-item">
+						<text class="label" style="color: #d35400;">⚔️ 吵架/冲突处理模式</text>
+						<view class="help-text">当她生气、委屈或遇到分歧时，她的本能反应是什么？(禁止AI一味道歉)</view>
+						<scroll-view scroll-x class="chips-scroll">
+							<view class="chips-flex">
+								<view class="chip" :class="{active: formData.conflictMode === '冷战回避(不理人)'}"
+									@click="formData.conflictMode = '冷战回避(不理人)'">冷战回避(不理人)</view>
+								<view class="chip" :class="{active: formData.conflictMode === '阴阳怪气(翻旧账)'}"
+									@click="formData.conflictMode = '阴阳怪气(翻旧账)'">阴阳怪气(翻旧账)</view>
+								<view class="chip" :class="{active: formData.conflictMode === '委屈大哭(需安慰)'}"
+									@click="formData.conflictMode = '委屈大哭(需安慰)'">委屈大哭(需安慰)</view>
+								<view class="chip" :class="{active: formData.conflictMode === '傲娇嘴硬(等台阶)'}"
+									@click="formData.conflictMode = '傲娇嘴硬(等台阶)'">傲娇嘴硬(等台阶)</view>
+							</view>
+						</scroll-view>
+						<input class="input" style="margin-top: 10rpx;" v-model="formData.conflictMode"
+							placeholder="或者自定义应激反应" />
+					</view>
 				</view>
 			</view>
 
 			<view class="form-section">
-
 				<view class="form-section">
 					<view class="section-header" @click="toggleSection('memory_manage')">
 						<view class="section-title-wrapper">
@@ -727,6 +727,45 @@
 				</view>
 			</view>
 
+			<view class="form-section">
+				<view class="section-header" @click="toggleSection('economy')">
+					<view class="section-title-wrapper">
+						<view class="section-title" style="color: #f1c40f;">💰 经济与金钱系统</view>
+						<text class="section-subtitle">管理双方的钱包与收入</text>
+					</view>
+					<text class="arrow-icon">{{ activeSections.economy ? '▼' : '▶' }}</text>
+				</view>
+
+				<view v-show="activeSections.economy" class="section-content">
+					<view class="input-item"
+						style="display: flex; justify-content: space-between; align-items: center; background: #fffde7; padding: 20rpx; border-radius: 12rpx; border: 1px solid #fff59d;">
+						<text class="label" style="margin-bottom:0; color: #f57f17; font-weight: bold;">是否共享共同财产</text>
+						<switch :checked="formData.economy.isSharedWallet"
+							@change="(e) => formData.economy.isSharedWallet = e.detail.value" color="#f1c40f" />
+					</view>
+					<view class="tip" style="margin-bottom: 30rpx;">开启后，两人的钱加在一起算作共同财产（买东西扣总金额）；关闭则各自花各自的。</view>
+
+					<view class="input-item">
+						<text class="label">玩家钱包 (初始金额)</text>
+						<input class="input" type="number" v-model="formData.economy.userWallet"
+							placeholder="例如：1000" />
+					</view>
+
+					<view class="input-item">
+						<text class="label">角色钱包 (初始金额)</text>
+						<input class="input" type="number" v-model="formData.economy.charWallet"
+							placeholder="例如：1000" />
+					</view>
+
+					<view class="input-item">
+						<text class="label">角色每日收入 (零花钱/工资)</text>
+						<input class="input" type="number" v-model="formData.economy.dailyIncome"
+							placeholder="例如：100" />
+						<view class="tip">随着游戏时间跨天，角色每天会自动存入钱包的金额。</view>
+					</view>
+				</view>
+			</view>
+
 			<view class="form-section" v-if="isEditMode">
 				<view class="section-header" @click="toggleSection('danger')">
 					<view class="section-title" style="color: #ff4757;">危险区域</view>
@@ -755,7 +794,13 @@
 		onLoad,
 		onShow
 	} from '@dcloudio/uni-app';
-
+	import {
+		characterService
+	} from '@/services/characterService.js';
+	import {
+		useCharacterStore
+	} from '@/stores/useCharacterStore.js';
+	import { worldTemplateService } from '@/services/worldTemplateService.js';
 	import {
 		DB
 	} from '@/utils/db.js';
@@ -778,6 +823,19 @@
 	import {
 		saveToGallery
 	} from '@/utils/gallery-save.js';
+	import {
+		buildAvailableResidenceUnits,
+		buildResidenceLabel,
+		buildResidenceLocationId
+	} from '@/utils/town/town-location-access.js';
+	import {
+		buildRelationshipFieldsFromForm,
+		createRelationshipFormDraft
+	} from '@/utils/town/player-relationship-form.js';
+	import {
+		createResidentAutonomyRuntime,
+		resolveResidentBehaviorMode
+	} from '@/utils/town/town-resident-autonomy.js';
 	const imgProvider = ref('comfyui');
 	import {
 		useTheme
@@ -786,6 +844,7 @@
 		isDarkMode,
 		applyNativeTheme
 	} = useTheme();
+	const characterStore = useCharacterStore();
 	// =========================================================================
 	// 1. 常量定义 (UI 选项保留在页面内是没问题的)
 	// =========================================================================
@@ -816,6 +875,36 @@
 		maleBody: ['身材匀称', '肌肉结实', '清瘦', '略胖', '高大威猛', '腹肌明显'],
 		malePrivate: ['干净无毛', '修剪整齐', '浓密自然', '尺寸惊人', '青筋暴起']
 	};
+
+	const RELATIONSHIP_ARCHETYPE_OPTIONS = [{
+			value: 'auto',
+			label: '自动'
+		},
+		{
+			value: 'family',
+			label: '家人'
+		},
+		{
+			value: 'neighbor',
+			label: '邻里'
+		},
+		{
+			value: 'classmate_or_coworker',
+			label: '同学/同事'
+		},
+		{
+			value: 'service',
+			label: '服务关系'
+		},
+		{
+			value: 'friend_like',
+			label: '朋友向'
+		},
+		{
+			value: 'special',
+			label: '特殊'
+		}
+	];
 
 	const PERSONALITY_TEMPLATES = {
 		'ice_queen': {
@@ -867,7 +956,8 @@
 		core: false,
 		init: false,
 		memory: false,
-		danger: false
+		danger: false,
+		economy: false,
 	});
 	const toggleSection = (key) => {
 		activeSections.value[key] = !activeSections.value[key];
@@ -885,9 +975,11 @@
 	};
 
 	const worldList = ref([]);
+	const worldResidents = ref([]);
 	const worldIndex = ref(-1);
 	const userWorldIndex = ref(-1);
 	const diaryList = ref([]);
+	const initialRelationshipDraft = createRelationshipFormDraft();
 	const formData = ref({
 		// --- 基础信息 ---
 		name: '',
@@ -897,9 +989,12 @@
 		bio: '',
 		personality: '', // ✨ 新增 personality
 		worldId: '',
+		residenceZoneId: '',
+		residenceUnitId: '',
 		location: '',
 		occupation: '',
 		worldLore: '',
+		behaviorMode: 'lightweight',
 
 
 		diaryHistoryLimit: 30, // 默认检索 30 天
@@ -938,26 +1033,18 @@
 		speakingStyle: '',
 		likes: '',
 		dislikes: '',
+		flaws: '', // ✨ 新增：缺点/软肋
+		secret: '', // ✨ 新增：隐藏的反差/秘密
+		conflictMode: '', // ✨ 新增：吵架/应激反应
 		personalityCore: '',
 		personalityDynamic: '',
 		personalityNormal: '',
 		evolutionLevel: 1, // ✨ 新增：进化等级
 
-		userNameOverride: '',
-		userGender: '男',
-		userAge: '', // ✨ 新增 userAge
-		userRelation: '',
-		userPersona: '',
-		userWorldId: '',
-		userLocation: '',
-		userOccupation: '',
-		userAppearance: '',
-		userFeatures: {
-			hair: '',
-			body: '',
-			privates: ''
-		},
-
+		userRelation: initialRelationshipDraft.userRelation,
+		affinity: initialRelationshipDraft.affinity,
+		relationshipArchetype: initialRelationshipDraft.relationshipArchetype,
+		
 		maxReplies: 1,
 
 
@@ -968,7 +1055,14 @@
 		historyLimit: 20,
 		enableSummary: false,
 		summaryFrequency: 20,
-		summary: ''
+		summary: '',
+		// 经济系统默认数据
+		economy: {
+			isSharedWallet: false,
+			userWallet: 1000,
+			charWallet: 1000,
+			dailyIncome: 100
+		}
 	});
 	const newRoomName = ref('');
 	const addHomeRoom = () => {
@@ -989,6 +1083,17 @@
 	onShow(() => {
 
 		applyNativeTheme();
+		loadWorldTemplates();
+		syncWorldIndexes();
+		if (formData.value.worldId) {
+			loadWorldResidents(formData.value.worldId).then(() => {
+				if (selectedWorld.value) {
+					applyWorldDefaults(selectedWorld.value, true);
+				}
+			});
+		} else {
+			worldResidents.value = [];
+		}
 
 
 	});
@@ -1082,6 +1187,131 @@
 		worldIndex.value] : null);
 	const selectedUserWorld = computed(() => (userWorldIndex.value > -1 && worldList.value[userWorldIndex.value]) ?
 		worldList.value[userWorldIndex.value] : null);
+	const selectedWorldIdentityTemplate = computed(() => selectedWorld.value?.playerIdentityTemplates?.[0] || null);
+	const selectedWorldLocationNames = computed(() => (selectedWorld.value?.locations || []).map((item) => item.name)
+		.filter(Boolean));
+	const selectedResidentialZones = computed(() => selectedWorld.value?.residentialZones || []);
+	const residenceZoneIndex = computed(() => selectedResidentialZones.value.findIndex((item) => item.id === formData
+		.value.residenceZoneId));
+	const availableResidenceUnits = computed(() => buildAvailableResidenceUnits({
+		worldTemplate: selectedWorld.value || {},
+		zoneId: formData.value.residenceZoneId,
+		residents: worldResidents.value,
+		ignoreResidentId: isEditMode.value && targetId.value ? String(targetId.value) : ''
+	}));
+	const residenceUnitIndex = computed(() => availableResidenceUnits.value.findIndex((item) => item.id === formData
+		.value.residenceUnitId));
+	const selectedResidenceZoneLabel = computed(() => residenceZoneIndex.value > -1 ? selectedResidentialZones.value[
+		residenceZoneIndex.value]?.name || '选择住宅区' : '选择住宅区');
+	const selectedResidenceUnitLabel = computed(() => residenceUnitIndex.value > -1 ? availableResidenceUnits.value[
+		residenceUnitIndex.value]?.label || '选择门牌号' : '选择门牌号');
+	const selectedWorldProfessionNames = computed(() => (selectedWorld.value?.professions || []).map((item) => item
+		.name).filter(Boolean));
+
+	const loadWorldTemplates = () => {
+		worldList.value = worldTemplateService.ensureDefaultWorldTemplate();
+	};
+	const loadWorldResidents = async (worldId) => {
+		if (!worldId) {
+			worldResidents.value = [];
+			return worldResidents.value;
+		}
+
+		worldResidents.value = await characterService.getCharactersByWorldId(worldId);
+		return worldResidents.value;
+	};
+	const syncResidenceSelection = ({ preserveExisting = false } = {}) => {
+		const world = selectedWorld.value;
+		if (!world) {
+			formData.value.residenceZoneId = '';
+			formData.value.residenceUnitId = '';
+			return;
+		}
+
+		const zones = world.residentialZones || [];
+		if (!zones.length) {
+			formData.value.residenceZoneId = '';
+			formData.value.residenceUnitId = '';
+			if (!preserveExisting || !formData.value.location) {
+				formData.value.location = '';
+			}
+			return;
+		}
+
+		const ignoreResidentId = isEditMode.value && targetId.value ? String(targetId.value) : '';
+		let zoneId = formData.value.residenceZoneId;
+		let units = buildAvailableResidenceUnits({
+			worldTemplate: world,
+			zoneId,
+			residents: worldResidents.value,
+			ignoreResidentId
+		});
+
+		if (!zoneId || !units.length) {
+			const firstAvailable = zones.map((zone) => ({
+				zoneId: zone.id,
+				units: buildAvailableResidenceUnits({
+					worldTemplate: world,
+					zoneId: zone.id,
+					residents: worldResidents.value,
+					ignoreResidentId
+				})
+			})).find((entry) => entry.units.length > 0);
+
+			if (!firstAvailable) {
+				formData.value.residenceZoneId = zones[0]?.id || '';
+				formData.value.residenceUnitId = '';
+				formData.value.location = '';
+				return;
+			}
+
+			zoneId = firstAvailable.zoneId;
+			units = firstAvailable.units;
+		}
+
+		let unitId = formData.value.residenceUnitId;
+		if (!preserveExisting || !units.some((unit) => unit.id === unitId)) {
+			unitId = units[0]?.id || '';
+		}
+
+		formData.value.residenceZoneId = zoneId;
+		formData.value.residenceUnitId = unitId;
+		formData.value.location = buildResidenceLabel(world, {
+			zoneId,
+			unitId
+		}) || '';
+	};
+
+	const syncWorldIndexes = () => {
+		worldIndex.value = formData.value.worldId ?
+			worldList.value.findIndex((w) => String(w.id) === String(formData.value.worldId)) : -1;
+		userWorldIndex.value = formData.value.userWorldId ?
+			worldList.value.findIndex((w) => String(w.id) === String(formData.value.userWorldId)) : -1;
+	};
+
+	const applyWorldDefaults = (world, preserveExisting = false) => {
+		if (!world) return;
+
+		formData.value.worldId = world.id || '';
+
+		if (!preserveExisting || !formData.value.worldLore) {
+			formData.value.worldLore = world.lore || '';
+		}
+
+		const identityTemplate = world.playerIdentityTemplates?.[0];
+		if ((world.residentialZones || []).length > 0) {
+			syncResidenceSelection({
+				preserveExisting
+			});
+			return;
+		}
+
+		if (identityTemplate) {
+			if (!preserveExisting || !formData.value.location) {
+				formData.value.location = identityTemplate.address || '';
+			}
+		}
+	};
 
 	const getStyleLabel = (key) => FACE_LABELS[key] || key;
 
@@ -1321,19 +1551,18 @@ BOUNDARY_HANDLING:
 		});
 	};
 
-	onLoad((options) => {
+	onLoad(async (options) => {
 		// 🔥 2. 在 onLoad 顶部加入这段：读取配置，更新按钮显示的文字
 		const savedImgConfig = uni.getStorageSync('app_image_config');
 		if (savedImgConfig && savedImgConfig.provider) {
 			imgProvider.value = savedImgConfig.provider;
 		}
-		const storedWorlds = uni.getStorageSync('app_world_settings');
-		if (storedWorlds && Array.isArray(storedWorlds)) worldList.value = storedWorlds;
+		loadWorldTemplates();
 
 		if (options.id) {
 			isEditMode.value = true;
 			targetId.value = options.id;
-			loadCharacterData(options.id);
+			await loadCharacterData(options.id);
 			uni.setNavigationBarTitle({
 				title: '角色设置'
 			});
@@ -1342,12 +1571,31 @@ BOUNDARY_HANDLING:
 		}
 	});
 
-	const handleWorldChange = (e) => {
-		worldIndex.value = e.detail.value;
+	const handleWorldChange = async (e) => {
+		worldIndex.value = Number(e.detail.value);
 		if (selectedWorld.value) {
-			formData.value.worldId = selectedWorld.value.id;
-			if (selectedWorld.value.description) formData.value.worldLore = selectedWorld.value.description;
+			await loadWorldResidents(selectedWorld.value.id);
+			applyWorldDefaults(selectedWorld.value);
+		} else {
+			await loadWorldResidents('');
 		}
+	};
+	const handleResidenceZoneChange = (e) => {
+		const zone = selectedResidentialZones.value[Number(e.detail.value)];
+		formData.value.residenceZoneId = zone?.id || '';
+		formData.value.residenceUnitId = '';
+		syncResidenceSelection();
+	};
+	const handleResidenceUnitChange = (e) => {
+		const unit = availableResidenceUnits.value[Number(e.detail.value)];
+		selectResidenceUnit(unit?.id || '');
+	};
+	const selectResidenceUnit = (unitId = '') => {
+		formData.value.residenceUnitId = unitId;
+		formData.value.location = buildResidenceLabel(selectedWorld.value || {}, {
+			zoneId: formData.value.residenceZoneId,
+			unitId: formData.value.residenceUnitId
+		}) || '';
 	};
 
 	const handleUserWorldChange = (e) => {
@@ -1357,51 +1605,45 @@ BOUNDARY_HANDLING:
 
 	// AiChat/pages/create/create.vue
 
-	const loadCharacterData = async (id) => { // 🌟 必须加 async
-		const list = uni.getStorageSync('contact_list') || [];
-		const target = list.find(item => String(item.id) === String(id));
+	const loadCharacterData = async (id) => {
+		await characterStore.initContacts();
+		const target = await characterStore.loadCharacterById(id);
 		if (target) {
 			formData.value.name = target.name;
 			formData.value.gender = (target.settings && target.settings.gender) || '女';
 			formData.value.age = (target.settings && target.settings.age) || ''; // ✨ 新增
 			formData.value.avatar = target.avatar;
 			formData.value.worldId = target.worldId || '';
+			formData.value.residenceZoneId = target.townProfile?.residence?.zoneId || '';
+			formData.value.residenceUnitId = target.townProfile?.residence?.unitId || '';
 			formData.value.location = target.location || '';
 			formData.value.occupation = target.occupation || (target.settings && target.settings.occupation) || '';
+			formData.value.behaviorMode = resolveResidentBehaviorMode(target);
+			const relationshipDraft = createRelationshipFormDraft(target);
 
 			if (target.settings) {
-				formData.value.userNameOverride = target.settings.userNameOverride || '';
-				formData.value.userGender = target.settings.userGender || '男';
-				formData.value.userAge = target.settings.userAge || ''; // ✨ 新增
-				formData.value.userRelation = target.settings.userRelation || '';
-				formData.value.userPersona = target.settings.userPersona || '';
-				// formData.value.workplace = target.settings.workplace || '';
-				// formData.value.workStartHour = target.settings.workStartHour !== undefined ? target.settings
-				// 	.workStartHour : 9;
-				// formData.value.workEndHour = target.settings.workEndHour !== undefined ? target.settings
-				// 	.workEndHour : 18;
-				// formData.value.workDays = target.settings.workDays || [1, 2, 3, 4, 5];
+
+				formData.value.userRelation = relationshipDraft.userRelation;
+				formData.value.affinity = relationshipDraft.affinity;
+				formData.value.relationshipArchetype = relationshipDraft.relationshipArchetype;
 				formData.value.homeRooms = target.settings.homeRooms || ['客厅', '卧室', '厨房', '卫生间'];
 				formData.value.appearance = target.settings.appearance || '';
 				formData.value.appearanceSafe = target.settings.appearanceSafe || '';
 				formData.value.appearanceNsfw = target.settings.appearanceNsfw || '';
 				formData.value.faceStyle = target.settings.faceStyle || 'cute';
-
 				formData.value.bio = target.settings.bio || '';
 				formData.value.personality = target.settings.personality || ''; // ✨ 新增
 				formData.value.speakingStyle = target.settings.speakingStyle || '';
 				formData.value.likes = target.settings.likes || '';
 				formData.value.dislikes = target.settings.dislikes || '';
+				formData.value.flaws = target.settings.flaws || '';
+				formData.value.secret = target.settings.secret || '';
+				formData.value.conflictMode = target.settings.conflictMode || '';
 				formData.value.personalityCore = target.settings.personalityCore || target.settings
 					.personalityNormal || '';
 				formData.value.personalityDynamic = target.settings.personalityDynamic || '';
 				formData.value.personalityNormal = target.settings.personalityNormal || '';
 				formData.value.evolutionLevel = target.settings.evolutionLevel || 1; // ✨ 新增
-
-				formData.value.userWorldId = target.settings.userWorldId || '';
-				formData.value.userLocation = target.settings.userLocation || '';
-				formData.value.userOccupation = target.settings.userOccupation || '';
-				formData.value.userAppearance = target.settings.userAppearance || '';
 				formData.value.worldLore = target.settings.worldLore || '';
 
 				if (target.settings.charFeatures) formData.value.charFeatures = {
@@ -1421,6 +1663,11 @@ BOUNDARY_HANDLING:
 			if (formData.value.userWorldId) {
 				const uIdx = worldList.value.findIndex(w => String(w.id) === String(formData.value.userWorldId));
 				if (uIdx !== -1) userWorldIndex.value = uIdx;
+			}
+
+			if (worldIndex.value !== -1) {
+				await loadWorldResidents(formData.value.worldId);
+				applyWorldDefaults(worldList.value[worldIndex.value], true);
 			}
 
 			formData.value.maxReplies = target.maxReplies || 1;
@@ -1455,6 +1702,18 @@ BOUNDARY_HANDLING:
 			formData.value.diaryHistoryLimit = target.diaryHistoryLimit !== undefined ? target.diaryHistoryLimit :
 				30;
 			formData.value.activeMemoryDays = target.activeMemoryDays !== undefined ? target.activeMemoryDays : 3;
+
+			// 加载经济系统数据（包含旧版钱包向后兼容）
+			if (target.economy) {
+				formData.value.economy = {
+					isSharedWallet: target.economy.isSharedWallet || false,
+					// 如果没有 userWallet，说明是旧存档，读取原来的 wallet，否则默认 1000
+					userWallet: target.economy.userWallet !== undefined ? target.economy.userWallet : (target
+						.economy.wallet || 1000),
+					charWallet: target.economy.charWallet !== undefined ? target.economy.charWallet : 1000,
+					dailyIncome: target.economy.dailyIncome !== undefined ? target.economy.dailyIncome : 100
+				};
+			}
 		}
 	};
 
@@ -1464,15 +1723,17 @@ BOUNDARY_HANDLING:
 		return now.getTime();
 	};
 
-	// AiChat/pages/create/create.vue
 
-	const saveCharacter = () => {
+	const saveCharacter = async () => {
 		if (!formData.value.name.trim()) return uni.showToast({
 			title: '名字不能为空',
 			icon: 'none'
 		});
 
-		let list = uni.getStorageSync('contact_list') || [];
+		const currentRole = isEditMode.value && targetId.value
+			? await characterStore.loadCharacterById(targetId.value)
+			: null;
+		const relationshipPayload = buildRelationshipFieldsFromForm(formData.value, currentRole);
 
 		let clothingStr = '便服';
 		if (formData.value.charFeatures.topStyle || formData.value.charFeatures.bottomStyle) {
@@ -1480,25 +1741,110 @@ BOUNDARY_HANDLING:
 				`${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
 		}
 
+		// 提取旧的经济数据（为了保留包裹、容器里的物品不丢失）
+		let existingEconomy = {
+			courierBox: [],
+			containers: {
+				'厨房': {
+					'冰箱': [],
+					'橱柜': []
+				},
+				'卫生间': {
+					'浴室柜': []
+				},
+				'卧室': {
+					'床头柜': []
+				}
+			}
+		};
+		if (currentRole?.economy) {
+			existingEconomy = currentRole.economy;
+		}
+
+		// 组装新的经济数据
+		const finalEconomy = {
+			...existingEconomy,
+			isSharedWallet: formData.value.economy.isSharedWallet,
+			userWallet: Number(formData.value.economy.userWallet) || 0,
+			charWallet: Number(formData.value.economy.charWallet) || 0,
+			dailyIncome: Number(formData.value.economy.dailyIncome) || 0,
+			wallet: Number(formData.value.economy.userWallet) || 0 // 兼容旧代码，防止部分没改到的地方报错
+		};
+		const selectedResidence = {
+			zoneId: String(formData.value.residenceZoneId || '').trim(),
+			unitId: String(formData.value.residenceUnitId || '').trim()
+		};
+		const residenceLocationId = buildResidenceLocationId(selectedResidence.zoneId, selectedResidence.unitId);
+		if (selectedWorld.value && selectedResidentialZones.value.length > 0 && !residenceLocationId) {
+			return uni.showToast({
+				title: '请选择住宅区和门牌号',
+				icon: 'none'
+			});
+		}
+
+		const residenceLabel = residenceLocationId ? buildResidenceLabel(selectedWorld.value || {}, selectedResidence) : '';
+		const finalLocationLabel = residenceLabel || formData.value.location;
+		const matchedProfession = (selectedWorld.value?.professions || []).find((item) => item.id === formData.value
+			.occupation || item.name === formData.value.occupation);
+		const previousHomeLocationId = currentRole?.townProfile?.homeLocationId || '';
+		const previousCurrentLocationId = currentRole?.townRuntime?.currentLocationId || '';
+		const shouldResetCurrentToHome = !currentRole || !previousCurrentLocationId || previousCurrentLocationId ===
+			previousHomeLocationId;
+		const nextCurrentLocationId = shouldResetCurrentToHome ? (residenceLocationId || previousCurrentLocationId || '') :
+			(previousCurrentLocationId || residenceLocationId || '');
+		const nextCurrentLocationName = shouldResetCurrentToHome ?
+			(finalLocationLabel || currentRole?.townRuntime?.currentLocationName || currentRole?.currentLocation || '角色家') :
+			(currentRole?.townRuntime?.currentLocationName || currentRole?.currentLocation || finalLocationLabel ||
+				'角色家');
+		const nextCurrentAction = currentRole?.townRuntime?.currentAction || currentRole?.currentAction || currentRole
+			?.lastActivity || '待在原地';
+
 		const charData = {
 			name: formData.value.name,
 			avatar: formData.value.avatar || '/static/ai-avatar.png',
 			maxReplies: formData.value.maxReplies,
 			allowProactive: formData.value.allowProactive,
+			economy: finalEconomy,
 			proactiveInterval: formData.value.proactiveInterval,
 			proactiveNotify: formData.value.proactiveNotify,
 			historyLimit: formData.value.historyLimit,
-			// 🌟 关键：保存“可见天数”设置到存档，供 Agent 读取
 			diaryHistoryLimit: formData.value.diaryHistoryLimit,
 			activeMemoryDays: formData.value.activeMemoryDays,
 			enableSummary: formData.value.enableSummary,
 			summaryFrequency: formData.value.summaryFrequency,
 			summary: formData.value.summary,
-			location: formData.value.location,
+			location: finalLocationLabel,
+			currentLocation: nextCurrentLocationName,
+			currentAction: nextCurrentAction,
 			clothing: clothingStr,
 			worldId: formData.value.worldId,
 			occupation: formData.value.occupation,
+			relation: relationshipPayload.relation,
+			playerRelationship: relationshipPayload.playerRelationship,
+			townProfile: {
+				...(currentRole?.townProfile || {}),
+				role: currentRole?.townProfile?.role || 'background',
+				behaviorMode: formData.value.behaviorMode,
+				residence: residenceLocationId ? selectedResidence : (currentRole?.townProfile?.residence || {
+					zoneId: '',
+					unitId: ''
+				}),
+				homeLocationId: residenceLocationId || currentRole?.townProfile?.homeLocationId || '',
+				professionId: matchedProfession?.id || currentRole?.townProfile?.professionId || ''
+			},
+			townRuntime: {
+				...(currentRole?.townRuntime || {}),
+				currentLocationId: nextCurrentLocationId,
+				currentLocationName: nextCurrentLocationName,
+				currentAction: nextCurrentAction,
+				availability: currentRole?.townRuntime?.availability || 'normal',
+				autonomy: createResidentAutonomyRuntime(currentRole?.townRuntime?.autonomy),
+				lastSimulatedSlice: currentRole?.townRuntime?.lastSimulatedSlice || 0
+			},
 			settings: {
+				flaws: formData.value.flaws,
+				secret: formData.value.secret,
+				conflictMode: formData.value.conflictMode,
 				gender: formData.value.gender,
 				age: formData.value.age, // ✨ 新增
 				appearance: formData.value.appearance,
@@ -1507,10 +1853,7 @@ BOUNDARY_HANDLING:
 				faceStyle: formData.value.faceStyle,
 				charFeatures: formData.value.charFeatures,
 				userNameOverride: formData.value.userNameOverride,
-				userGender: formData.value.userGender,
-				userAge: formData.value.userAge, // ✨ 新增
-				userRelation: formData.value.userRelation,
-				userPersona: formData.value.userPersona,
+				...relationshipPayload.settingsPatch,
 				homeRooms: formData.value.homeRooms,
 				bio: formData.value.bio,
 				personality: formData.value.personality, // ✨ 新增
@@ -1518,11 +1861,6 @@ BOUNDARY_HANDLING:
 				likes: formData.value.likes,
 				dislikes: formData.value.dislikes,
 				occupation: formData.value.occupation,
-				userWorldId: formData.value.userWorldId,
-				userLocation: formData.value.userLocation,
-				userOccupation: formData.value.userOccupation,
-				userAppearance: formData.value.userAppearance,
-				userFeatures: formData.value.userFeatures,
 				worldLore: formData.value.worldLore,
 				personalityCore: formData.value.personalityCore || formData.value.personalityNormal,
 				personalityDynamic: formData.value.personalityDynamic || '',
@@ -1535,15 +1873,21 @@ BOUNDARY_HANDLING:
 		};
 
 		if (isEditMode.value) {
-			const index = list.findIndex(item => String(item.id) === String(targetId.value));
-			if (index !== -1) {
-				list[index] = {
-					...list[index],
+			if (currentRole) {
+				const updatedRole = {
+					...currentRole,
 					...charData
 				};
+				characterStore.upsertCharacter(updatedRole);
+				await characterService.saveCharacter(updatedRole);
 				uni.showToast({
 					title: '修改已保存',
 					icon: 'success'
+				});
+			} else {
+				return uni.showToast({
+					title: '未找到角色数据',
+					icon: 'none'
 				});
 			}
 		} else {
@@ -1552,15 +1896,14 @@ BOUNDARY_HANDLING:
 				...charData,
 				lastTimeTimestamp: getInitialGameTime(),
 				unread: 0,
-				relation: '初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。'
 			};
-			list.unshift(newChar);
+			await characterStore.addNewCharacter(newChar);
 			uni.showToast({
 				title: '创建成功',
 				icon: 'success'
 			});
 		}
-		uni.setStorageSync('contact_list', list);
+
 		setTimeout(() => {
 			uni.navigateBack();
 		}, 800);
@@ -1594,11 +1937,10 @@ BOUNDARY_HANDLING:
 					// 如果你之前还存了日记缓存，也顺便清了
 					uni.removeStorageSync(`diary_logs_${targetId.value}`);
 
-					let list = uni.getStorageSync('contact_list') || [];
-					const index = list.findIndex(item => String(item.id) === cid);
+					await characterStore.initContacts();
+					const currentRole = await characterStore.loadCharacterById(cid);
 
-					if (index !== -1) {
-						const currentRole = list[index];
+					if (currentRole) {
 						const preservedTime = currentRole.lastTimeTimestamp || getInitialGameTime();
 
 						let clothingStr = '便服';
@@ -1607,6 +1949,7 @@ BOUNDARY_HANDLING:
 							clothingStr =
 								`${formData.value.charFeatures.topStyle || ''} + ${formData.value.charFeatures.bottomStyle || ''}`;
 						}
+						const resetRelationshipPayload = buildRelationshipFieldsFromForm(formData.value, currentRole);
 
 						const resetData = {
 							lastMsg: '（记忆已清空）',
@@ -1622,15 +1965,20 @@ BOUNDARY_HANDLING:
 							interactionMode: 'phone',
 							clothing: clothingStr,
 							lastActivity: '自由活动',
-							relation: formData.value.userRelation ||
-								'初始状态：尚未产生互动，请严格基于[背景故事(Bio)]判定与玩家的初始关系。',
+							relation: resetRelationshipPayload.relation,
+							playerRelationship: resetRelationshipPayload.playerRelationship,
 						};
 
-						list[index] = {
-							...list[index],
-							...resetData
+						const resetRole = {
+							...currentRole,
+							...resetData,
+							settings: {
+								...(currentRole.settings || {}),
+								...resetRelationshipPayload.settingsPatch
+							}
 						};
-						uni.setStorageSync('contact_list', list);
+						characterStore.upsertCharacter(resetRole);
+						await characterService.saveCharacter(resetRole);
 
 						// ✨ 清空当前页面的日记列表显示
 						if (typeof diaryList !== 'undefined') diaryList.value = [];
