@@ -95,12 +95,13 @@ export async function decideResidentAction({
   currentTime = Date.now(),
   trigger = '',
   sliceMinutes = 10,
-  townEvents = []
+  townEvents = [],
+  allowCreativeAction = false
 }) {
   const fallbackAction = candidateActions[0] || null;
-  if (!fallbackAction) return null;
+  if (!fallbackAction && !allowCreativeAction) return null;
 
-  const fallbackResolvedAction = () => buildResolvedAction(fallbackAction, {
+  const fallbackResolvedAction = (action) => buildResolvedAction(action || fallbackAction, {
     currentTime,
     trigger,
     sliceMinutes,
@@ -113,42 +114,114 @@ export async function decideResidentAction({
   const config = Array.isArray(schemes) ? schemes[currentSchemeIndex] : null;
 
   if (!config?.apiKey) {
-    return fallbackResolvedAction();
+    return fallbackAction ? fallbackResolvedAction() : null;
   }
 
-  const actionList = candidateActions
-    .map((item) => `${item.id}:${item.label}@${item.locationId}`)
-    .join('\n');
+  const settings = resident?.settings || {};
   const formattedTime = new Date(currentTime).toLocaleString('zh-CN', { hour12: false });
   const recentTownEvents = Array.isArray(townEvents)
-    ? townEvents.slice(-3).map(stringifyTownEvent).filter(Boolean)
+    ? townEvents.slice(-5).map(stringifyTownEvent).filter(Boolean)
     : [];
-  const prompt = [
-    '你是小镇居民行动决策器。',
-    `当前居民：${resident.name || '未命名居民'}`,
+
+  const personality = String(settings.personality || '').trim() || '无';
+  const bio = String(settings.bio || resident?.bio || '').trim() || '无';
+  const likes = String(settings.likes || '').trim() || '无';
+  const dislikes = String(settings.dislikes || '').trim() || '无';
+  const currentLocation = resident?.townRuntime?.currentLocationName || resident?.currentLocation || '未知';
+  const scheduleTemplateId = resident?.townProfile?.scheduleTemplateId || '无';
+
+  const actionList = candidateActions
+    .map((item) => {
+      const parts = [`  - ${item.id}`];
+      parts.push(`动作: ${item.label}`);
+      if (item.locationId) parts.push(`地点: ${item.locationId}`);
+      if (item.locationName) parts.push(`地点名: ${item.locationName}`);
+      if (item.targetResidentName) parts.push(`目标: ${item.targetResidentName}`);
+      if (item.companionActionType) parts.push(`类型: ${item.companionActionType}`);
+      return parts.join(', ');
+    })
+    .join('\n');
+
+  const promptParts = [
+    '你是小镇角色行动决策器。只返回 JSON，不要解释。',
+    '',
+    `角色：${resident.name || '未命名'}`,
+    `性格：${personality}`,
+    `简介：${bio}`,
+    `喜好：${likes}`,
+    `反感：${dislikes}`,
+    `当前位置：${currentLocation}`,
     `当前时间：${formattedTime}`,
+    `日程模板：${scheduleTemplateId}`,
     `触发原因：${String(trigger ?? '').trim() || '无'}`,
-    '最近 3 条 townEvents：',
-    recentTownEvents.length > 0 ? recentTownEvents.join('\n') : '无',
-    '你必须只从下面候选动作中选择一个最合适的 actionId。',
-    '只返回 JSON，不要解释，不要输出 markdown。',
-    'JSON 格式必须是 {"actionId":"...","goal":"...","durationSlices":1,"towardPlayer":"wait"}。',
+    '',
+    recentTownEvents.length > 0 ? ['最近事件：', ...recentTownEvents].join('\n') : '',
+    '',
     '候选动作：',
-    actionList
-  ].join('\n');
+    actionList || '  (无预设动作)',
+    ''
+  ];
+
+  if (allowCreativeAction) {
+    promptParts.push(
+      '你也可以自由创意一个新动作（不再受限于预设列表）。',
+      '如果选择创意动作，actionId 设为 "__creative__"，在 creativeAction 中描述新动作。',
+      ''
+    );
+  } else {
+    promptParts.push('你必须从上面候选动作中选择一个。');
+    promptParts.push('');
+  }
+
+  promptParts.push(
+    'JSON schema:',
+    '{',
+    '  "actionId": "选中候选的id，或 __creative__",',
+    '  "goal": "一句话描述本时段目标",',
+    '  "durationSlices": 1,',
+    '  "towardPlayer": "wait|seek|avoid"',
+    (allowCreativeAction ? ',' : ''),
+    (allowCreativeAction ? '  "creativeAction": { "label": "动作描述", "locationId": "目标地点id（可选）", "reason": "理由" }' : ''),
+    '}'
+  );
+
+  const prompt = promptParts.filter(Boolean).join('\n');
 
   try {
     const raw = await LLM.chat({
       config,
       jsonMode: true,
-      temperature: 0.2,
+      temperature: 0.3,
       messages: [{ role: 'user', content: prompt }]
     });
     const parsed = parseDecision(raw);
-    const matched = candidateActions.find((item) => item.id === parsed?.actionId);
 
+    if (parsed?.actionId === '__creative__' && parsed?.creativeAction) {
+      const creativeLabel = String(parsed.creativeAction.label || '').trim();
+      if (creativeLabel) {
+        const creativeAction = {
+          id: '__creative__',
+          label: creativeLabel,
+          locationId: String(parsed.creativeAction.locationId || '').trim() || undefined,
+          targetResidentId: '',
+          targetResidentName: ''
+        };
+        const resolved = buildResolvedAction(creativeAction, {
+          currentTime,
+          trigger,
+          goal: parsed?.goal,
+          towardPlayer: parsed?.towardPlayer,
+          durationSlices: parsed?.durationSlices,
+          sliceMinutes,
+          source: 'agent'
+        });
+        if (resolved) return resolved;
+      }
+    }
+
+    const matched = candidateActions.find((item) => item.id === parsed?.actionId);
     if (!matched) {
-      return fallbackResolvedAction();
+      return fallbackAction ? fallbackResolvedAction() : null;
     }
 
     return buildResolvedAction(matched, {
@@ -161,6 +234,6 @@ export async function decideResidentAction({
       source: 'agent'
     });
   } catch (error) {
-    return fallbackResolvedAction();
+    return fallbackAction ? fallbackResolvedAction() : null;
   }
 }

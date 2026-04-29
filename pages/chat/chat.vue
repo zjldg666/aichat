@@ -1061,7 +1061,7 @@
 		const context = buildPlayerResidentInvitationContext({
 			playerName: worldPlayerName || userName.value || '玩家',
 			residentName: currentRole.value?.name || decodeURIComponent(options.name || ''),
-			currentLocationName: decodeURIComponent(options.inviteFrom || currentRole.value?.currentLocation || currentRole.value?.townRuntime?.currentLocationName || ''),
+			currentLocationName: decodeURIComponent(options.inviteFrom || currentRole.value?.townRuntime?.currentLocationName || currentRole.value?.currentLocation || ''),
 			targetLocationName
 		});
 		const systemMessage = {

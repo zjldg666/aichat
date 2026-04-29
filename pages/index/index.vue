@@ -12,7 +12,15 @@
 		<view class="nav-placeholder"></view>
 
 		<view class="rpg-dashboard">
-			<view v-if="worlds.length === 0" class="empty-tip">
+			<view v-if="townStore.isInitializing && !townStore.isReady" class="empty-tip">
+				小镇正在准备中……
+			</view>
+
+			<view v-else-if="townStore.initializationError" class="empty-tip">
+				小镇初始化失败，请稍后重试
+			</view>
+
+			<view v-else-if="worlds.length === 0" class="empty-tip">
 				请先去“我的 -> 世界观设定”创建一个世界
 			</view>
 
@@ -63,14 +71,35 @@
 					</view>
 				</view>
 
+				<view
+					v-if="townOverview.observationFocus"
+					class="town-focus-card"
+					@click="followObservationFocus"
+				>
+					<view class="focus-card-header">
+						<text class="focus-card-kicker">现在最值得先去</text>
+						<text class="focus-card-badge">{{ townOverview.observationFocus.badgeLabel }}</text>
+					</view>
+					<text class="focus-card-title">{{ townOverview.observationFocus.title }}</text>
+					<text class="focus-card-summary">{{ townOverview.observationFocus.summary }}</text>
+					<text class="focus-card-action">{{ townOverview.observationFocus.actionLabel }}</text>
+				</view>
+
 				<view v-if="townOverview.eventFeed.length > 0" class="town-event-board">
 					<view class="event-board-header">
 						<text class="event-board-title">小镇刚刚发生</text>
 						<text class="event-board-subtitle">顺着这些动静去找人</text>
 					</view>
-					<view class="event-item" v-for="event in townOverview.eventFeed" :key="event.id">
+					<view
+						class="event-item"
+						:class="{ 'event-item--actionable': event.isActionable }"
+						v-for="event in townOverview.eventFeed"
+						:key="event.id"
+						@click="followTownEvent(event)"
+					>
 						<text class="event-title">{{ event.title }}</text>
 						<text class="event-summary">{{ event.summary }}</text>
+						<text v-if="event.actionLabel" class="event-action">{{ event.actionLabel }}</text>
 					</view>
 				</view>
 
@@ -107,12 +136,9 @@
 								<text class="overview-card-badge">{{ spot.residentCount }} 人</text>
 							</view>
 							<text class="overview-card-body">
-								{{ spot.atmosphere || '可以先过去看看今天的动静。' }}
+								{{ spot.reason || spot.atmosphere || '可以先过去看看今天的动静。' }}
 							</text>
-							<text class="overview-card-foot" v-if="spot.leadNames.length > 0">
-								{{ spot.leadNames.join('、') }}
-							</text>
-							<text class="overview-card-foot" v-else>点击进入场景</text>
+							<text class="overview-card-foot">{{ spot.actionLabel || '点击进入场景' }}</text>
 						</view>
 					</view>
 				</view>
@@ -298,6 +324,7 @@ import {
 	buildResidentEncounterChatUrl,
 	buildResidentSceneUrl
 } from '@/utils/town/town-entry-links.js';
+import { findTownSnapshotResident } from '@/utils/town/town-view-models.js';
 import checkUpdate from '@/uni_modules/uni-upgrade-center-app/utils/check-update';
 
 const townStore = useTownStore();
@@ -324,10 +351,7 @@ const formattedTownTime = computed(() => {
 });
 
 const townOverview = computed(() => buildTownOverviewViewModel({
-	worldTemplate: currentWorld.value || {},
-	residents: townStore.activeResidents,
-	locationCards: townStore.locationCards,
-	townEvents: townStore.townEvents
+	townSnapshot: townStore.activeTownSnapshot
 }));
 const overviewSemantics = computed(() => townOverview.value.semantics || {});
 const publicLocationSectionLabel = computed(() => overviewSemantics.value.publicLocationLabel || '公共地点');
@@ -387,6 +411,10 @@ function resetDoorstepFollowUpState() {
 
 async function refreshPageState() {
 	await townStore.initialize();
+	if (!townStore.isReady) {
+		return;
+	}
+
 	syncActiveWorldIndex();
 	expandedResidenceZoneId.value = '';
 	closeResidenceResidentSheet();
@@ -401,12 +429,40 @@ async function selectWorld(index) {
 	expandedResidenceZoneId.value = '';
 }
 
+function followObservationFocus() {
+	followTownLead(townOverview.value.observationFocus);
+}
+
 function goToScene(locationName) {
 	if (!currentWorld.value) return;
 
 	uni.navigateTo({
 		url: `/pages/scene/scene?worldId=${encodeURIComponent(currentWorld.value.id)}&location=${encodeURIComponent(locationName)}`
 	});
+}
+
+function followTownLead(lead = {}) {
+	const locationName = String(lead?.locationName || '').trim();
+	if (locationName) {
+		goToScene(locationName);
+		return;
+	}
+
+	const residentId = String(lead?.residentId || lead?.residents?.[0] || '').trim();
+	if (!residentId) {
+		return;
+	}
+
+	const residentName = String(lead?.residentName || lead?.residentNames?.[0] || '').trim();
+	openResidentPage(residentId, residentName, locationName);
+}
+
+function followTownEvent(event = {}) {
+	if (!event?.isActionable) {
+		return;
+	}
+
+	followTownLead(event);
 }
 
 function openPhoneSheet() {
@@ -546,7 +602,10 @@ async function knockResidenceDoor() {
 	if (!selectedResidenceResident.value?.residentId || isKnocking.value) return;
 
 	const residentEntry = selectedResidenceResident.value;
-	const hostResident = townStore.activeResidents.find((item) => String(item.id) === String(residentEntry.residentId)) || null;
+	const hostResident = findTownSnapshotResident(
+		townStore.activeTownSnapshot,
+		residentEntry.residentId
+	) || null;
 	const happenedAt = townStore.currentSliceTimestamp || townStore.currentTime || Date.now();
 	isKnocking.value = true;
 
@@ -597,8 +656,9 @@ function openPhoneChat(contact) {
 		return;
 	}
 
-	const resident = townStore.activeResidents.find(
-		(item) => String(item.id || '').trim() === String(contact.residentId || '').trim()
+	const resident = findTownSnapshotResident(
+		townStore.activeTownSnapshot,
+		contact.residentId
 	) || null;
 
 	selectedPhoneResident.value = resident
@@ -622,7 +682,9 @@ function createNewContact() {
 
 onShow(async () => {
 	await refreshPageState();
-	townStore.ensureClockRunning();
+	if (townStore.isReady) {
+		townStore.ensureClockRunning();
+	}
 });
 
 onHide(() => {
@@ -836,6 +898,67 @@ onReady(() => {
 		color: #fff7ea;
 	}
 
+	.town-focus-card {
+		margin: 24rpx 30rpx 0;
+		padding: 28rpx;
+		border-radius: 28rpx;
+		background:
+			radial-gradient(circle at top right, rgba(255, 228, 163, 0.26), transparent 34%),
+			linear-gradient(145deg, #19374f 0%, #245c67 54%, #f2efe8 180%);
+		box-shadow: 0 18rpx 34rpx rgba(14, 48, 63, 0.12);
+	}
+
+	.town-focus-card:active {
+		transform: scale(0.99);
+	}
+
+	.focus-card-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20rpx;
+	}
+
+	.focus-card-kicker {
+		font-size: 22rpx;
+		letter-spacing: 4rpx;
+		color: rgba(244, 239, 232, 0.74);
+		text-transform: uppercase;
+	}
+
+	.focus-card-badge {
+		padding: 6rpx 16rpx;
+		border-radius: 999rpx;
+		background: rgba(255, 244, 229, 0.16);
+		font-size: 22rpx;
+		color: #fff7ea;
+	}
+
+	.focus-card-title {
+		display: block;
+		margin-top: 18rpx;
+		font-size: 38rpx;
+		font-weight: 700;
+		line-height: 1.2;
+		color: #fff7ea;
+	}
+
+	.focus-card-summary {
+		display: block;
+		margin-top: 14rpx;
+		font-size: 24rpx;
+		line-height: 1.6;
+		color: rgba(255, 247, 234, 0.82);
+	}
+
+	.focus-card-action {
+		display: block;
+		margin-top: 18rpx;
+		font-size: 24rpx;
+		font-weight: 700;
+		color: #ffe4a3;
+	}
+
 	.town-section {
 		margin: 28rpx 30rpx 0;
 	}
@@ -888,6 +1011,10 @@ onReady(() => {
 		border-top: 1px dashed rgba(0, 122, 255, 0.12);
 	}
 
+	.event-item--actionable:active {
+		transform: scale(0.99);
+	}
+
 	.event-title {
 		display: block;
 		font-size: 26rpx;
@@ -901,6 +1028,14 @@ onReady(() => {
 		font-size: 23rpx;
 		line-height: 1.5;
 		color: var(--text-sub);
+	}
+
+	.event-action {
+		display: block;
+		margin-top: 12rpx;
+		font-size: 23rpx;
+		font-weight: 700;
+		color: #0f6a82;
 	}
 
 	.overview-grid {

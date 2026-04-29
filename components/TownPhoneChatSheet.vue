@@ -11,6 +11,7 @@
           <view class="phone-chat-title-wrap">
             <text class="phone-chat-title">{{ resident.name || resident.residentName || '联系人' }}</text>
             <text class="phone-chat-subtitle">{{ resolvedEntryLabel }}</text>
+            <text v-if="autonomousSummaryHint" class="phone-chat-context">{{ autonomousSummaryHint }}</text>
           </view>
         </view>
         <text class="phone-chat-close" @click="emit('close')">关闭</text>
@@ -129,6 +130,11 @@ const activeIntentSystemOverride = ref('');
 
 const resolvedChannelLabel = computed(() => String(props.channelLabel || '').trim() || '手机');
 const resolvedEntryLabel = computed(() => String(props.entryLabel || '').trim() || '手机聊天');
+const autonomousSummaryHint = computed(() => String(
+  props.resident?.autonomousSummaryPreview
+  || props.resident?.townRuntime?.autonomy?.recentConversationSummaries?.[0]?.summary
+  || ''
+).trim());
 const phoneRemoteSystemOverride = computed(() => buildPhoneRemoteConversationSystemOverride());
 const inputPlaceholder = computed(() => (
   resolvedChannelLabel.value === '手机'
@@ -315,9 +321,9 @@ function buildPhonePrompt() {
     userName: props.playerName || '玩家',
     summary: resident.summary || '',
     formattedTime: props.townTimeText || '',
-    location: resident.currentLocation || resident.currentLocationName || resident.townRuntime?.currentLocationName || '',
+    location: resident.townRuntime?.currentLocationName || resident.currentLocation || resident.currentLocationName || '',
     mode: 'phone',
-    activity: resident.lastActivity || resident.currentAction || resident.townRuntime?.currentAction || '',
+    activity: resident.townRuntime?.currentAction || resident.currentAction || resident.lastActivity || '',
     clothes: resident.clothing || '',
     relation: resident.playerRelationship?.summaryText || resident.relation || ''
   });
@@ -559,6 +565,14 @@ async function handleSend() {
   margin-top: 4rpx;
   font-size: 22rpx;
   color: #7b8794;
+}
+
+.phone-chat-context {
+  margin-top: 8rpx;
+  max-width: 520rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: #516071;
 }
 
 .phone-chat-close {

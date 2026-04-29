@@ -38,7 +38,7 @@ function buildResidentDispatchBlock(resident = {}, dispatchContext = {}) {
   return [
     `- residentId: ${residentId}`,
     `  name: ${normalizeText(resident.name) || '在场居民'}`,
-    `  currentAction: ${normalizeText(resident.currentAction || resident.townRuntime?.currentAction) || '待在现场'}`,
+    `  currentAction: ${normalizeText(resident.townRuntime?.currentAction || resident.currentAction) || '待在现场'}`,
     `  dispatchRole: ${dispatchRole}`,
     `  dispatchReasons: ${reasonTags.join(', ') || 'none'}`,
     `  relationStage: ${normalizeText(relationship.summaryText || resident.relation) || '初相识'}`,

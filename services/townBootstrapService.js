@@ -1,5 +1,7 @@
-import { worldTemplateService } from '@/services/worldTemplateService.js';
+import { useTownStore } from '@/stores/useTownStore.js';
 
-export function bootstrapTown() {
-  return worldTemplateService.ensureDefaultWorldTemplate();
+export async function bootstrapTown() {
+  const townStore = useTownStore();
+  await townStore.initialize();
+  return townStore.activeWorld;
 }

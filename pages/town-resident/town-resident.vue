@@ -212,7 +212,6 @@ import { useTheme } from '@/composables/useTheme.js';
 import { useTownStore } from '@/stores/useTownStore.js';
 import { characterService } from '@/services/characterService.js';
 import { buildTownResidentViewModel } from '@/utils/town/town-shell-view-models.js';
-import { findLocationCard } from '@/utils/town/town-view-models.js';
 import {
 	buildResidentActivityJoinChatUrl,
 	buildResidentEncounterChatUrl,
@@ -247,17 +246,9 @@ const resident = computed(() => {
 	return activeResident || residentOverride.value || {};
 });
 
-const locationCard = computed(() => findLocationCard(
-	townStore.locationCards,
-	resident.value.currentLocation || resident.value.townRuntime?.currentLocationName || ''
-));
-
 const residentView = computed(() => buildTownResidentViewModel({
-	worldTemplate: townStore.activeWorld || {},
-	resident: resident.value,
-	locationCard: locationCard.value,
-	socialLinks: townStore.socialLinks,
-	townEvents: townStore.townEvents
+	townSnapshot: townStore.activeTownSnapshot,
+	resident: resident.value
 }));
 
 const hasResident = computed(() => Boolean(residentView.value.hero.id));

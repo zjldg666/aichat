@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<view class="chat-container" :class="{ 'dark-mode': isDarkMode }">
 		<ChatHeader
 			:wallet="sceneWallet"
@@ -29,23 +29,31 @@
 			:scroll-with-animation="true"
 		>
 			<view class="chat-content">
-				<view v-if="presentCharacters.length > 0" id="scene-presence-top" class="scene-presence-strip">
-					<view v-if="false">
-						<view>
-							<text>{{ sceneHeaderLocation }}</text>
-							<text>
+				<view id="scene-presence-top" class="scene-presence-strip">
+					<view class="scene-presence-header">
+						<view class="scene-presence-copy">
+							<text class="scene-presence-title">
+								{{ sceneViewModel.sceneFocus?.title || sceneHeaderLocation }}
+							</text>
+							<text class="scene-presence-meta">
 								{{ sceneStageModeLabel }} · 在场 {{ presentCharacters.length }} 人
 							</text>
 						</view>
-						<text>{{ sceneHeaderActivity }}</text>
+						<text class="scene-presence-summary">
+							{{ sceneViewModel.presenceSummary || sceneHeaderActivity }}
+						</text>
 					</view>
 
-					<view v-if="false">
-						<text>{{ sceneViewModel.emptyMessage }}</text>
-						<text class="scene-presence-empty-desc">先抛一个话题，或者换个地点看看。</text>
+					<view class="scene-focus-card">
+						<text class="scene-focus-badge">
+							{{ sceneViewModel.sceneFocus?.badgeLabel || '现场线索' }}
+						</text>
+						<text class="scene-focus-summary">
+							{{ sceneViewModel.sceneFocus?.summary || sceneViewModel.emptyMessage }}
+						</text>
 					</view>
 
-					<scroll-view scroll-x class="scene-presence-avatar-list" :show-scrollbar="false">
+					<scroll-view v-if="presentCharacters.length > 0" scroll-x class="scene-presence-avatar-list" :show-scrollbar="false">
 						<view class="scene-presence-avatar-row">
 							<view
 								v-for="char in presentCharacters"
@@ -59,19 +67,31 @@
 									mode="aspectFill"
 									class="scene-presence-avatar"
 								></image>
-								<text class="scene-presence-name">{{ char.name || '居民' }}</text>
-								<text class="scene-presence-action">
-									{{ char.currentAction || char.townRuntime?.currentAction || '待在这里' }}
-								</text>
+								<view class="scene-presence-info">
+									<text class="scene-presence-name">{{ char.name || '居民' }}</text>
+									<text class="scene-presence-action">
+										{{ char.presenceNote || char.townRuntime?.currentAction || char.currentAction || '待在这里' }}
+									</text>
+									<text class="scene-presence-action-label">{{ char.actionLabel }}</text>
+								</view>
 							</view>
 						</view>
 					</scroll-view>
 
+					<view v-else class="scene-presence-empty">
+						<text class="scene-presence-empty-title">{{ sceneViewModel.emptyMessage }}</text>
+						<text class="scene-presence-empty-desc">
+							{{ sceneViewModel.sceneFocus?.summary || '先抛一个话题，或者换个地点看看。' }}
+						</text>
+					</view>
+
 					<view
-						v-if="false"
+						v-if="sceneViewModel.joinAction"
+						class="scene-join-card"
+						@click="joinSceneActivity(sceneViewModel.joinAction)"
 					>
-						<text>{{ sceneViewModel.joinAction.label }}</text>
-						<text>{{ sceneViewModel.joinAction.description }}</text>
+						<text class="scene-join-title">{{ sceneViewModel.joinAction.label }}</text>
+						<text class="scene-join-desc">{{ sceneViewModel.joinAction.description }}</text>
 					</view>
 				</view>
 
@@ -83,6 +103,8 @@
 					<view v-for="event in sceneViewModel.eventFeed" :key="event.id" class="scene-event-item">
 						<text class="scene-event-title">{{ event.title }}</text>
 						<text class="scene-event-summary">{{ event.summary }}</text>
+						<text class="scene-event-reason">{{ event.reason }}</text>
+						<text class="scene-event-action">{{ event.actionLabel }}</text>
 					</view>
 				</view>
 
@@ -126,7 +148,7 @@
 			@clickCamera="showSceneUnavailableActionToast('摄影')"
 			@clickStealthCamera="showSceneUnavailableActionToast('偷拍')"
 			@clickGroupCamera="showSceneUnavailableActionToast('合拍')"
-			@clickGodView="showSceneUnavailableActionToast('显影')"
+			@clickGodView="showSceneUnavailableActionToast('上帝视角')"
 			@clickContinue="continueSceneConversation"
 			@toggleThought="toggleThought"
 		/>
@@ -155,12 +177,12 @@
 
 		<view v-if="showUseModal" class="custom-modal-mask" @click="showUseModal = false">
 			<view class="custom-modal" @click.stop>
-				<text class="modal-title">✨ 拿起【{{ pendingUseItem?.item?.name }}】</text>
-				<text class="modal-desc">请描述你打算怎么使用它（会直接作为现场公开动作发出去）：</text>
+				<text class="modal-title">拿起「{{ pendingUseItem?.item?.name }}」</text>
+				<text class="modal-desc">请描述你打算怎么使用它，这段描述会直接作为现场公开动作发出去。</text>
 				<textarea
 					v-model="useItemAction"
 					class="modal-textarea"
-					placeholder="例：把刚买的点心放到桌上，请大家一起尝尝。"
+					placeholder="例如：把刚买的点心放到桌上，请大家一起尝尝。"
 				></textarea>
 				<view class="modal-btns">
 					<button class="btn-cancel" @click="showUseModal = false">取消</button>
@@ -173,7 +195,7 @@
 
 <script setup>
 	import { computed, nextTick, ref, watch } from 'vue';
-	import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app';
+	import { onHide, onLoad, onNavigationBarButtonTap, onShow, onUnload } from '@dcloudio/uni-app';
 	import ChatFooter from '@/components/ChatFooter.vue';
 	import ChatHeader from '@/components/ChatHeader.vue';
 	import ChatMessageItem from '@/components/ChatMessageItem.vue';
@@ -193,16 +215,18 @@
 	} from '@/utils/town/town-scene-chat.js';
 	import {
 		buildResidentEncounterChatUrl,
+		buildResidentActivityJoinChatUrl,
 		buildResidentSceneUrl,
+		buildSceneEditorUrl,
 		buildScenePublicChatId
 	} from '@/utils/town/town-entry-links.js';
+	import { resolvePlayerResidenceLocationId } from '@/utils/town/town-location-access.js';
 	import {
-		isPrivateResidenceLocation,
-		isResidenceAccessAllowed,
-		resolvePlayerResidenceLocationId,
-		resolvePlayerVisitorId
-	} from '@/utils/town/town-location-access.js';
-	import { buildWorldLocationOptions, findLocationCard } from '@/utils/town/town-view-models.js';
+		buildWorldLocationOptions,
+		findTownSnapshotResident,
+		selectLocationState,
+		selectPlayerAccessForLocation
+	} from '@/utils/town/town-view-models.js';
 
 	const { isDarkMode } = useTheme();
 	const townStore = useTownStore();
@@ -229,17 +253,33 @@
 		townStore.worldTemplates.find((item) => String(item.id) === String(worldId.value)) || null
 	));
 
-	const locationCard = computed(() => {
-		if (!locationName.value) return {};
-		if (worldId.value && String(townStore.activeWorldId) !== String(worldId.value)) return {};
-		return findLocationCard(townStore.locationCards, locationName.value);
-	});
-
 	const sceneViewModel = computed(() => buildTownSceneViewModel({
-		locationCard: locationCard.value || {},
-		townEvents: townStore.townEvents
+		townSnapshot: townStore.activeTownSnapshot,
+		locationName: locationName.value
 	}));
+	const currentSceneLocationId = computed(() => (
+		String(sceneViewModel.value.header?.locationId || '').trim()
+	));
 	const presentCharacters = computed(() => sceneViewModel.value.residentEntries || []);
+	const sceneResidentsForVisibility = computed(() => {
+		const resolvedResidents = [];
+		const seenResidentIds = new Set();
+		const snapshot = townStore.activeTownSnapshot;
+
+		const appendResident = (resident) => {
+			const residentId = String(resident?.id || '').trim();
+			if (!residentId || seenResidentIds.has(residentId)) {
+				return;
+			}
+
+			seenResidentIds.add(residentId);
+			resolvedResidents.push(findTownSnapshotResident(snapshot, residentId) || resident);
+		};
+
+		appendResident(sceneViewModel.value.hostResident);
+		presentCharacters.value.forEach((resident) => appendResident(resident));
+		return resolvedResidents;
+	});
 
 	const {
 		currentTime,
@@ -268,58 +308,12 @@
 		};
 	});
 
-	const sceneIsResidence = computed(() => {
-		const safeLocationId = String(locationCard.value?.id || '').trim();
-		const worldTemplate = townStore.activeWorld || currentWorld.value || {};
-		return Boolean(safeLocationId && isPrivateResidenceLocation(worldTemplate, safeLocationId));
-	});
-
-	const sceneHostResidentId = computed(() => {
-		const safeLocationId = String(locationCard.value?.id || '').trim();
-		if (!safeLocationId) {
-			return String(presentCharacters.value[0]?.id || '').trim();
-		}
-
-		const homeOwner = townStore.activeResidents.find((resident) => {
-			const homeLocationId = String(
-				resident?.townProfile?.homeLocationId
-				|| resident?.townRuntime?.currentLocationId
-				|| ''
-			).trim();
-			return homeLocationId === safeLocationId;
-		});
-
-		if (homeOwner?.id) {
-			return String(homeOwner.id).trim();
-		}
-
-		const presentOwner = presentCharacters.value.find((resident) => {
-			const homeLocationId = String(
-				resident?.townProfile?.homeLocationId
-				|| resident?.townRuntime?.currentLocationId
-				|| ''
-			).trim();
-			return homeLocationId === safeLocationId;
-		});
-
-		return String(presentOwner?.id || presentCharacters.value[0]?.id || '').trim();
-	});
-
-	const sceneHostResident = computed(() => {
-		const safeResidentId = sceneHostResidentId.value;
-		if (!safeResidentId) return null;
-
-		return townStore.activeResidents.find(
-			(resident) => String(resident.id || '').trim() === safeResidentId
-		) || presentCharacters.value.find(
-			(resident) => String(resident.id || '').trim() === safeResidentId
-		) || null;
-	});
-
-	const sceneResidenceRooms = computed(() => {
-		if (!sceneIsResidence.value) return [];
-		return Object.keys(sceneHostResident.value?.economy?.containers || {}).filter(Boolean);
-	});
+	const sceneIsResidence = computed(() => Boolean(sceneViewModel.value.header?.isPrivateResidence));
+	const sceneHostResidentId = computed(() => String(sceneViewModel.value.hostResidentId || '').trim());
+	const sceneHostResident = computed(() => sceneViewModel.value.hostResident || null);
+	const sceneResidenceRooms = computed(() => (
+		Array.isArray(sceneViewModel.value.residenceRooms) ? sceneViewModel.value.residenceRooms : []
+	));
 
 	const sceneStageModeLabel = computed(() => (
 		sceneIsResidence.value ? '住处场景' : '现场公共聊天'
@@ -333,13 +327,13 @@
 
 	const sceneHeaderActivity = computed(() => {
 		if (scenePlayerRoom.value) {
-			return `正在 ${scenePlayerRoom.value} 活动`;
+			return '正在 ' + scenePlayerRoom.value + ' 活动';
 		}
-		if (sceneHostResident.value?.currentAction || sceneHostResident.value?.townRuntime?.currentAction) {
-			return sceneHostResident.value.currentAction || sceneHostResident.value.townRuntime?.currentAction;
+		if (sceneHostResident.value?.townRuntime?.currentAction || sceneHostResident.value?.currentAction) {
+			return sceneHostResident.value.townRuntime?.currentAction || sceneHostResident.value.currentAction;
 		}
 		if (presentCharacters.value.length > 0) {
-			return `和 ${presentCharacters.value.length} 位居民待在这里`;
+			return '和 ' + presentCharacters.value.length + ' 位居民待在这里';
 		}
 		return '先观察这里的气氛';
 	});
@@ -360,9 +354,15 @@
 		const residenceLocationId = resolvePlayerResidenceLocationId(worldTemplate);
 		if (!residenceLocationId) return null;
 
-		return townStore.locationCards.find(
-			(item) => String(item.id || '').trim() === String(residenceLocationId).trim()
-		) || (worldTemplate.locations || []).find(
+		const locationState = selectLocationState(townStore.activeTownSnapshot, residenceLocationId);
+		if (locationState?.locationId) {
+			return {
+				id: locationState.locationId,
+				name: locationState.locationName
+			};
+		}
+
+		return (worldTemplate.locations || []).find(
 			(item) => String(item.id || '').trim() === String(residenceLocationId).trim()
 		) || null;
 	});
@@ -417,7 +417,7 @@
 
 	const sceneChatId = computed(() => buildScenePublicChatId({
 		worldId: worldId.value || townStore.activeWorldId || '',
-		locationId: locationCard.value?.id || locationName.value || ''
+		locationId: currentSceneLocationId.value || locationName.value || ''
 	}));
 	const visibleSceneMessages = computed(() => extractVisibleSceneMessages(sceneMessages.value || []));
 	const sceneAmbientMessages = computed(() => {
@@ -430,12 +430,12 @@
 		}
 
 		return buildSceneAmbientEventMessages(
-			(townStore.townEvents || []).filter((event) => (
+			(townStore.activeTownSnapshot?.townEvents || []).filter((event) => (
 				String(event?.locationName || '').trim() === safeLocationName
 			)),
 			{
 				...conversationVisibility,
-				residents: townStore.activeResidents
+				residents: sceneResidentsForVisibility.value
 			}
 		);
 	});
@@ -493,6 +493,12 @@
 		locationName.value = decodeURIComponent(options.location || '');
 	});
 
+	onNavigationBarButtonTap((event) => {
+		if (event.key === 'setting') {
+			openSceneEditor();
+		}
+	});
+
 	onShow(async () => {
 		await townStore.initialize();
 		if (!worldId.value) {
@@ -502,7 +508,9 @@
 			await townStore.setActiveWorld(worldId.value);
 		}
 		if (!ensureSceneAccess()) return;
-		townStore.ensureClockRunning();
+		townStore.ensureClockRunning(async () => {
+			await reloadSceneMessages();
+		});
 		await loadSceneMessages();
 	});
 
@@ -519,27 +527,11 @@
 	}
 
 	function ensureSceneAccess() {
-		const worldTemplate = townStore.activeWorld || currentWorld.value || {};
-		const targetLocation = findLocationCard(townStore.locationCards, locationName.value);
-		const runtimeLocation = (worldTemplate.locations || []).find(
-			(item) => String(item?.name || '').trim() === String(locationName.value || '').trim()
-		) || {};
-		const locationId = String(targetLocation.id || runtimeLocation.id || '').trim();
-
-		if (!locationId || !isPrivateResidenceLocation(worldTemplate, locationId)) {
+		if (!sceneIsResidence.value) {
 			return true;
 		}
 
-		const canEnter = isResidenceAccessAllowed({
-			worldTemplate,
-			locationId,
-			visitorId: resolvePlayerVisitorId(worldTemplate),
-			ownResidenceLocationId: resolvePlayerResidenceLocationId(worldTemplate),
-			residents: townStore.activeResidents,
-			hostResident: sceneHostResident.value
-		});
-
-		if (canEnter) {
+		if (sceneViewModel.value.header?.canPlayerEnter) {
 			return true;
 		}
 
@@ -580,6 +572,15 @@
 
 		sceneMessages.value = await messageService.getMessages(sceneChatId.value);
 		scrollSceneToBottom();
+	}
+
+	let reloadCount = 0;
+	async function reloadSceneMessages() {
+		if (!sceneChatId.value) return;
+		const fresh = await messageService.getMessages(sceneChatId.value);
+		if (fresh.length !== sceneMessages.value.length) {
+			sceneMessages.value = fresh;
+		}
 	}
 
 	function toggleToolbar() {
@@ -729,7 +730,7 @@
 		}
 
 		uni.showToast({
-			title: `已购买${item.name || '物品'}，送到收纳箱里`,
+			title: `已购买${item.name || '物品'}，送到快递箱里`,
 			icon: 'none',
 			duration: 2400
 		});
@@ -904,6 +905,28 @@
 		showLocationPanel.value = false;
 	}
 
+	function openSceneEditor() {
+		const targetWorldId = worldId.value || townStore.activeWorldId || '';
+		const targetLocationId = currentSceneLocationId.value || '';
+		const targetLocationName = sceneHeaderLocation.value || locationName.value || '';
+
+		if (!targetWorldId || !targetLocationName) {
+			uni.showToast({
+				title: '当前场景还没准备好',
+				icon: 'none'
+			});
+			return;
+		}
+
+		uni.navigateTo({
+			url: buildSceneEditorUrl({
+				worldId: targetWorldId,
+				locationId: targetLocationId,
+				locationName: targetLocationName
+			})
+		});
+	}
+
 	async function refreshSceneAfterTimeChange() {
 		if (!ensureSceneAccess()) return;
 		await loadSceneMessages();
@@ -955,7 +978,7 @@
 
 	function showSceneUnavailableActionToast(label = '') {
 		uni.showToast({
-			title: `${label || '这个'}功能还没接进现场页`,
+			title: (label || '这个') + '功能还没接进现场页',
 			icon: 'none'
 		});
 	}
@@ -981,7 +1004,7 @@
 		if (String(locObj?.type || '').trim() === 'room') {
 			if (!sceneIsResidence.value) {
 				uni.showToast({
-					title: '这里只有场景移动，没有房间切换',
+					title: '这里只能切换场景，不能切换房间',
 					icon: 'none'
 				});
 				return;
@@ -997,7 +1020,7 @@
 			scenePlayerRoom.value = targetName;
 			showLocationPanel.value = false;
 			uni.showToast({
-				title: `已移动到 ${targetName}`,
+				title: '已移动到 ' + targetName,
 				icon: 'none'
 			});
 			return;
@@ -1012,29 +1035,22 @@
 		}
 
 		const worldTemplate = townStore.activeWorld || currentWorld.value || {};
-		const targetLocationCard = findLocationCard(townStore.locationCards, targetName);
+		const targetLocationState = selectLocationState(townStore.activeTownSnapshot, targetName);
 		const runtimeLocation = (worldTemplate.locations || []).find(
 			(item) => String(item?.name || '').trim() === targetName
 		) || null;
-		const targetLocationId = String(targetLocationCard.id || runtimeLocation?.id || '').trim();
+		const targetLocationId = String(targetLocationState?.locationId || runtimeLocation?.id || '').trim();
+		const targetAccessState = targetLocationId
+			? selectPlayerAccessForLocation(townStore.activeTownSnapshot, targetLocationId)
+			: null;
 
-		if (targetLocationId && isPrivateResidenceLocation(worldTemplate, targetLocationId)) {
-			const canEnter = isResidenceAccessAllowed({
-				worldTemplate,
-				locationId: targetLocationId,
-				visitorId: resolvePlayerVisitorId(worldTemplate),
-				ownResidenceLocationId: resolvePlayerResidenceLocationId(worldTemplate),
-				residents: townStore.activeResidents
+		if (targetAccessState?.isPrivateResidence && !targetAccessState.canPlayerEnter) {
+			showLocationPanel.value = false;
+			uni.showToast({
+				title: '还没获得住户同意，不能直接去这里',
+				icon: 'none'
 			});
-
-			if (!canEnter) {
-				showLocationPanel.value = false;
-				uni.showToast({
-					title: '还没获得住户同意，不能直接去这里',
-					icon: 'none'
-				});
-				return;
-			}
+			return;
 		}
 
 		showLocationPanel.value = false;
@@ -1086,7 +1102,7 @@
 		}
 		if (!sceneChatId.value) {
 			uni.showToast({
-				title: '这个现场暂时还没准备好',
+				title: '这个场景暂时还没准备好',
 				icon: 'none'
 			});
 			return;
@@ -1099,7 +1115,7 @@
 
 		try {
 			const result = await townStore.createScenePublicChatTurn({
-				locationId: locationCard.value?.id || locationName.value || '',
+				locationId: currentSceneLocationId.value || locationName.value || '',
 				locationName: sceneHeaderLocation.value,
 				userContent
 			});
@@ -1158,7 +1174,7 @@
 			url: buildResidentActivityJoinChatUrl({
 				residentId,
 				residentName: action.residentName || '',
-				locationId: action.locationId || locationCard.value?.id || '',
+				locationId: action.locationId || currentSceneLocationId.value || '',
 				locationName: action.locationName || sceneHeaderLocation.value,
 				currentAction: action.currentAction || ''
 			})
@@ -1189,6 +1205,9 @@
 	}
 
 	.scene-presence-strip {
+		display: flex;
+		flex-direction: column;
+		gap: 16rpx;
 		padding: 6rpx 0 2rpx;
 	}
 
@@ -1218,11 +1237,33 @@
 	}
 
 	.scene-presence-summary {
-		max-width: 280rpx;
+		max-width: 320rpx;
 		font-size: 22rpx;
 		line-height: 1.6;
 		color: var(--text-sub);
 		text-align: right;
+	}
+
+	.scene-focus-card {
+		display: flex;
+		flex-direction: column;
+		gap: 8rpx;
+		padding: 20rpx 22rpx;
+		border-radius: 22rpx;
+		background: linear-gradient(135deg, rgba(24, 101, 206, 0.1), rgba(255, 255, 255, 0.9));
+		border: 1px solid rgba(24, 101, 206, 0.14);
+	}
+
+	.scene-focus-badge {
+		font-size: 20rpx;
+		font-weight: 700;
+		color: #1865ce;
+	}
+
+	.scene-focus-summary {
+		font-size: 24rpx;
+		line-height: 1.7;
+		color: var(--text-color);
 	}
 
 	.scene-presence-empty {
@@ -1261,12 +1302,13 @@
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		padding: 8rpx;
-		border-radius: 999rpx;
-		background: transparent;
-		border: 2rpx solid transparent;
+		gap: 14rpx;
+		padding: 16rpx 18rpx;
+		border-radius: 28rpx;
+		background: var(--card-bg);
+		border: 1px solid var(--border-color);
 		box-sizing: border-box;
+		min-width: 320rpx;
 	}
 
 	.scene-presence-card:active {
@@ -1285,12 +1327,31 @@
 		background: var(--border-color);
 	}
 
+	.scene-presence-info {
+		display: flex;
+		flex-direction: column;
+		gap: 6rpx;
+		min-width: 0;
+	}
+
 	.scene-presence-name {
-		display: none;
+		display: block;
+		font-size: 24rpx;
+		font-weight: 700;
+		color: var(--text-color);
 	}
 
 	.scene-presence-action {
-		display: none;
+		display: block;
+		font-size: 22rpx;
+		line-height: 1.5;
+		color: var(--text-sub);
+	}
+
+	.scene-presence-action-label {
+		font-size: 20rpx;
+		font-weight: 600;
+		color: #1865ce;
 	}
 
 	.scene-join-card {
@@ -1350,6 +1411,22 @@
 		font-size: 22rpx;
 		line-height: 1.6;
 		color: var(--text-sub);
+	}
+
+	.scene-event-reason {
+		display: block;
+		margin-top: 8rpx;
+		font-size: 22rpx;
+		line-height: 1.6;
+		color: var(--text-color);
+	}
+
+	.scene-event-action {
+		display: block;
+		margin-top: 10rpx;
+		font-size: 20rpx;
+		font-weight: 700;
+		color: #1865ce;
 	}
 
 	.scene-empty-card {
@@ -1461,3 +1538,4 @@
 		color: #fff;
 	}
 </style>
+

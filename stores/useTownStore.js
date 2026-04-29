@@ -3,7 +3,11 @@ import { characterService } from '@/services/characterService.js';
 import { messageService } from '@/services/messageService.js';
 import { dispatchTownSceneChat } from '@/services/townSceneChatService.js';
 import { simulateResidentSlice } from '@/services/townSimulationService.js';
-import { townClockService } from '@/services/townClockService.js';
+import {
+  advanceAutonomousConversationRuntime,
+  runAutonomousConversationRound
+} from '@/services/townAutonomousConversationService.js';
+import { floorToSlice, townClockService } from '@/services/townClockService.js';
 import { worldTemplateService } from '@/services/worldTemplateService.js';
 import { getCurrentLlmConfig } from '@/services/llm.js';
 import {
@@ -11,10 +15,12 @@ import {
   buildPlayerResidentActivityJoinContext,
   buildPlayerResidentHomeVisitContext,
   buildPlayerResidentInvitationContext,
+  buildLocationCards,
   buildTownSnapshot,
+  createEmptyTownSnapshot,
   findLocationCard
 } from '@/utils/town/town-view-models.js';
-import { settleSocialLinks } from '@/utils/town/town-social.js';
+import { settleSocialLinks, buildSocialLinks, applyRelationshipPatchesToSocialLinks } from '@/utils/town/town-social.js';
 import { settleTownEvents } from '@/utils/town/town-events.js';
 import {
   grantResidenceVisitorAccess,
@@ -23,7 +29,9 @@ import {
   resolvePlayerResidenceLocationId,
   resolvePlayerVisitorId
 } from '@/utils/town/town-location-access.js';
-import { compareTownEvents } from '@/utils/town/town-event-order.js';
+import { mergeTownEvents } from '@/utils/town/town-event-order.js';
+import { continueAutonomousConversationThread, closeAutonomousConversationThread } from '@/utils/town/town-autonomous-conversation-threads.js';
+import { buildAutonomousConversationWriteBack } from '@/utils/town/town-autonomous-conversation-writes.js';
 import {
   buildLegacyRelationshipMirrors,
   mergePlayerRelationshipState
@@ -43,15 +51,233 @@ import { DB } from '@/utils/db.js';
 
 let timer = null;
 let isTicking = false;
+let initializationPromise = null;
 const TOWN_SLICE_MS = 10 * 60 * 1000;
 
-function floorTimestampToTownSlice(timestamp) {
-  const date = new Date(timestamp);
-  date.setSeconds(0, 0);
-  const currentMinutes = date.getMinutes();
-  const flooredMinutes = Math.floor(currentMinutes / 10) * 10;
-  date.setMinutes(flooredMinutes);
-  return date.getTime();
+function buildClockStateResult(store) {
+  return {
+    currentTime: store.currentTime,
+    timeRatio: store.timeRatio,
+    sliceTimestamp: store.currentSliceTimestamp
+  };
+}
+
+function normalizeResidentIds(value = []) {
+  return [...new Set(
+    (Array.isArray(value) ? value : [])
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+  )];
+}
+
+function applyAutonomousConversationWriteBackToResidents(
+  residents = [],
+  writeBack = {}
+) {
+  const memoryPatchMap = new Map();
+  const behaviorBiasPatchMap = new Map();
+
+  (Array.isArray(writeBack?.memoryPatches) ? writeBack.memoryPatches : []).forEach((patch) => {
+    const residentId = String(patch?.residentId || '').trim();
+    if (residentId) {
+      memoryPatchMap.set(residentId, patch);
+    }
+  });
+
+  (Array.isArray(writeBack?.behaviorBiasPatches) ? writeBack.behaviorBiasPatches : []).forEach((patch) => {
+    const residentId = String(patch?.residentId || '').trim();
+    if (residentId) {
+      behaviorBiasPatchMap.set(residentId, patch);
+    }
+  });
+
+  return (Array.isArray(residents) ? residents : []).map((resident) => {
+    const residentId = String(resident?.id || '').trim();
+    const memoryPatch = memoryPatchMap.get(residentId) || null;
+    const behaviorBiasPatch = behaviorBiasPatchMap.get(residentId) || null;
+
+    if (!memoryPatch && !behaviorBiasPatch) {
+      return resident;
+    }
+
+    const currentAutonomy = resident?.townRuntime?.autonomy || {};
+    const recentConversationSummaries = [
+      ...(memoryPatch?.summary
+        ? [
+            {
+              summary: String(memoryPatch.summary || '').trim(),
+              happenedAt: Number(memoryPatch.happenedAt) || 0,
+              locationId: String(memoryPatch.locationId || '').trim(),
+              threadId: String(memoryPatch.threadId || '').trim(),
+              participantIds: normalizeResidentIds(memoryPatch.participantIds)
+            }
+          ]
+        : []),
+      ...((Array.isArray(currentAutonomy.recentConversationSummaries)
+        ? currentAutonomy.recentConversationSummaries
+        : []).filter(Boolean))
+    ].slice(0, 6);
+
+    const preferredFollowUpResidentIds = behaviorBiasPatch
+      ? normalizeResidentIds([
+          ...(behaviorBiasPatch.preferredFollowUpResidentIds || []),
+          ...(currentAutonomy.preferredFollowUpResidentIds || [])
+        ])
+      : normalizeResidentIds(currentAutonomy.preferredFollowUpResidentIds);
+
+    return {
+      ...resident,
+      townRuntime: {
+        ...(resident?.townRuntime || {}),
+        autonomy: {
+          ...currentAutonomy,
+          ...(recentConversationSummaries.length > 0
+            ? {
+                recentConversationSummaries
+              }
+            : {}),
+          ...(preferredFollowUpResidentIds.length > 0
+            ? {
+                preferredFollowUpResidentIds
+              }
+            : {})
+        }
+      }
+    };
+  });
+}
+
+function buildSimulationDebugReport({
+  sliceTimestamp = 0,
+  residents = [],
+  saveSuccess = false
+} = {}) {
+  const residentEntries = (Array.isArray(residents) ? residents : [])
+    .map((resident) => resident?.simulationDebug || null)
+    .filter(Boolean);
+
+  return {
+    sliceTimestamp: Number(sliceTimestamp) || 0,
+    residentCount: Array.isArray(residents) ? residents.length : 0,
+    saveSuccess: saveSuccess !== false,
+    residents: residentEntries
+  };
+}
+
+async function persistAutonomousSceneRoundMessages({
+  worldId = '',
+  thread = {},
+  round = {},
+  happenedAt = 0
+} = {}) {
+  const safeWorldId = String(worldId || '').trim();
+  const safeLocationId = String(thread?.locationId || '').trim();
+  const safeThreadId = String(thread?.id || '').trim();
+  const turns = Array.isArray(round?.turns) ? round.turns : [];
+  const summary = String(round?.summary || '').trim();
+
+  if (!safeWorldId || !safeLocationId || !safeThreadId || typeof messageService?.saveMessage !== 'function') {
+    return false;
+  }
+
+  const sceneChatId = buildScenePublicChatId({
+    worldId: safeWorldId,
+    locationId: safeLocationId
+  });
+
+  for (let index = 0; index < turns.length; index += 1) {
+    const turn = turns[index] || {};
+    const content = formatSceneSpeakerTurn(turn);
+    if (!content) {
+      continue;
+    }
+
+    await messageService.saveMessage(sceneChatId, {
+      id: `scene-autonomous-${safeThreadId}-${index}-${happenedAt}`,
+      role: 'model',
+      type: 'scene_autonomous',
+      content,
+      residentId: String(turn?.residentId || '').trim(),
+      isSystem: false,
+      timestamp: happenedAt + index,
+      happenedAt: happenedAt + index
+    });
+  }
+
+  if (summary) {
+    await messageService.saveMessage(sceneChatId, {
+      id: `scene-autonomous-meta-${safeThreadId}-${happenedAt}`,
+      role: 'system',
+      type: 'scene_autonomous_meta',
+      content: summary,
+      isSystem: true,
+      timestamp: happenedAt + turns.length,
+      happenedAt: happenedAt + turns.length
+    });
+  }
+
+  return true;
+}
+
+function syncClockState(store, snapshot = null) {
+  const safeSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const nextCurrentTime = Number(safeSnapshot.currentTime);
+  const nextTimeRatio = Number(safeSnapshot.timeRatio);
+  const nextSliceTimestamp = Number(safeSnapshot.sliceTimestamp);
+
+  if (Number.isFinite(nextCurrentTime)) {
+    store.currentTime = nextCurrentTime;
+  }
+
+  if (Number.isFinite(nextTimeRatio)) {
+    store.timeRatio = nextTimeRatio;
+  }
+
+  if (Number.isFinite(nextSliceTimestamp)) {
+    store.currentSliceTimestamp = nextSliceTimestamp;
+  }
+
+  return {
+    ...safeSnapshot,
+    ...buildClockStateResult(store)
+  };
+}
+
+function setClockTime(store, timestamp) {
+  return syncClockState(store, townClockService.setCurrentTime(timestamp));
+}
+
+async function advanceClockAcrossSlices(
+  store,
+  {
+    startSliceTimestamp = 0,
+    targetSliceTimestamp = 0,
+    residents = []
+  } = {}
+) {
+  let crossedSlice = false;
+  let nextResidents = Array.isArray(residents) ? residents : [];
+
+  for (
+    let nextSliceTimestamp = Number(startSliceTimestamp) + TOWN_SLICE_MS;
+    nextSliceTimestamp <= Number(targetSliceTimestamp);
+    nextSliceTimestamp += TOWN_SLICE_MS
+  ) {
+    crossedSlice = true;
+
+    const sliceSnapshot = setClockTime(store, nextSliceTimestamp);
+    const simulationResult = await store.simulateResidentsForSlice({
+      sliceTimestamp: sliceSnapshot.sliceTimestamp,
+      residentsOverride: nextResidents
+    });
+
+    nextResidents = simulationResult.residents;
+  }
+
+  return {
+    crossedSlice,
+    residents: nextResidents
+  };
 }
 
 function buildHostResidentVisitRelationship(resident = {}) {
@@ -209,8 +435,8 @@ function buildSceneConversationFollowUpEvent({
   const safeRelationshipStage = String(relationshipStage || '').trim();
   const safeCurrentAction = String(
     currentAction
-    || resident?.currentAction
     || resident?.townRuntime?.currentAction
+    || resident?.currentAction
     || ''
   ).trim();
   const safeReplySummary = String(replySummary || '').trim();
@@ -279,15 +505,21 @@ function resolveSceneFollowUpReplySummary({
 export const useTownStore = defineStore('town', {
   state: () => ({
     isReady: false,
+    isInitializing: false,
+    initializationError: null,
     worldTemplates: [],
     activeWorldId: null,
     currentTime: Date.now(),
     timeRatio: 6,
     currentSliceTimestamp: 0,
+    activeTownSnapshot: createEmptyTownSnapshot(),
     activeResidents: [],
     locationCards: [],
     socialLinks: [],
-    townEvents: []
+    townEvents: [],
+    autonomousConversationThreads: [],
+    latestSimulationDebug: null,
+    latestAutonomousConversationDebug: null
   }),
 
   getters: {
@@ -295,44 +527,69 @@ export const useTownStore = defineStore('town', {
   },
 
   actions: {
-    async refreshActiveWorldSnapshot(residentsOverride = null) {
+    async refreshActiveWorldSnapshot(residentsOverride = null, {
+      autonomousThreadsOverride = null
+    } = {}) {
       const worldTemplate = this.activeWorld;
+      const currentTimestamp = this.currentSliceTimestamp || this.currentTime;
+      const autonomousConversationThreads = Array.isArray(autonomousThreadsOverride)
+        ? autonomousThreadsOverride
+        : this.autonomousConversationThreads;
 
       if (!this.activeWorldId || !worldTemplate) {
-        this.activeResidents = [];
-        this.locationCards = [];
-        this.socialLinks = [];
-        this.townEvents = [];
-        return buildTownSnapshot({}, []);
+        const emptySnapshot = createEmptyTownSnapshot({
+          currentTime: currentTimestamp,
+          sliceTimestamp: currentTimestamp,
+          autonomousConversationThreads: []
+        });
+
+        this.activeTownSnapshot = emptySnapshot;
+        this.activeResidents = emptySnapshot.residents;
+        this.locationCards = emptySnapshot.locationCards;
+        this.socialLinks = emptySnapshot.socialLinks;
+        this.townEvents = emptySnapshot.townEvents;
+        this.autonomousConversationThreads = emptySnapshot.autonomousConversationThreads;
+        return emptySnapshot;
       }
 
       const residents = Array.isArray(residentsOverride)
         ? residentsOverride
         : await characterService.getCharactersByWorldId(this.activeWorldId);
-      const currentTimestamp = this.currentSliceTimestamp || this.currentTime;
-      const snapshot = buildTownSnapshot(worldTemplate, residents, currentTimestamp);
       const previousLinks = [...this.socialLinks];
       const previousResidents = [...this.activeResidents];
-
-      this.activeResidents = snapshot.residents;
-      this.locationCards = snapshot.locationCards;
-      this.socialLinks = settleSocialLinks(
+      const locationCards = buildLocationCards(worldTemplate, residents);
+      const nextSocialLinks = settleSocialLinks(
         previousLinks,
-        snapshot.socialLinks,
+        buildSocialLinks(residents, currentTimestamp),
         currentTimestamp
       );
-      this.townEvents = [
-        ...settleTownEvents({
+      const nextTownEvents = mergeTownEvents(
+        settleTownEvents({
           previousLinks,
-          currentLinks: this.socialLinks,
+          currentLinks: nextSocialLinks,
           previousResidents,
-          currentResidents: snapshot.residents,
+          currentResidents: residents,
           currentTime: currentTimestamp
         }),
-        ...this.townEvents
-      ]
-        .sort((left, right) => (right.happenedAt || 0) - (left.happenedAt || 0))
-        .slice(0, 10);
+        this.townEvents
+      );
+      const snapshot = buildTownSnapshot({
+        worldTemplate,
+        residents,
+        locationCards,
+        socialLinks: nextSocialLinks,
+        townEvents: nextTownEvents,
+        autonomousConversationThreads,
+        currentTime: this.currentTime,
+        sliceTimestamp: currentTimestamp
+      });
+
+      this.activeTownSnapshot = snapshot;
+      this.activeResidents = snapshot.residents;
+      this.locationCards = snapshot.locationCards;
+      this.socialLinks = snapshot.socialLinks;
+      this.townEvents = snapshot.townEvents;
+      this.autonomousConversationThreads = snapshot.autonomousConversationThreads;
 
       return snapshot;
     },
@@ -460,9 +717,7 @@ export const useTownStore = defineStore('town', {
         ? events.filter((item) => item.type !== 'private_visit_requested')
         : events;
 
-      this.townEvents = [...finalEvents, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents(finalEvents, this.townEvents);
 
       return {
         approved: true,
@@ -577,9 +832,7 @@ export const useTownStore = defineStore('town', {
         summary: chatContext.summary
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -621,7 +874,7 @@ export const useTownStore = defineStore('town', {
         };
       }
 
-      const playerName = activeWorld?.playerIdentityTemplates?.[0]?.name || '鐜╁';
+      const playerName = resolveActiveWorldPlayerName(activeWorld);
       const chatContext = buildPlayerResidentInvitationContext({
         playerName,
         residentName,
@@ -642,9 +895,7 @@ export const useTownStore = defineStore('town', {
         summary: chatContext.summary
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -706,9 +957,7 @@ export const useTownStore = defineStore('town', {
         summary: chatContext.summary
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -769,9 +1018,7 @@ export const useTownStore = defineStore('town', {
         summary: chatContext.summary
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -882,9 +1129,7 @@ export const useTownStore = defineStore('town', {
         summary: summaryParts.join(' ')
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -994,9 +1239,7 @@ export const useTownStore = defineStore('town', {
         }
       }
 
-      this.townEvents = [replyEvent, event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([replyEvent, event], this.townEvents);
 
       return {
         created: true,
@@ -1070,9 +1313,7 @@ export const useTownStore = defineStore('town', {
         summary: `${playerName}和${safeResidentName}把去${safeLocationName}拜访的时间约在“${safeScheduleLabel}”。${safeReplySummary}`
       };
 
-      this.townEvents = [event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([event], this.townEvents);
 
       return {
         created: true,
@@ -1264,7 +1505,7 @@ export const useTownStore = defineStore('town', {
             locationId: resolvedLocationId,
             locationName: resolvedLocationName,
             relationshipStage: nextResident.playerRelationship?.summaryText || nextResident.relation || '',
-            currentAction: resident.currentAction || resident.townRuntime?.currentAction || '',
+            currentAction: nextResident.townRuntime?.currentAction || nextResident.currentAction || '',
             replySummary: resolveSceneFollowUpReplySummary({
               speakerTurn,
               relationshipEffect: scaledRelationshipEffect,
@@ -1334,9 +1575,11 @@ export const useTownStore = defineStore('town', {
         summary: dispatch.sceneSummary
       };
 
-      this.townEvents = [...sceneRelationshipEvents, ...sceneFollowUpEvents, event, ...this.townEvents]
-        .sort(compareTownEvents)
-        .slice(0, 10);
+      this.townEvents = mergeTownEvents([
+        ...sceneRelationshipEvents,
+        ...sceneFollowUpEvents,
+        event
+      ], this.townEvents);
 
       return {
         created: true,
@@ -1413,37 +1656,64 @@ export const useTownStore = defineStore('town', {
       return this.markResidentPhoneReplyRead(options);
     },
 
-    async initialize() {
-      this.worldTemplates = worldTemplateService.ensureDefaultWorldTemplate();
-
-      if (!this.worldTemplates.some((item) => item.id === this.activeWorldId)) {
-        this.activeWorldId = this.worldTemplates[0]?.id || null;
+    async initialize({ force = false } = {}) {
+      if (this.isReady && !force) {
+        return this.activeWorld;
       }
 
-      const activeWorld = this.activeWorld;
-      let residents = await characterService.getCharactersByWorldId(this.activeWorldId);
-      const existingResidentIds = new Set(residents.map((resident) => String(resident.id)));
-      const missingStarterResidents = (activeWorld?.starterResidents || [])
-        .filter((resident) => !existingResidentIds.has(String(resident.id)))
-        .map((resident) => ({
-          ...resident,
-          worldId: this.activeWorldId,
-          currentLocation: resident.townRuntime?.currentLocationName || resident.location || '',
-          currentAction: resident.townRuntime?.currentAction || resident.lastActivity || '待在原地'
-        }));
-
-      if (missingStarterResidents.length > 0) {
-        await characterService.saveCharactersBatch(missingStarterResidents);
-        residents = [...residents, ...missingStarterResidents];
+      if (initializationPromise && !force) {
+        return initializationPromise;
       }
 
-      await this.refreshActiveWorldSnapshot(residents);
+      initializationPromise = (async () => {
+        this.isInitializing = true;
+        this.initializationError = null;
 
-      const snapshot = townClockService.getSnapshot();
-      this.currentTime = snapshot.currentTime;
-      this.timeRatio = snapshot.timeRatio;
-      this.currentSliceTimestamp = snapshot.sliceTimestamp;
-      this.isReady = true;
+        if (force) {
+          this.isReady = false;
+        }
+
+        try {
+          this.worldTemplates = worldTemplateService.ensureDefaultWorldTemplate();
+
+          if (!this.worldTemplates.some((item) => item.id === this.activeWorldId)) {
+            this.activeWorldId = this.worldTemplates[0]?.id || null;
+          }
+
+          const activeWorld = this.activeWorld;
+          let residents = await characterService.getCharactersByWorldId(this.activeWorldId);
+          const existingResidentIds = new Set(residents.map((resident) => String(resident.id)));
+          const missingStarterResidents = (activeWorld?.starterResidents || [])
+            .filter((resident) => !existingResidentIds.has(String(resident.id)))
+            .map((resident) => ({
+              ...resident,
+              worldId: this.activeWorldId,
+              currentLocation: resident.townRuntime?.currentLocationName || resident.location || '',
+              currentAction: resident.townRuntime?.currentAction || resident.lastActivity || '待在原地'
+            }));
+
+          if (missingStarterResidents.length > 0) {
+            await characterService.saveCharactersBatch(missingStarterResidents);
+            residents = [...residents, ...missingStarterResidents];
+          }
+
+          await this.refreshActiveWorldSnapshot(residents);
+
+          syncClockState(this, townClockService.getSnapshot());
+          this.isReady = true;
+
+          return this.activeWorld;
+        } catch (error) {
+          this.initializationError = error;
+          this.isReady = false;
+          throw error;
+        } finally {
+          this.isInitializing = false;
+          initializationPromise = null;
+        }
+      })();
+
+      return initializationPromise;
     },
 
     async simulateResidentsForSlice({
@@ -1458,7 +1728,9 @@ export const useTownStore = defineStore('town', {
           simulated: false,
           residents: Array.isArray(residentsOverride) ? residentsOverride : [],
           townSnapshot: null,
-          saveSuccess: false
+          saveSuccess: false,
+          debugReport: null,
+          autonomousConversationDebug: null
         };
       }
 
@@ -1466,7 +1738,7 @@ export const useTownStore = defineStore('town', {
         ? residentsOverride
         : await characterService.getCharactersByWorldId(this.activeWorldId);
       const playerResidenceLocationId = resolvePlayerResidenceLocationId(worldTemplate);
-      const nextResidents = [];
+      let nextResidents = [];
 
       for (const resident of residents) {
         nextResidents.push(await simulateResidentSlice({
@@ -1480,16 +1752,144 @@ export const useTownStore = defineStore('town', {
         }));
       }
 
-      const saveSuccess = await characterService.saveCharactersBatch(nextResidents);
+      const autonomousConversationResult = advanceAutonomousConversationRuntime({
+        residents: nextResidents,
+        autonomousThreads: this.autonomousConversationThreads,
+        townEvents: this.townEvents,
+        currentTime: safeSliceTimestamp
+      });
+      const nextAutonomousThreads = [...autonomousConversationResult.nextThreads];
+      let nextTownEvents = [...this.townEvents];
+      let pendingRelationshipPatches = [];
+      const initialSaveSuccess = await characterService.saveCharactersBatch(nextResidents);
+      const autonomousConversationDebug = {
+        ...(autonomousConversationResult.debug || {}),
+        executedRoundThreadIds: [],
+        persistedSceneChatIds: [],
+        lastWriteBack: ''
+      };
+
+      const executableAutonomousThreads = [
+        ...(Array.isArray(autonomousConversationResult.startedThreads)
+          ? autonomousConversationResult.startedThreads
+          : []),
+        ...(Array.isArray(autonomousConversationResult.continuedThreads)
+          ? autonomousConversationResult.continuedThreads
+          : [])
+      ];
+
+      if (initialSaveSuccess !== false && executableAutonomousThreads.length > 0) {
+        const config = getCurrentLlmConfig();
+
+        for (const thread of executableAutonomousThreads) {
+          const round = await runAutonomousConversationRound({
+            thread,
+            residents: nextResidents,
+            config
+          });
+          const writeBack = buildAutonomousConversationWriteBack({
+            thread,
+            round,
+            currentTime: safeSliceTimestamp
+          });
+          const persisted = String(thread?.type || '').trim() === 'scene_autonomous'
+            ? await persistAutonomousSceneRoundMessages({
+              worldId: this.activeWorldId,
+              thread,
+              round,
+              happenedAt: safeSliceTimestamp
+            })
+            : false;
+
+          nextResidents = applyAutonomousConversationWriteBackToResidents(nextResidents, writeBack);
+          nextTownEvents = mergeTownEvents(writeBack.events, nextTownEvents);
+          pendingRelationshipPatches = [
+            ...pendingRelationshipPatches,
+            ...(Array.isArray(writeBack?.relationshipPatches) ? writeBack.relationshipPatches : [])
+          ];
+
+          const shouldContinue = round?.shouldContinue !== false;
+          const settledThread = shouldContinue
+            ? continueAutonomousConversationThread({
+              thread: {
+                ...thread,
+                lastSummary: String(round?.summary || '').trim()
+              },
+              advancedAt: safeSliceTimestamp
+            })
+            : closeAutonomousConversationThread({
+              thread: {
+                ...thread,
+                lastSummary: String(round?.summary || '').trim()
+              },
+              closedAt: safeSliceTimestamp,
+              reason: 'ai_suggested_end'
+            });
+          const targetIndex = nextAutonomousThreads.findIndex(
+            (item) => String(item?.id || '').trim() === String(thread?.id || '').trim()
+          );
+
+          if (targetIndex >= 0) {
+            nextAutonomousThreads.splice(targetIndex, 1, settledThread);
+          }
+
+          autonomousConversationDebug.executedRoundThreadIds.push(String(thread?.id || '').trim());
+          if (writeBack.summary) {
+            autonomousConversationDebug.lastWriteBack = writeBack.summary;
+          }
+          if (persisted) {
+            autonomousConversationDebug.persistedSceneChatIds.push(buildScenePublicChatId({
+              worldId: this.activeWorldId,
+              locationId: String(thread?.locationId || '').trim()
+            }));
+          }
+        }
+      }
+
+      const saveSuccess = initialSaveSuccess !== false
+        ? await characterService.saveCharactersBatch(nextResidents)
+        : false;
+
+      if (saveSuccess !== false) {
+        this.townEvents = nextTownEvents;
+      }
+
       const townSnapshot = saveSuccess === false
         ? await this.refreshActiveWorldSnapshot()
-        : await this.refreshActiveWorldSnapshot(nextResidents);
+        : await this.refreshActiveWorldSnapshot(nextResidents, {
+          autonomousThreadsOverride: nextAutonomousThreads
+        });
+
+      if (saveSuccess !== false && pendingRelationshipPatches.length > 0) {
+        const patchedSocialLinks = applyRelationshipPatchesToSocialLinks({
+          socialLinks: this.socialLinks,
+          relationshipPatches: pendingRelationshipPatches,
+          residents: nextResidents,
+          currentTime: safeSliceTimestamp
+        });
+
+        this.socialLinks = patchedSocialLinks;
+        this.activeTownSnapshot = {
+          ...this.activeTownSnapshot,
+          socialLinks: patchedSocialLinks
+        };
+      }
+
+      const debugReport = buildSimulationDebugReport({
+        sliceTimestamp: safeSliceTimestamp,
+        residents: nextResidents,
+        saveSuccess
+      });
+      this.latestSimulationDebug = debugReport;
+      this.latestAutonomousConversationDebug = autonomousConversationDebug;
 
       return {
         simulated: true,
         residents: saveSuccess === false ? [...this.activeResidents] : nextResidents,
         townSnapshot,
-        saveSuccess: saveSuccess !== false
+        saveSuccess: saveSuccess !== false,
+        debugReport,
+        autonomousConversationDebug
       };
     },
 
@@ -1498,57 +1898,43 @@ export const useTownStore = defineStore('town', {
 
       if (!Number.isFinite(targetTime)) {
         return {
-          currentTime: this.currentTime,
-          timeRatio: this.timeRatio,
-          sliceTimestamp: this.currentSliceTimestamp,
+          ...buildClockStateResult(this),
           crossedSlice: false
         };
       }
 
-      const startSliceTimestamp = Number(this.currentSliceTimestamp) || floorTimestampToTownSlice(this.currentTime);
-      let residents = Array.isArray(this.activeResidents) && this.activeResidents.length > 0
-        ? this.activeResidents
-        : await characterService.getCharactersByWorldId(this.activeWorldId);
+      const parsedCurrentSliceTimestamp = Number(this.currentSliceTimestamp);
+      const startSliceTimestamp = Number.isFinite(parsedCurrentSliceTimestamp)
+        ? parsedCurrentSliceTimestamp
+        : floorToSlice(this.currentTime);
 
       if (!this.activeWorldId || targetTime <= this.currentTime) {
-        const snapshot = townClockService.setCurrentTime(targetTime);
-        this.currentTime = snapshot.currentTime;
-        this.timeRatio = snapshot.timeRatio;
-        this.currentSliceTimestamp = snapshot.sliceTimestamp;
+        const snapshot = setClockTime(this, targetTime);
 
         if (this.activeWorldId) {
           await this.refreshActiveWorldSnapshot();
         }
 
-        return snapshot;
+        return {
+          ...snapshot,
+          crossedSlice: false,
+          debugReport: this.latestSimulationDebug
+        };
       }
 
-      const targetSliceTimestamp = floorTimestampToTownSlice(targetTime);
-      let crossedSlice = false;
+      let residents = Array.isArray(this.activeResidents) && this.activeResidents.length > 0
+        ? this.activeResidents
+        : await characterService.getCharactersByWorldId(this.activeWorldId);
 
-      for (
-        let nextSliceTimestamp = startSliceTimestamp + TOWN_SLICE_MS;
-        nextSliceTimestamp <= targetSliceTimestamp;
-        nextSliceTimestamp += TOWN_SLICE_MS
-      ) {
-        crossedSlice = true;
-        const sliceSnapshot = townClockService.setCurrentTime(nextSliceTimestamp);
-        this.currentTime = sliceSnapshot.currentTime;
-        this.timeRatio = sliceSnapshot.timeRatio;
-        this.currentSliceTimestamp = sliceSnapshot.sliceTimestamp;
-
-        const simulationResult = await this.simulateResidentsForSlice({
-          sliceTimestamp: sliceSnapshot.sliceTimestamp,
-          residentsOverride: residents
-        });
-
-        residents = simulationResult.residents;
-      }
-
-      const finalSnapshot = townClockService.setCurrentTime(targetTime);
-      this.currentTime = finalSnapshot.currentTime;
-      this.timeRatio = finalSnapshot.timeRatio;
-      this.currentSliceTimestamp = finalSnapshot.sliceTimestamp;
+      const targetSliceTimestamp = floorToSlice(targetTime);
+      const advanceResult = await advanceClockAcrossSlices(this, {
+        startSliceTimestamp,
+        targetSliceTimestamp,
+        residents
+      });
+      const crossedSlice = advanceResult.crossedSlice;
+      residents = advanceResult.residents;
+      const finalSnapshot = setClockTime(this, targetTime);
 
       if (!crossedSlice) {
         await this.refreshActiveWorldSnapshot(
@@ -1558,7 +1944,8 @@ export const useTownStore = defineStore('town', {
 
       return {
         ...finalSnapshot,
-        crossedSlice
+        crossedSlice,
+        debugReport: crossedSlice ? this.latestSimulationDebug : this.latestSimulationDebug
       };
     },
 
@@ -1570,10 +1957,7 @@ export const useTownStore = defineStore('town', {
         isTicking = true;
 
         try {
-          const snapshot = townClockService.tick(1000);
-          this.currentTime = snapshot.currentTime;
-          this.timeRatio = snapshot.timeRatio;
-          this.currentSliceTimestamp = snapshot.sliceTimestamp;
+          const snapshot = syncClockState(this, townClockService.tick(1000));
 
           if (snapshot.crossedSlice && this.activeWorldId) {
             const simulationResult = await this.simulateResidentsForSlice({
@@ -1601,19 +1985,11 @@ export const useTownStore = defineStore('town', {
     },
 
     setCurrentTime(timestamp) {
-      const snapshot = townClockService.setCurrentTime(timestamp);
-      this.currentTime = snapshot.currentTime;
-      this.timeRatio = snapshot.timeRatio;
-      this.currentSliceTimestamp = snapshot.sliceTimestamp;
-      return snapshot;
+      return setClockTime(this, timestamp);
     },
 
     setTimeRatio(ratio) {
-      const snapshot = townClockService.setTimeRatio(ratio);
-      this.timeRatio = snapshot.timeRatio;
-      this.currentTime = snapshot.currentTime;
-      this.currentSliceTimestamp = snapshot.sliceTimestamp;
-      return snapshot;
+      return syncClockState(this, townClockService.setTimeRatio(ratio));
     }
   }
 });
