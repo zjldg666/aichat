@@ -165,3 +165,15 @@ export function buildResidentSceneUrl({
 
   return buildPageUrl('/pages/scene/scene', params);
 }
+
+export function buildSceneEditorUrl({
+  worldId = '',
+  locationId = '',
+  locationName = ''
+} = {}) {
+  return buildPageUrl('/pages/scene-editor/scene-editor', {
+    worldId,
+    locationId,
+    locationName
+  });
+}

@@ -1,4 +1,14 @@
-import { buildRecentTownEventSummaries, buildSceneTownEventSummaries } from '@/utils/town/town-view-models.js';
+import {
+  buildRecentTownEventSummaries,
+  buildSceneTownEventSummaries,
+  findTownSnapshotLocationCard,
+  findTownSnapshotResident,
+  selectAutonomousConversationThreads,
+  selectFilteredEvents,
+  selectLocationState,
+  selectPlayerAccessForLocation,
+  selectResidentContext
+} from '@/utils/town/town-view-models.js';
 import { findResidentActiveCompanions } from '@/utils/town/town-social.js';
 import {
   buildResidenceLabel,
@@ -9,50 +19,78 @@ import {
 } from '@/utils/town/town-location-access.js';
 import { buildWorldSemanticsView } from '@/utils/town/world-semantics.js';
 
-function resolveResidentLocationId(resident = {}) {
-  return resident.townRuntime?.currentLocationId || '';
+function resolveResidentRuntimeContext(townSnapshot = null, resident = {}) {
+  if (!townSnapshot || typeof townSnapshot !== 'object') {
+    return null;
+  }
+
+  const residentId = String(resident?.residentId || resident?.id || '').trim();
+  if (!residentId) {
+    return null;
+  }
+
+  return selectResidentContext(townSnapshot, residentId);
 }
 
-function resolveResidentLocationName(resident = {}) {
-  return resident.currentLocation || resident.townRuntime?.currentLocationName || resident.location || 'Unknown Location';
+function resolveResidentLocationId(resident = {}, runtimeContext = null) {
+  return runtimeContext?.currentLocationId || resident.townRuntime?.currentLocationId || '';
 }
 
-function resolveResidentAction(resident = {}) {
-  return resident.currentAction || resident.townRuntime?.currentAction || 'idle';
+function resolveResidentLocationName(resident = {}, runtimeContext = null) {
+  return runtimeContext?.currentLocationName
+    || resident.townRuntime?.currentLocationName
+    || resident.currentLocation
+    || resident.location
+    || 'Unknown Location';
+}
+
+function resolveResidentAction(resident = {}, runtimeContext = null) {
+  return runtimeContext?.currentAction || resident.townRuntime?.currentAction || resident.currentAction || 'idle';
 }
 
 function resolveResidentUnreadCount(resident = {}) {
   return Math.max(0, Number(resident.unread) || 0);
 }
 
+function resolveResidentAutonomousPreview(resident = {}) {
+  const recentConversationSummary = Array.isArray(resident?.townRuntime?.autonomy?.recentConversationSummaries)
+    ? resident.townRuntime.autonomy.recentConversationSummaries[0]
+    : null;
+
+  return String(recentConversationSummary?.summary || '').trim();
+}
+
 function resolveResidentLatestReplyPreview(resident = {}) {
   return String(
     resident.phoneLastMsg
     || resident.phoneSummary
+    || resolveResidentAutonomousPreview(resident)
     || resident.summary
     || resident.lastMsg
     || ''
   ).trim();
 }
 
-function buildPhoneContacts(residents = [], semantics = {}) {
+function buildPhoneContacts(residents = [], semantics = {}, townSnapshot = null) {
   if (semantics.remoteChatEnabled === false) {
     return [];
   }
 
   return (Array.isArray(residents) ? residents : []).map((resident) => {
+    const runtimeContext = resolveResidentRuntimeContext(townSnapshot, resident);
     const unreadCount = resolveResidentUnreadCount(resident);
 
     return {
       residentId: resident.id || '',
       residentName: resident.name || 'Unknown Resident',
       avatar: resident.avatar || '',
-      currentLocationName: resolveResidentLocationName(resident),
-      currentAction: resolveResidentAction(resident),
+      currentLocationName: resolveResidentLocationName(resident, runtimeContext),
+      currentAction: resolveResidentAction(resident, runtimeContext),
       phoneChatLabel: semantics.remoteChatEntryLabel || '\u624b\u673a\u804a\u5929',
       hasUnreadReply: unreadCount > 0,
       unreadCount,
-      latestReplyPreview: resolveResidentLatestReplyPreview(resident)
+      latestReplyPreview: resolveResidentLatestReplyPreview(resident),
+      autonomousSummaryPreview: resolveResidentAutonomousPreview(resident)
     };
   });
 }
@@ -114,6 +152,53 @@ function buildLocationCardLookup(locationCards = []) {
   return { byId, byName };
 }
 
+function resolveOverviewLocationMeta(worldTemplate = {}, locationCards = [], {
+  locationId = '',
+  locationName = ''
+} = {}) {
+  const safeLocationId = String(locationId || '').trim();
+  const safeLocationName = String(locationName || '').trim();
+  const lookup = buildLocationCardLookup(locationCards);
+  const card = (safeLocationId && lookup.byId.get(safeLocationId))
+    || (safeLocationName && lookup.byName.get(safeLocationName))
+    || null;
+  const publicLocation = (worldTemplate.publicLocations || []).find((item) => (
+    String(item?.id || '').trim() === safeLocationId
+    || String(item?.name || '').trim() === safeLocationName
+  )) || null;
+  const worldLocation = (worldTemplate.locations || []).find((item) => (
+    String(item?.id || '').trim() === safeLocationId
+    || String(item?.name || '').trim() === safeLocationName
+  )) || null;
+
+  return {
+    locationId: safeLocationId || card?.id || publicLocation?.id || worldLocation?.id || '',
+    locationName: safeLocationName || card?.name || publicLocation?.name || worldLocation?.name || ''
+  };
+}
+
+function buildOverviewActionLabel(locationName = '') {
+  const safeLocationName = String(locationName || '').trim();
+  return safeLocationName ? `去 ${safeLocationName} 看看` : '先去看看';
+}
+
+function buildOverviewEventFeed(worldTemplate = {}, locationCards = [], townEvents = []) {
+  return buildRecentTownEventSummaries(townEvents, 3).map((event) => {
+    const locationMeta = resolveOverviewLocationMeta(worldTemplate, locationCards, {
+      locationId: event?.locationId,
+      locationName: event?.locationName
+    });
+
+    return {
+      ...event,
+      locationId: locationMeta.locationId,
+      locationName: locationMeta.locationName,
+      actionLabel: buildOverviewActionLabel(locationMeta.locationName),
+      isActionable: Boolean(locationMeta.locationName || (Array.isArray(event?.residents) && event.residents.length > 0))
+    };
+  });
+}
+
 function resolveResidentResidence(resident = {}) {
   const zoneId = resident.townProfile?.residence?.zoneId || '';
   const unitId = resident.townProfile?.residence?.unitId || '';
@@ -159,6 +244,7 @@ function getWorldLocationMeta(worldTemplate = {}, locationId = '', locationName 
 function buildPublicLocationCards(worldTemplate = {}, locationCards = [], eventFeed = []) {
   const liveCards = buildLocationCardLookup(locationCards);
   const latestEventTimeByLocation = new Map();
+  const latestEventByLocation = new Map();
 
   eventFeed.forEach((event) => {
     const locationName = String(event?.locationName || '').trim();
@@ -172,22 +258,38 @@ function buildPublicLocationCards(worldTemplate = {}, locationCards = [], eventF
       locationName,
       Math.max(latestEventTimeByLocation.get(locationName) || 0, happenedAt)
     );
+
+    if (!latestEventByLocation.has(locationName) || Number(latestEventByLocation.get(locationName)?.happenedAt) < happenedAt) {
+      latestEventByLocation.set(locationName, event);
+    }
   });
 
   return (worldTemplate.publicLocations || [])
     .map((location) => {
       const liveCard = liveCards.byId.get(location.id) || liveCards.byName.get(location.name) || null;
+      const latestEvent = latestEventByLocation.get(location.name || '') || null;
+      const leadNames = (Array.isArray(liveCard?.chars) ? liveCard.chars : [])
+        .slice(0, 2)
+        .map((item) => item.name)
+        .filter(Boolean);
+      const residentCount = Array.isArray(liveCard?.chars) ? liveCard.chars.length : 0;
+      const reason = latestEvent?.summary
+        || (leadNames.length > 0
+          ? `${leadNames.join('、')}现在都在这里，直接过去最容易看到新的现场动静。`
+          : (residentCount > 0
+            ? '这里现在有人在场，直接过去最容易看到新的现场动静。'
+            : (liveCard?.atmosphere || location.description || '可以先过去看看今天的动静。')));
 
       return {
         id: location.id || location.name || '',
         name: location.name || 'Unknown Location',
         atmosphere: liveCard?.atmosphere || location.description || '',
-        residentCount: Array.isArray(liveCard?.chars) ? liveCard.chars.length : 0,
-        leadNames: (Array.isArray(liveCard?.chars) ? liveCard.chars : [])
-          .slice(0, 2)
-          .map((item) => item.name)
-          .filter(Boolean),
-        latestEventTime: latestEventTimeByLocation.get(location.name || '') || 0
+        residentCount,
+        leadNames,
+        latestEventTime: latestEventTimeByLocation.get(location.name || '') || 0,
+        latestEventSummary: latestEvent?.summary || '',
+        actionLabel: buildOverviewActionLabel(location.name || ''),
+        reason
       };
     })
     .sort((left, right) => {
@@ -205,12 +307,65 @@ function buildPublicLocationCards(worldTemplate = {}, locationCards = [], eventF
     });
 }
 
-function buildResidentialZoneCards(worldTemplate = {}, residents = []) {
+function buildObservationFocus({
+  eventFeed = [],
+  publicLocationCards = [],
+  playerResidence = null
+} = {}) {
+  const freshestEvent = (Array.isArray(eventFeed) ? eventFeed : []).find((event) => String(event?.locationName || '').trim());
+  if (freshestEvent) {
+    return {
+      type: 'event',
+      title: freshestEvent.title || freshestEvent.locationName || '镇上刚有了新的动静',
+      summary: freshestEvent.summary || '这里刚有新的变化，适合先过去看看。',
+      badgeLabel: '最新动静',
+      actionLabel: freshestEvent.actionLabel || buildOverviewActionLabel(freshestEvent.locationName),
+      locationId: String(freshestEvent.locationId || '').trim(),
+      locationName: String(freshestEvent.locationName || '').trim(),
+      residentId: Array.isArray(freshestEvent.residents) ? String(freshestEvent.residents[0] || '').trim() : '',
+      residentName: Array.isArray(freshestEvent.residentNames) ? String(freshestEvent.residentNames[0] || '').trim() : ''
+    };
+  }
+
+  const livelyLocation = Array.isArray(publicLocationCards) ? publicLocationCards[0] : null;
+  if (livelyLocation?.name) {
+    return {
+      type: 'location',
+      title: livelyLocation.name,
+      summary: livelyLocation.reason || livelyLocation.atmosphere || '这里现在值得先过去看看。',
+      badgeLabel: livelyLocation.residentCount > 0 ? '现场有动静' : '可先观察',
+      actionLabel: livelyLocation.actionLabel || buildOverviewActionLabel(livelyLocation.name),
+      locationId: String(livelyLocation.id || '').trim(),
+      locationName: String(livelyLocation.name || '').trim(),
+      residentId: '',
+      residentName: ''
+    };
+  }
+
+  if (playerResidence?.locationName) {
+    return {
+      type: 'residence',
+      title: playerResidence.locationName,
+      summary: playerResidence.description || '想先回到自己的住处整理一下，也可以从这里重新观察小镇。',
+      badgeLabel: playerResidence.badgeLabel || '回家',
+      actionLabel: playerResidence.actionLabel || buildOverviewActionLabel(playerResidence.locationName),
+      locationId: String(playerResidence.locationId || '').trim(),
+      locationName: String(playerResidence.locationName || '').trim(),
+      residentId: '',
+      residentName: ''
+    };
+  }
+
+  return null;
+}
+
+function buildResidentialZoneCards(worldTemplate = {}, residents = [], townSnapshot = null) {
   return (worldTemplate.residentialZones || []).map((zone) => {
     const occupiedUnits = new Set();
     const zoneResidents = [];
 
     (Array.isArray(residents) ? residents : []).forEach((resident) => {
+      const runtimeContext = resolveResidentRuntimeContext(townSnapshot, resident);
       const residence = resolveResidentResidence(resident);
 
       if (residence.zoneId === zone.id && residence.unitId) {
@@ -227,12 +382,12 @@ function buildResidentialZoneCards(worldTemplate = {}, residents = []) {
           unitLabel: unit.label || residence.unitId,
           residenceLocationId: residenceMeta.id || residenceLocationId,
           residenceLocationName: residenceMeta.name || fallbackLocationName,
-          currentLocationId: resolveResidentLocationId(resident),
-          currentLocationName: resolveResidentLocationName(resident),
-          currentAction: resolveResidentAction(resident),
+          currentLocationId: resolveResidentLocationId(resident, runtimeContext),
+          currentLocationName: resolveResidentLocationName(resident, runtimeContext),
+          currentAction: resolveResidentAction(resident, runtimeContext),
           isHomeNow: (
-            String(resolveResidentLocationId(resident) || '').trim() === String(residenceMeta.id || '').trim()
-            || String(resolveResidentLocationName(resident) || '').trim() === String(residenceMeta.name || '').trim()
+            String(resolveResidentLocationId(resident, runtimeContext) || '').trim() === String(residenceMeta.id || '').trim()
+            || String(resolveResidentLocationName(resident, runtimeContext) || '').trim() === String(residenceMeta.name || '').trim()
           )
         });
       }
@@ -283,6 +438,205 @@ function buildPlayerResidenceEntry(worldTemplate = {}, semantics = {}) {
     badgeLabel,
     actionLabel,
     description: `这里是你在${worldName}的落脚点，想安静待一会时可以直接回来。`
+  };
+}
+
+function resolveResidentHomeLocationId(resident = {}) {
+  return String(
+    resident?.townProfile?.homeLocationId
+    || resident?.townRuntime?.currentLocationId
+    || ''
+  ).trim();
+}
+
+function resolveSceneHostResidentId(townSnapshot = {}, locationId = '', residentEntries = []) {
+  const safeLocationId = String(locationId || '').trim();
+  const fallbackResidentId = String(residentEntries?.[0]?.id || '').trim();
+
+  if (!safeLocationId) {
+    return fallbackResidentId;
+  }
+
+  const homeOwner = (Array.isArray(townSnapshot?.residents) ? townSnapshot.residents : []).find((resident) => (
+    resolveResidentHomeLocationId(resident) === safeLocationId
+  ));
+
+  if (homeOwner?.id) {
+    return String(homeOwner.id).trim();
+  }
+
+  const locationState = selectLocationState(townSnapshot, safeLocationId);
+  const residentIds = Array.isArray(locationState?.residentIds) ? locationState.residentIds : [];
+  const currentResidentId = String(residentIds[0] || '').trim();
+
+  return currentResidentId || fallbackResidentId;
+}
+
+function buildSceneResidentActionLabel(residentName = '') {
+  const safeResidentName = String(residentName || '').trim();
+  return safeResidentName ? `去和 ${safeResidentName} 搭上话` : '先和现场的人搭上话';
+}
+
+function buildSceneResidentEntries(townSnapshot = {}, residents = [], locationName = '') {
+  const safeLocationName = String(locationName || '').trim();
+
+  return (Array.isArray(residents) ? residents : []).map((resident, index) => {
+    const runtimeContext = resolveResidentRuntimeContext(townSnapshot, resident);
+    const residentName = String(resident?.name || '').trim() || 'Someone';
+    const currentAction = resolveResidentAction(resident, runtimeContext) || 'staying in the moment';
+
+    return {
+      ...resident,
+      currentAction,
+      primaryAction: '\u4ea4\u8c08',
+      secondaryAction: '\u89c2\u5bdf',
+      presenceNote: `${residentName}\u6b63\u5728${currentAction}`,
+      actionLabel: buildSceneResidentActionLabel(residentName),
+      isLeadResident: index === 0,
+      locationName: safeLocationName
+    };
+  });
+}
+
+function buildSceneJoinAction(leadResident = null, {
+  locationId = '',
+  locationName = ''
+} = {}) {
+  if (!leadResident) {
+    return null;
+  }
+
+  const residentName = String(leadResident?.name || '').trim();
+  const currentAction = String(leadResident?.currentAction || '').trim() || 'staying in the moment';
+
+  return {
+    residentId: leadResident.id || '',
+    residentName,
+    locationId,
+    locationName,
+    currentAction,
+    label: `\u5148\u53bb\u52a0\u5165${residentName || '\u5bf9\u65b9'}\u6b63\u5728\u505a\u7684\u4e8b`,
+    description: `${residentName || '\u5bf9\u65b9'}\u6b63\u5728${currentAction}\uff0c\u4ece\u73b0\u573a\u5207\u8fdb\u6700\u81ea\u7136\u3002`
+  };
+}
+
+function buildSceneEventFeed(eventFeed = [], {
+  joinAction = null,
+  locationName = ''
+} = {}) {
+  const safeLocationName = String(locationName || '').trim();
+
+  return (Array.isArray(eventFeed) ? eventFeed : []).map((event) => ({
+    ...event,
+    reason: String(event?.summary || '').trim()
+      || String(event?.title || '').trim()
+      || (safeLocationName
+        ? `${safeLocationName} \u521a\u6709\u4e86\u65b0\u53d8\u5316\uff0c\u503c\u5f97\u987a\u7740\u73b0\u573a\u7ee7\u7eed\u8ddf\u8fdb\u3002`
+        : '\u73b0\u573a\u521a\u6709\u65b0\u52a8\u9759\uff0c\u503c\u5f97\u7ee7\u7eed\u8ddf\u8fdb\u3002'),
+    actionLabel: joinAction?.label || (safeLocationName
+      ? `\u987a\u7740 ${safeLocationName} \u7684\u52a8\u9759\u8ddf\u8fdb`
+      : '\u987a\u7740\u73b0\u573a\u52a8\u9759\u8ddf\u8fdb')
+  }));
+}
+
+function buildSceneAutonomousThreadFeed(townSnapshot = {}, {
+  locationId = '',
+  locationName = ''
+} = {}) {
+  const safeLocationId = String(locationId || '').trim();
+  const safeLocationName = String(locationName || '').trim();
+
+  return selectAutonomousConversationThreads(townSnapshot)
+    .filter((thread) => (
+      String(thread?.type || '').trim() === 'scene_autonomous'
+      && String(thread?.status || '').trim() !== 'closed'
+      && String(thread?.locationId || '').trim() === safeLocationId
+      && String(thread?.lastSummary || '').trim()
+    ))
+    .sort((left, right) => (
+      (Number(right?.lastAdvancedAt) || Number(right?.startedAt) || 0)
+      - (Number(left?.lastAdvancedAt) || Number(left?.startedAt) || 0)
+    ))
+    .map((thread) => ({
+      id: `scene-autonomous-thread-${thread.id || Math.random()}`,
+      type: 'scene_autonomous_thread',
+      title: '居民自治对白',
+      summary: String(thread?.lastSummary || '').trim(),
+      happenedAt: Number(thread?.lastAdvancedAt) || Number(thread?.startedAt) || 0,
+      locationId: String(thread?.locationId || '').trim() || safeLocationId,
+      locationName: safeLocationName,
+      residents: Array.isArray(thread?.participantIds) ? thread.participantIds : [],
+      residentNames: []
+    }));
+}
+
+function buildScenePresenceSummary({
+  locationName = '',
+  residentEntries = [],
+  eventFeed = [],
+  atmosphere = ''
+} = {}) {
+  const safeLocationName = String(locationName || '').trim() || 'This scene';
+  const safeAtmosphere = String(atmosphere || '').trim();
+  const residentCount = Array.isArray(residentEntries) ? residentEntries.length : 0;
+  const freshestReason = String(eventFeed?.[0]?.reason || '').trim();
+
+  if (residentCount > 0) {
+    return `${safeLocationName} \u73b0\u5728\u6709 ${residentCount} \u4f4d\u5c45\u6c11\u5728\u573a\uff0c${freshestReason || safeAtmosphere || '\u5148\u770b\u770b\u8c01\u4f1a\u5148\u63a5\u4f4f\u4f60\u3002'}`;
+  }
+
+  return `${safeLocationName} \u6682\u65f6\u6ca1\u6709\u5c45\u6c11\u505c\u7559\uff0c${freshestReason || safeAtmosphere || '\u4f46\u8fd9\u91cc\u7684\u8282\u594f\u8fd8\u5728\u7ee7\u7eed\u3002'}`;
+}
+
+function buildSceneFocus({
+  header = {},
+  eventFeed = [],
+  residentEntries = [],
+  joinAction = null
+} = {}) {
+  const freshestEvent = Array.isArray(eventFeed) ? eventFeed[0] : null;
+  const leadResident = Array.isArray(residentEntries) ? residentEntries[0] : null;
+  const safeLocationId = String(header?.locationId || '').trim();
+  const safeLocationName = String(header?.locationName || '').trim();
+
+  if (freshestEvent?.title || freshestEvent?.summary) {
+    return {
+      type: 'event',
+      title: freshestEvent.title || safeLocationName || 'Scene update',
+      summary: freshestEvent.summary || freshestEvent.reason || header?.atmosphere || '',
+      badgeLabel: '\u6700\u65b0\u52a8\u9759',
+      actionLabel: freshestEvent.actionLabel || joinAction?.label || '\u987a\u7740\u73b0\u573a\u7ee7\u7eed\u770b\u770b',
+      residentId: String(joinAction?.residentId || leadResident?.id || '').trim(),
+      residentName: String(joinAction?.residentName || leadResident?.name || '').trim(),
+      locationId: safeLocationId,
+      locationName: safeLocationName
+    };
+  }
+
+  if (leadResident) {
+    return {
+      type: 'resident',
+      title: leadResident.name || safeLocationName || 'Scene lead',
+      summary: leadResident.presenceNote || header?.atmosphere || '',
+      badgeLabel: '\u5728\u573a\u4e3b\u89d2',
+      actionLabel: joinAction?.label || leadResident.actionLabel || '\u5148\u8fc7\u53bb\u770b\u770b',
+      residentId: String(leadResident.id || '').trim(),
+      residentName: String(leadResident.name || '').trim(),
+      locationId: safeLocationId,
+      locationName: safeLocationName
+    };
+  }
+
+  return {
+    type: 'atmosphere',
+    title: safeLocationName || 'Scene',
+    summary: header?.atmosphere || 'You arrive and listen to the place before acting.',
+    badgeLabel: '\u73b0\u573a\u6c14\u6c1b',
+    actionLabel: safeLocationName ? `\u5148\u89c2\u5bdf ${safeLocationName}` : '\u5148\u89c2\u5bdf\u73b0\u573a',
+    residentId: '',
+    residentName: '',
+    locationId: safeLocationId,
+    locationName: safeLocationName
   };
 }
 
@@ -405,7 +759,13 @@ function resolveRelationshipMomentumLabel(event = {}) {
   }
 }
 
-function buildRelationshipMomentum(playerEventFeed = [], locationName = '', currentAction = '', companions = []) {
+function buildRelationshipMomentum(
+  playerEventFeed = [],
+  locationName = '',
+  currentAction = '',
+  companions = [],
+  autonomousSummary = ''
+) {
   const freshestEvent = Array.isArray(playerEventFeed) ? playerEventFeed[0] : null;
 
   if (freshestEvent?.summary) {
@@ -413,6 +773,15 @@ function buildRelationshipMomentum(playerEventFeed = [], locationName = '', curr
       label: resolveRelationshipMomentumLabel(freshestEvent),
       reason: freshestEvent.summary,
       focusSummary: freshestEvent.summary
+    };
+  }
+
+  const safeAutonomousSummary = String(autonomousSummary || '').trim();
+  if (safeAutonomousSummary) {
+    return {
+      label: '她刚刚自己和别人聊过一轮',
+      reason: safeAutonomousSummary,
+      focusSummary: safeAutonomousSummary
     };
   }
 
@@ -449,7 +818,13 @@ function buildResidentRelationshipEntry({
 } = {}) {
   const relationshipStage = resolveResidentRelationshipStage(resident);
   const relationshipSummary = resolveResidentRelationshipSummary(resident);
-  const momentum = buildRelationshipMomentum(playerEventFeed, locationName, currentAction, companions);
+  const momentum = buildRelationshipMomentum(
+    playerEventFeed,
+    locationName,
+    currentAction,
+    companions,
+    resolveResidentAutonomousPreview(resident)
+  );
   const residentName = resident.name || '\u5bf9\u65b9';
 
   return {
@@ -466,19 +841,22 @@ function buildResidentRelationshipEntry({
 }
 
 export function buildTownOverviewViewModel({
-  worldTemplate = {},
-  residents = [],
-  locationCards = [],
-  townEvents = []
+  townSnapshot = {}
 } = {}) {
+  const worldTemplate = townSnapshot.worldTemplate || {};
+  const residents = Array.isArray(townSnapshot.residents) ? townSnapshot.residents : [];
+  const locationCards = Array.isArray(townSnapshot.locationCards) ? townSnapshot.locationCards : [];
+  const townEvents = Array.isArray(townSnapshot.townEvents) ? townSnapshot.townEvents : [];
   const semantics = buildWorldSemanticsView(worldTemplate);
-  const eventFeed = buildRecentTownEventSummaries(townEvents, 3);
+  const eventFeed = buildOverviewEventFeed(worldTemplate, locationCards, townEvents);
   const playerTemplate = getPlayerTemplate(worldTemplate);
   const residentCount = Array.isArray(residents) ? residents.length : 0;
   const locationCount = (
     (Array.isArray(worldTemplate.publicLocations) ? worldTemplate.publicLocations.length : 0)
     + (Array.isArray(worldTemplate.residentialZones) ? worldTemplate.residentialZones.length : 0)
   ) || (Array.isArray(worldTemplate.locations) ? worldTemplate.locations.length : 0);
+  const playerResidence = buildPlayerResidenceEntry(worldTemplate, semantics);
+  const publicLocationCards = buildPublicLocationCards(worldTemplate, locationCards, eventFeed);
 
   return {
     hero: {
@@ -495,12 +873,17 @@ export function buildTownOverviewViewModel({
       address: playerTemplate.address || 'address not set',
       summary: playerTemplate.summary || 'You are still getting to know this town.'
     },
-    playerResidence: buildPlayerResidenceEntry(worldTemplate, semantics),
+    playerResidence,
     semantics,
-    phoneContacts: buildPhoneContacts(residents, semantics),
+    phoneContacts: buildPhoneContacts(residents, semantics, townSnapshot),
+    observationFocus: buildObservationFocus({
+      eventFeed,
+      publicLocationCards,
+      playerResidence
+    }),
     eventFeed,
-    publicLocationCards: buildPublicLocationCards(worldTemplate, locationCards, eventFeed),
-    residentialZoneCards: buildResidentialZoneCards(worldTemplate, residents),
+    publicLocationCards,
+    residentialZoneCards: buildResidentialZoneCards(worldTemplate, residents, townSnapshot),
     quickActions: [
       { id: 'events', label: '\u5148\u770b\u52a8\u9759' },
       { id: 'public-locations', label: `\u518d\u53bb${semantics.publicLocationLabel || '\u516c\u5171\u5730\u70b9'}` },
@@ -510,38 +893,98 @@ export function buildTownOverviewViewModel({
 }
 
 export function buildTownSceneViewModel({
-  locationCard = {},
-  townEvents = []
+  townSnapshot = {},
+  locationName = ''
 } = {}) {
-  const locationName = locationCard.name || 'Unknown Location';
-  const residentEntries = (Array.isArray(locationCard.chars) ? locationCard.chars : []).map((resident) => ({
-    ...resident,
-    primaryAction: '\u4ea4\u8c08',
-    secondaryAction: '\u89c2\u5bdf'
-  }));
+  const safeLocationName = String(locationName || '').trim();
+  const locationState = selectLocationState(townSnapshot, safeLocationName);
+  const locationCard = findTownSnapshotLocationCard(
+    townSnapshot,
+    locationState?.locationName || safeLocationName
+  ) || {};
+  const resolvedLocationName = locationState?.locationName || locationCard.name || safeLocationName || 'Unknown Location';
+  const resolvedLocationId = locationState?.locationId || locationCard.id || resolvedLocationName;
+  const accessState = selectPlayerAccessForLocation(townSnapshot, resolvedLocationId);
+  const isPrivateResidence = Boolean(
+    accessState?.isPrivateResidence
+    ?? locationState?.isPrivateResidence
+  );
+  const residentEntries = buildSceneResidentEntries(
+    townSnapshot,
+    Array.isArray(locationCard.chars) ? locationCard.chars : [],
+    resolvedLocationName
+  );
+  const hostResidentId = resolveSceneHostResidentId(townSnapshot, resolvedLocationId, residentEntries);
+  const hostResident = findTownSnapshotResident(townSnapshot, hostResidentId)
+    || residentEntries.find((resident) => String(resident?.id || '').trim() === hostResidentId)
+    || null;
+  const residenceRooms = isPrivateResidence
+    ? Object.keys(hostResident?.economy?.containers || {}).filter(Boolean)
+    : [];
   const leadResident = residentEntries[0] || null;
-  const eventFeed = buildSceneTownEventSummaries(townEvents, locationName, 3);
+  const filteredSceneEvents = selectFilteredEvents(townSnapshot, {
+    location: resolvedLocationId || resolvedLocationName,
+    limit: 3
+  });
+  const threadFeed = buildSceneAutonomousThreadFeed(townSnapshot, {
+    locationId: resolvedLocationId,
+    locationName: resolvedLocationName
+  });
+  const eventFeed = filteredSceneEvents.length > 0
+    ? filteredSceneEvents
+    : buildSceneTownEventSummaries(townSnapshot?.townEvents || [], resolvedLocationName, 3);
+  const combinedEventFeed = [
+    ...threadFeed,
+    ...(Array.isArray(eventFeed) ? eventFeed : [])
+  ].sort((left, right) => (
+    (Number(right?.happenedAt) || 0) - (Number(left?.happenedAt) || 0)
+  ));
+  const canPlayerEnter = isPrivateResidence
+    ? Boolean(accessState?.canPlayerEnter)
+    : true;
+  const canPlayerRequestVisit = isPrivateResidence
+    ? Boolean(accessState?.canPlayerRequestVisit)
+    : false;
+  const joinAction = buildSceneJoinAction(leadResident, {
+    locationId: resolvedLocationId,
+    locationName: resolvedLocationName
+  });
+  const sceneEventFeed = buildSceneEventFeed(combinedEventFeed, {
+    joinAction,
+    locationName: resolvedLocationName
+  });
+  const header = {
+    locationId: resolvedLocationId,
+    locationName: resolvedLocationName,
+    atmosphere: locationState?.atmosphere || locationCard.atmosphere || 'You arrive and listen to the place before acting.',
+    residentCount: residentEntries.length,
+    eventCount: sceneEventFeed.length,
+    isPrivateResidence,
+    canPlayerEnter,
+    canPlayerRequestVisit
+  };
+  const presenceSummary = buildScenePresenceSummary({
+    locationName: resolvedLocationName,
+    residentEntries,
+    eventFeed: sceneEventFeed,
+    atmosphere: header.atmosphere
+  });
+  const sceneFocus = buildSceneFocus({
+    header,
+    eventFeed: sceneEventFeed,
+    residentEntries,
+    joinAction
+  });
 
   return {
-    header: {
-      locationId: locationCard.id || locationName,
-      locationName,
-      atmosphere: locationCard.atmosphere || 'You arrive and listen to the place before acting.',
-      residentCount: residentEntries.length,
-      eventCount: eventFeed.length
-    },
-    eventFeed,
-    joinAction: leadResident
-      ? {
-        residentId: leadResident.id || '',
-        residentName: leadResident.name || '',
-        locationId: locationCard.id || locationName,
-        locationName,
-        currentAction: leadResident.currentAction || 'staying in the moment',
-        label: `\u5148\u53bb\u52a0\u5165${leadResident.name || '\u5bf9\u65b9'}\u6b63\u5728\u505a\u7684\u4e8b`,
-        description: `${leadResident.name || '\u5bf9\u65b9'}\u6b63\u5728${leadResident.currentAction || '\u5fd9\u7740\u773c\u524d\u7684\u4e8b'}\uff0c\u4ece\u73b0\u573a\u5207\u8fdb\u6700\u81ea\u7136\u3002`
-      }
-      : null,
+    header,
+    sceneFocus,
+    presenceSummary,
+    eventFeed: sceneEventFeed,
+    hostResidentId,
+    hostResident,
+    residenceRooms,
+    joinAction,
     publicChat: {
       placeholder: '\u5728\u73b0\u573a\u8bf4\u70b9\u4ec0\u4e48\uff0c\u8ba9\u5728\u573a\u7684\u4eba\u81ea\u5df1\u63a5\u8bdd',
       emptyState: '\u5148\u5f00\u4e2a\u5934\uff0c\u8ba9\u73b0\u573a\u6162\u6162\u70ed\u8d77\u6765\u3002'
@@ -552,28 +995,41 @@ export function buildTownSceneViewModel({
 }
 
 export function buildTownResidentViewModel({
-  worldTemplate = {},
+  townSnapshot = null,
+  worldTemplate,
   resident = {},
   locationCard = {},
-  socialLinks = [],
-  townEvents = []
+  socialLinks,
+  townEvents
 } = {}) {
+  // 优先从 townSnapshot 统一真源读取，兼容旧调用方式
+  const hasSnapshot = townSnapshot && typeof townSnapshot === 'object';
+  const resolvedWorldTemplate = worldTemplate || (hasSnapshot ? townSnapshot.worldTemplate : {}) || {};
+  const resolvedSocialLinks = socialLinks || (hasSnapshot ? townSnapshot.socialLinks : []) || [];
+  const resolvedTownEvents = townEvents || (hasSnapshot ? townSnapshot.townEvents : []) || [];
+  const runtimeContext = hasSnapshot ? resolveResidentRuntimeContext(townSnapshot, resident) : null;
+
+  if (hasSnapshot && (!locationCard || Object.keys(locationCard).length === 0)) {
+    const locName = resolveResidentLocationName(resident, runtimeContext) || '';
+    locationCard = findTownSnapshotLocationCard(townSnapshot, locName) || {};
+  }
+
   const residentId = String(resident.id || '');
-  const locationId = resolveResidentLocationId(resident) || locationCard.id || '';
-  const locationName = resolveResidentLocationName(resident) || locationCard.name || 'Unknown Location';
-  const currentAction = resolveResidentAction(resident);
-  const locationMeta = getWorldLocationMeta(worldTemplate, locationId, locationName);
-  const companions = findResidentActiveCompanions(residentId, socialLinks);
+  const locationId = resolveResidentLocationId(resident, runtimeContext) || locationCard.id || '';
+  const locationName = resolveResidentLocationName(resident, runtimeContext) || locationCard.name || 'Unknown Location';
+  const currentAction = resolveResidentAction(resident, runtimeContext);
+  const locationMeta = getWorldLocationMeta(resolvedWorldTemplate, locationId, locationName);
+  const companions = findResidentActiveCompanions(residentId, resolvedSocialLinks);
   const eventFeed = buildRecentTownEventSummaries(
-    (Array.isArray(townEvents) ? townEvents : [])
+    (Array.isArray(resolvedTownEvents) ? resolvedTownEvents : [])
       .filter((event) => Array.isArray(event?.residents) && event.residents.map(String).includes(residentId)),
     3
   );
-  const playerRelationshipEventFeed = buildPlayerRelationshipEventFeed(townEvents, residentId, 2);
-  const playerTemplate = getPlayerTemplate(worldTemplate);
-  const playerVisitorId = resolvePlayerVisitorId(worldTemplate);
-  const playerResidenceLocationId = resolvePlayerResidenceLocationId(worldTemplate);
-  const semantics = buildWorldSemanticsView(worldTemplate);
+  const playerRelationshipEventFeed = buildPlayerRelationshipEventFeed(resolvedTownEvents, residentId, 2);
+  const playerTemplate = getPlayerTemplate(resolvedWorldTemplate);
+  const playerVisitorId = resolvePlayerVisitorId(resolvedWorldTemplate);
+  const playerResidenceLocationId = resolvePlayerResidenceLocationId(resolvedWorldTemplate);
+  const semantics = buildWorldSemanticsView(resolvedWorldTemplate);
   const isDefaultResidenceLabel = semantics.residenceLabel === '住处';
   const privateSpaceTypeLabel = isDefaultResidenceLabel ? '私人住宅' : `私人${semantics.residenceLabel}`;
   const residenceTargetLabel = isDefaultResidenceLabel ? '她家' : `她的${semantics.residenceLabel}`;
@@ -600,7 +1056,7 @@ export function buildTownResidentViewModel({
   const isPrivateResidence = locationMeta.access === 'consent_required';
   const canEnterResidence = isPrivateResidence
     ? isResidenceAccessAllowed({
-      worldTemplate,
+      worldTemplate: resolvedWorldTemplate,
       locationId: locationMeta.id || locationId,
       visitorId: playerVisitorId,
       ownResidenceLocationId: playerResidenceLocationId,
@@ -609,7 +1065,7 @@ export function buildTownResidentViewModel({
     : true;
   const canRequestResidenceVisit = isPrivateResidence
     ? isResidenceVisitRequestAllowed({
-      worldTemplate,
+      worldTemplate: resolvedWorldTemplate,
       locationId: locationMeta.id || locationId,
       visitorId: playerVisitorId,
       ownResidenceLocationId: playerResidenceLocationId,
@@ -632,7 +1088,10 @@ export function buildTownResidentViewModel({
     companions.length > 0
       ? `${companions.join('\u3001')}\u4e5f\u5728\u5979\u8eab\u8fb9\uff0c\u4f60\u6700\u597d\u5148\u770b\u6e05\u73b0\u5728\u662f\u8c01\u5728\u966a\u5979\u3002`
       : `${locationName}\u91cc\u5979\u6682\u65f6\u662f\u72ec\u81ea\u5f85\u7740\u7684\uff0c\u66f4\u9002\u5408\u5b89\u9759\u5730\u63a5\u8fd1\u3002`,
-    accessNote || eventFeed[0]?.summary || `${locationCard.atmosphere || `${locationName} has its own rhythm right now.`}`
+    accessNote
+      || eventFeed[0]?.summary
+      || resolveResidentAutonomousPreview(resident)
+      || `${locationCard.atmosphere || `${locationName} has its own rhythm right now.`}`
   ];
   const activityJoinOption = buildResidentActivityJoinOption(
     resident,
@@ -676,7 +1135,7 @@ export function buildTownResidentViewModel({
       companions
     }),
     activityJoinOption,
-    invitationOptions: buildResidentInvitationOptions(worldTemplate, locationName, townEvents),
+    invitationOptions: buildResidentInvitationOptions(resolvedWorldTemplate, locationName, resolvedTownEvents),
     actions: [
       { id: 'observe', label: '\u5148\u89c2\u5bdf\u5979\u4e00\u4f1a' },
       { id: 'chat', label: '\u53bb\u548c\u5979\u8bf4\u8bdd' },
@@ -695,25 +1154,31 @@ export function buildTownResidentViewModel({
 }
 
 export function buildTownRelationshipViewModel({
-  worldTemplate = {},
+  townSnapshot = null,
+  worldTemplate,
   resident = {},
   locationCard = {},
-  socialLinks = [],
-  townEvents = []
+  socialLinks,
+  townEvents
 } = {}) {
+  const hasSnapshot = townSnapshot && typeof townSnapshot === 'object';
+  const resolvedTownEvents = townEvents || (hasSnapshot ? townSnapshot.townEvents : []) || [];
+
   const residentView = buildTownResidentViewModel({
+    townSnapshot,
     worldTemplate,
     resident,
     locationCard,
     socialLinks,
     townEvents
   });
-  const playerEventFeed = buildPlayerRelationshipEventFeed(townEvents, residentView.hero.id, 3);
+  const playerEventFeed = buildPlayerRelationshipEventFeed(resolvedTownEvents, residentView.hero.id, 3);
   const momentum = buildRelationshipMomentum(
     playerEventFeed,
     residentView.scene.locationName,
     residentView.hero.currentAction,
-    residentView.companions
+    residentView.companions,
+    resolveResidentAutonomousPreview(resident)
   );
 
   return {

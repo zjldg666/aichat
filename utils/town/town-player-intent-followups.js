@@ -136,8 +136,8 @@ export function createResidentPhoneHomeVisitIntent({
     residentName: normalizeText(resident?.name) || '对方',
     residenceLocationName: homeVisitLocation.locationName || '对方的家',
     currentAction: normalizeText(
-      resident?.currentAction
-      || resident?.townRuntime?.currentAction
+      resident?.townRuntime?.currentAction
+      || resident?.currentAction
       || resident?.lastActivity
     ) || '忙着手头的事'
   });
@@ -162,7 +162,7 @@ export function createResidentPhoneHomeVisitIntent({
       playerName,
       currentLocationId: homeVisitLocation.locationId,
       currentLocationName: homeVisitLocation.locationName,
-      currentAction: resident?.currentAction || resident?.townRuntime?.currentAction || resident?.lastActivity || ''
+      currentAction: resident?.townRuntime?.currentAction || resident?.currentAction || resident?.lastActivity || ''
     }),
     promptContext: {
       ...promptContext,

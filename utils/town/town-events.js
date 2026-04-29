@@ -1,4 +1,27 @@
-import { compareTownEvents } from '@/utils/town/town-event-order.js';
+import { compareTownEvents, sortTownEvents } from '@/utils/town/town-event-order.js';
+
+const EVENT_DOMINANCE = {
+  co_present: [
+    'resident_life_contact',
+    'companion_visit',
+    'companion_meetup',
+    'companion_chat_started',
+    'companion_outing_started',
+    'companion_invitation_accepted',
+    'companion_invitation_confirmed',
+    'player_resident_invitation_accepted'
+  ],
+  relationship_warmed: [
+    'resident_life_contact',
+    'companion_visit',
+    'companion_meetup',
+    'companion_chat_started',
+    'companion_outing_started',
+    'companion_invitation_accepted',
+    'companion_invitation_confirmed',
+    'player_resident_invitation_accepted'
+  ]
+};
 
 function createEventId(prefix, linkId, currentTime) {
   return `${prefix}-${linkId}-${currentTime}`;
@@ -23,11 +46,15 @@ function buildCoPresenceSummary(link = {}) {
 }
 
 function resolveResidentLocationName(resident = {}) {
-  return resident.currentLocation || resident.townRuntime?.currentLocationName || resident.location || '';
+  return resident.townRuntime?.currentLocationName || resident.currentLocation || resident.location || '';
 }
 
 function resolveResidentLocationId(resident = {}) {
   return resident.townRuntime?.currentLocationId || '';
+}
+
+function resolveLinkLocationId(link = {}) {
+  return String(link.locationId || '').trim();
 }
 
 function buildCompanionVisitSummary(resident = {}, previousResident = {}) {
@@ -140,16 +167,91 @@ function isPlayerInvitationResident(resident = {}) {
 }
 
 function buildPlayerResidentInvitationAcceptedSummary(resident = {}, previousResident = {}) {
-  const residentName = resident.name || '鏈変汉';
-  const playerName = resident.townRuntime?.currentTargetResidentName || '鐜╁';
-  const currentLocationName = resolveResidentLocationName(resident) || '鏌愬';
+  const residentName = resident.name || '有人';
+  const playerName = resident.townRuntime?.currentTargetResidentName || '玩家';
+  const currentLocationName = resolveResidentLocationName(resident) || '某处';
   const previousLocationName = resolveResidentLocationName(previousResident);
 
   if (previousLocationName && previousLocationName !== currentLocationName) {
-    return `${residentName}浠?${previousLocationName}鍔ㄨ韩鍘?${currentLocationName}锛屽儚鏄湪璧村赴${playerName}鐨勯個绾︺€?`;
+    return `${residentName}从${previousLocationName}动身去了${currentLocationName}，像是在赴${playerName}的邀约。`;
   }
 
-  return `${residentName}鍔ㄨ韩鍘?${currentLocationName}锛屽儚鏄湪璧村赴${playerName}鐨勯個绾︺€?`;
+  return `${residentName}动身去了${currentLocationName}，像是在赴${playerName}的邀约。`;
+}
+
+function normalizeResidentRuntimeContactIds(resident = {}) {
+  return Array.isArray(resident?.townRuntime?.autonomy?.recentContactResidentIds)
+    ? resident.townRuntime.autonomy.recentContactResidentIds.map(String).filter(Boolean)
+    : [];
+}
+
+function normalizeResidentRuntimeContactReasonTags(resident = {}) {
+  return Array.isArray(resident?.townRuntime?.autonomy?.recentContactReasonTags)
+    ? resident.townRuntime.autonomy.recentContactReasonTags.map(String).filter(Boolean)
+    : [];
+}
+
+function buildResidentLifeContactSummary(resident = {}, targetResident = {}, locationName = '', reasonTag = '') {
+  const residentName = resident.name || '有人';
+  const targetName = targetResident?.name || resident.townRuntime?.currentTargetResidentName || '熟人';
+  const safeLocationName = locationName || resolveResidentLocationName(resident) || '某处';
+
+  if (reasonTag === 'after_work_overlap') {
+    return `${residentName}和${targetName}在${safeLocationName}收工后还一起待着。`;
+  }
+
+  return `${residentName}和${targetName}在${safeLocationName}继续待在一起。`;
+}
+
+function normalizeResidentsKey(event = {}) {
+  const residents = Array.isArray(event?.residents) ? event.residents.map(String).filter(Boolean).sort() : [];
+  return residents.join('__');
+}
+
+function isSameEventLocation(left = {}, right = {}) {
+  const leftLocationId = String(left.locationId || '').trim();
+  const rightLocationId = String(right.locationId || '').trim();
+
+  if (leftLocationId && rightLocationId) {
+    return leftLocationId === rightLocationId;
+  }
+
+  return String(left.locationName || '').trim() === String(right.locationName || '').trim();
+}
+
+function shouldSuppressTownEvent(candidate = {}, existingEvent = {}) {
+  if (!candidate?.type || !existingEvent?.type) {
+    return false;
+  }
+
+  const dominantTypes = EVENT_DOMINANCE[candidate.type] || [];
+  if (!dominantTypes.includes(existingEvent.type)) {
+    return false;
+  }
+
+  if ((Number(candidate.happenedAt) || 0) !== (Number(existingEvent.happenedAt) || 0)) {
+    return false;
+  }
+
+  if (!isSameEventLocation(candidate, existingEvent)) {
+    return false;
+  }
+
+  return normalizeResidentsKey(candidate) === normalizeResidentsKey(existingEvent);
+}
+
+function settlePrimaryTownEvents(events = []) {
+  const nextEvents = [];
+
+  sortTownEvents(events).forEach((event) => {
+    if (nextEvents.some((existingEvent) => shouldSuppressTownEvent(event, existingEvent))) {
+      return;
+    }
+
+    nextEvents.push(event);
+  });
+
+  return nextEvents;
 }
 
 function settleCompanionVisitEvents({
@@ -195,10 +297,11 @@ function settleCompanionVisitEvents({
         id: createEventId('player-resident-invitation-accepted', residentId, currentTime),
         type: 'player_resident_invitation_accepted',
         happenedAt: currentTime,
+        locationId: currentLocationId,
         locationName: currentLocationName,
         residentNames: [residentName].filter(Boolean),
         residents: [residentId],
-        title: `${residentName}鍔ㄨ韩鍘?${currentLocationName}璧村赴鐜╁閭€绾?`,
+        title: `${residentName}动身去${currentLocationName}赴玩家邀约`,
         summary: buildPlayerResidentInvitationAcceptedSummary(resident, previousResident)
       });
       return;
@@ -260,6 +363,9 @@ function settleCompanionVisitEvents({
             ? 'companion_invitation_confirmed'
             : (isInvitationAccepted ? 'companion_invitation_accepted' : 'companion_outing_started'),
           happenedAt: currentTime,
+          locationId: resolveResidentLocationId(primaryResident)
+            || resolveResidentLocationId(companionResident)
+            || currentLocationId,
           locationName: eventLocationName,
           residentNames: [primaryResident?.name || residentName, companionResident?.name || targetResidentName].filter(Boolean),
           residents: [residentId, targetResidentId],
@@ -291,6 +397,7 @@ function settleCompanionVisitEvents({
       id: createEventId('companion-visit', `${residentId}-${targetResidentId}`, currentTime),
       type: 'companion_visit',
       happenedAt: currentTime,
+      locationId: currentLocationId,
       locationName: currentLocationName,
       residentNames: [residentName, targetResidentName].filter(Boolean),
       residents: [residentId, targetResidentId],
@@ -315,6 +422,7 @@ function settleCompanionVisitEvents({
       id: createEventId('companion-chat-started', meetupPairId, currentTime),
       type: 'companion_chat_started',
       happenedAt: currentTime,
+      locationId: currentLocationId,
       locationName: currentLocationName,
       residentNames: [residentName, targetResident.name || targetResidentName].filter(Boolean),
       residents: [residentId, targetResidentId],
@@ -326,11 +434,74 @@ function settleCompanionVisitEvents({
       id: createEventId('companion-meetup', meetupPairId, currentTime),
       type: 'companion_meetup',
       happenedAt: currentTime,
+      locationId: currentLocationId,
       locationName: currentLocationName,
       residentNames: [residentName, targetResident.name || targetResidentName].filter(Boolean),
       residents: [residentId, targetResidentId],
       title: `${residentName}和${targetResident.name || targetResidentName}碰头了`,
       summary: buildCompanionMeetupSummary(resident, targetResident, previousResident)
+    });
+  });
+
+  return events;
+}
+
+function settleResidentLifeContactEvents({
+  currentResidents = [],
+  currentTime = Date.now()
+} = {}) {
+  const currentResidentMap = new Map(
+    (Array.isArray(currentResidents) ? currentResidents : []).map((resident) => [String(resident.id || ''), resident])
+  );
+  const settledPairs = new Set();
+  const events = [];
+
+  (Array.isArray(currentResidents) ? currentResidents : []).forEach((resident) => {
+    const residentId = String(resident?.id || '').trim();
+    const reasonTags = normalizeResidentRuntimeContactReasonTags(resident);
+    const targetResidentIds = normalizeResidentRuntimeContactIds(resident);
+    const currentLocationId = resolveResidentLocationId(resident);
+    const currentLocationName = resolveResidentLocationName(resident);
+
+    if (!residentId || !reasonTags.includes('after_work_overlap') || targetResidentIds.length === 0) {
+      return;
+    }
+
+    targetResidentIds.forEach((targetResidentId) => {
+      const targetResident = currentResidentMap.get(String(targetResidentId || '').trim());
+      if (!targetResident) {
+        return;
+      }
+
+      const targetLocationId = resolveResidentLocationId(targetResident);
+      if (!currentLocationId || currentLocationId !== targetLocationId) {
+        return;
+      }
+
+      const pairId = [residentId, String(targetResidentId || '').trim()].sort().join('__');
+      const pairKey = `${pairId}@${currentLocationId}@after_work_overlap`;
+      if (settledPairs.has(pairKey)) {
+        return;
+      }
+
+      settledPairs.add(pairKey);
+      events.push({
+        id: createEventId('resident-life-contact', pairId, currentTime),
+        type: 'resident_life_contact',
+        happenedAt: currentTime,
+        locationId: currentLocationId,
+        locationName: currentLocationName,
+        residentNames: [resident.name || '有人', targetResident.name || '熟人'],
+        residents: [residentId, String(targetResidentId || '').trim()],
+        reasonTags: ['after_work_overlap'],
+        title: `${resident.name || '有人'}和${targetResident.name || '熟人'}还待在${currentLocationName}`,
+        summary: buildResidentLifeContactSummary(
+          resident,
+          targetResident,
+          currentLocationName,
+          'after_work_overlap'
+        )
+      });
     });
   });
 
@@ -347,23 +518,31 @@ export function settleTownEvents({
   const previousMap = new Map(
     (Array.isArray(previousLinks) ? previousLinks : []).map((item) => [item.id, item])
   );
-  const events = settleCompanionVisitEvents({
-    previousResidents,
-    currentResidents,
-    currentTime
-  });
+  const events = [
+    ...settleResidentLifeContactEvents({
+      currentResidents,
+      currentTime
+    }),
+    ...settleCompanionVisitEvents({
+      previousResidents,
+      currentResidents,
+      currentTime
+    })
+  ];
 
   (Array.isArray(currentLinks) ? currentLinks : [])
     .filter((link) => link?.isActive)
     .forEach((link) => {
       const previous = previousMap.get(link.id);
       const residentNames = normalizeResidentNames(link);
+      const locationId = resolveLinkLocationId(link);
 
       if (!previous || !previous.isActive) {
         events.push({
           id: createEventId('co-present', link.id, currentTime),
           type: 'co_present',
           happenedAt: currentTime,
+          locationId,
           locationName: link.locationName || '',
           residentNames,
           residents: Array.isArray(link.residents) ? [...link.residents] : [],
@@ -377,6 +556,7 @@ export function settleTownEvents({
           id: createEventId('relationship-warmed', link.id, currentTime),
           type: 'relationship_warmed',
           happenedAt: currentTime,
+          locationId,
           locationName: link.locationName || '',
           residentNames,
           residents: Array.isArray(link.residents) ? [...link.residents] : [],
@@ -386,5 +566,5 @@ export function settleTownEvents({
       }
     });
 
-  return events.sort(compareTownEvents);
+  return settlePrimaryTownEvents(events).sort(compareTownEvents);
 }

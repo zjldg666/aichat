@@ -10,7 +10,12 @@ export const DEFAULT_RESIDENT_AUTONOMY_RUNTIME = {
   validUntil: 0,
   currentGoal: '',
   trigger: '',
-  towardPlayer: ''
+  towardPlayer: '',
+  recentContactResidentIds: [],
+  recentContactReasonTags: [],
+  lastContactLocationId: '',
+  lastContactLocationName: '',
+  lastContactAt: 0
 };
 
 function toTrimmedString(value) {
@@ -20,6 +25,18 @@ function toTrimmedString(value) {
 function normalizePositiveNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(
+    value
+      .map((item) => toTrimmedString(item))
+      .filter(Boolean)
+  )];
 }
 
 export function resolveResidentBehaviorMode(resident = {}) {
@@ -53,7 +70,12 @@ export function normalizeResidentAutonomyRuntime(autonomy = {}) {
     validUntil: normalizePositiveNumber(autonomy && typeof autonomy === 'object' ? autonomy.validUntil : 0),
     currentGoal: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.currentGoal : ''),
     trigger: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.trigger : ''),
-    towardPlayer: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.towardPlayer : '')
+    towardPlayer: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.towardPlayer : ''),
+    recentContactResidentIds: normalizeStringList(autonomy && typeof autonomy === 'object' ? autonomy.recentContactResidentIds : []),
+    recentContactReasonTags: normalizeStringList(autonomy && typeof autonomy === 'object' ? autonomy.recentContactReasonTags : []),
+    lastContactLocationId: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.lastContactLocationId : ''),
+    lastContactLocationName: toTrimmedString(autonomy && typeof autonomy === 'object' ? autonomy.lastContactLocationName : ''),
+    lastContactAt: normalizePositiveNumber(autonomy && typeof autonomy === 'object' ? autonomy.lastContactAt : 0)
   };
 }
 

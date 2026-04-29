@@ -1,7 +1,10 @@
 <script>
+import { setActivePinia } from 'pinia';
+import { pinia } from '@/stores/pinia.js';
 import { DB } from '@/utils/db.js';
 import { useTheme } from '@/composables/useTheme.js';
 import { bootstrapTown } from '@/services/townBootstrapService.js';
+import { useTownStore } from '@/stores/useTownStore.js';
 
 export default {
   onLaunch() {
@@ -9,15 +12,29 @@ export default {
     initTheme();
     console.log('App Launch');
 
+    setActivePinia(pinia);
+    const townStore = useTownStore();
+
+    const handleInitializationError = (err) => {
+      townStore.initializationError = err;
+      townStore.isReady = false;
+      townStore.isInitializing = false;
+      console.error('[System] Initialization failed:', err);
+    };
+
+    const initializeTown = async () => {
+      await bootstrapTown();
+      console.log('[System] Database initialized, town bootstrap 初始化完成。');
+    };
+
     // #ifdef APP-PLUS
     DB.init()
-      .then(async () => {
-        await bootstrapTown();
-        console.log('[System] Database initialized, town bootstrap 初始化完成。');
-      })
-      .catch((err) => {
-        console.error('[System] Initialization failed:', err);
-      });
+      .then(initializeTown)
+      .catch(handleInitializationError);
+    // #endif
+
+    // #ifndef APP-PLUS
+    initializeTown().catch(handleInitializationError);
     // #endif
   },
   onShow() {

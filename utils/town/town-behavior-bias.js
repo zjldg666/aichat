@@ -3,6 +3,12 @@ const FRESH_EVENT_WINDOW_MS = 60 * 60 * 1000;
 import { isPrivateResidenceLocation } from '@/utils/town/town-location-access.js';
 import { findResidentScheduleBlock } from '@/utils/town/town-schedule.js';
 import { normalizePlayerRelationshipState } from '@/utils/town/player-relationship.js';
+import {
+  isSocialLinkAvoiding,
+  isSocialLinkFamiliar,
+  isSocialLinkGuarded,
+  isSocialLinkStrongTie
+} from '@/utils/town/town-social.js';
 
 function resolveCurrentLocationContext(resident = {}) {
   return {
@@ -10,8 +16,8 @@ function resolveCurrentLocationContext(resident = {}) {
     residentName: resident.name || '',
     homeLocationId: resident.townProfile?.homeLocationId || '',
     locationId: resident.townRuntime?.currentLocationId || '',
-    locationName: resident.currentLocation || resident.townRuntime?.currentLocationName || resident.location || '',
-    currentAction: resident.currentAction || resident.townRuntime?.currentAction || resident.lastActivity || '停留'
+    locationName: resident.townRuntime?.currentLocationName || resident.currentLocation || resident.location || '',
+    currentAction: resident.townRuntime?.currentAction || resident.currentAction || resident.lastActivity || '停留'
   };
 }
 
@@ -52,11 +58,30 @@ function normalizeResidentEntries(link = {}) {
   }));
 }
 
+function compareSocialLinkPriority(left = {}, right = {}) {
+  const strongTieDelta = Number(isSocialLinkStrongTie(right)) - Number(isSocialLinkStrongTie(left));
+  if (strongTieDelta !== 0) {
+    return strongTieDelta;
+  }
+
+  const scoreDelta = (Number(right?.score) || 0) - (Number(left?.score) || 0);
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  return (Number(right?.lastSeenAt) || 0) - (Number(left?.lastSeenAt) || 0);
+}
+
 function findFamiliarCompanionNames({ residentId = '', residentName = '', locationName = '', socialLinks = [] } = {}) {
   const companionNames = new Set();
 
   (Array.isArray(socialLinks) ? socialLinks : []).forEach((link) => {
-    if (!link?.isActive || link.status !== '已熟悉' || link.locationName !== locationName) {
+    if (
+      !link?.isActive
+      || !isSocialLinkFamiliar(link)
+      || isSocialLinkAvoiding(link)
+      || link.locationName !== locationName
+    ) {
       return;
     }
 
@@ -177,7 +202,7 @@ function findFamiliarSocialLink({ residentId = '', targetResidentId = '', social
   }
 
   return (Array.isArray(socialLinks) ? socialLinks : []).find((link) => {
-    if (link?.status !== '已熟悉') {
+    if (!isSocialLinkFamiliar(link) || isSocialLinkGuarded(link)) {
       return false;
     }
 
@@ -470,11 +495,10 @@ function findCompanionVisitActions({
   const visitActions = [];
   const seenTargets = new Set();
 
-  (Array.isArray(socialLinks) ? socialLinks : []).forEach((link) => {
-    if (link?.status !== '已熟悉') {
-      return;
-    }
-
+  (Array.isArray(socialLinks) ? socialLinks : [])
+    .filter((link) => isSocialLinkFamiliar(link) && !isSocialLinkGuarded(link))
+    .sort(compareSocialLinkPriority)
+    .forEach((link) => {
     const familiarResident = normalizeResidentEntries(link)
       .find((item) => item.id && item.id !== currentLocation.residentId);
 

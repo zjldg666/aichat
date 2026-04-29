@@ -13,12 +13,14 @@ export function shouldShowResidentInviteAction({
 export function buildChatResidentInviteOptions({
   worldTemplate = {},
   resident = {},
-  townEvents = []
+  townEvents = [],
+  townSnapshot = null
 } = {}) {
+  const resolvedTownEvents = townSnapshot ? (townSnapshot.townEvents || []) : townEvents;
   const currentLocationName = resident.currentLocation
     || resident.townRuntime?.currentLocationName
     || resident.location
     || '';
 
-  return buildResidentInvitationOptions(worldTemplate, currentLocationName, townEvents);
+  return buildResidentInvitationOptions(worldTemplate, currentLocationName, resolvedTownEvents);
 }

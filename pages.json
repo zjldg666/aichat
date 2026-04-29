@@ -73,7 +73,27 @@
 		"path": "pages/scene/scene",
 		"style": {
 			"navigationBarTitleText": "",
-			"navigationBarBackgroundColor": "#ededed"
+			"navigationBarBackgroundColor": "#ededed",
+			"app-plus": {
+				"titleNView": {
+					"buttons": [
+						{
+							"text": "设置",
+							"fontSize": "15px",
+							"color": "#007AFF",
+							"float": "right",
+							"key": "setting"
+						}
+					]
+				}
+			}
+		}
+	},
+	{
+		"path": "pages/scene-editor/scene-editor",
+		"style": {
+			"navigationBarTitleText": "场景编辑",
+			"navigationBarBackgroundColor": "#f6f1ea"
 		}
 	},
 	{

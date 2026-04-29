@@ -1,58 +1,80 @@
 # AiChat
 
-最后更新：2026-04-17
+## 2026-04-27 更新
 
-`AiChat` 已经不再是“单角色聊天页”，而是在演进成“可自定义世界的 Agent 小镇模拟器”。当前主线已经具备小镇总览、居民页、关系页、场景页、面对面私聊、手机聊天、住宅拜访与门口协商，以及第一版多人公开场景聊天。
+- 场景页 [pages/scene/scene.vue](pages/scene/scene.vue) 右上角现已新增“设置”入口，可进入独立场景编辑页 [pages/scene-editor/scene-editor.vue](pages/scene-editor/scene-editor.vue)。
+- 新增 [utils/town/town-scene-content.js](utils/town/town-scene-content.js)，统一处理 `sceneContent`（场景内容）的归一化、目标场景定位与保存回写。
+- 当前这轮只完成 `sceneContent`（场景内容）里 `zones`（区域）与 `activities`（事项）的编辑和保存；居民行为、相遇判定还没有接入这层数据。
 
-## 5 分钟入门
+## 2026-04-28 更新
 
-如果你是第一次接手这个仓库的 Codex，先按这个顺序建立上下文：
+- 默认小镇种子数据 [utils/town/default-world-template.js](utils/town/default-world-template.js) 现已预写入公共地点和住宅区的 `sceneContent`（场景内容）。
+- 预设地点已包含如“月街咖啡”“旧灯书屋”“港口公园”“落潮码头”等区域与事项，方便直接进项目试玩，而不必先手动创建。
+- 为了兼容旧存档，读取 `default-town`（默认小镇）时也会自动补齐缺失的场景内容种子；这条回填不会改动用户自定义世界。
 
-1. [打包交接说明](docs/打包交接说明.md)
+最后更新：2026-04-26
+
+`AiChat` 当前主线目标已经收口为“AI 小镇”。
+它不是单个角色聊天应用，而是一个会持续运转、居民会自己生活、会自己产生关系和对话、玩家可以介入其中的中文小镇模拟项目。
+
+## 最短接手路径
+
+1. [文档导航](docs/README.md)
 2. [当前状态与交接](docs/当前状态与交接.md)
-3. [文档导航](docs/README.md)
-4. [当前任务计划](task_plan.md)
-5. [全局规则](docs/全局规则.md)
-6. [进度记录](progress.md)
-7. [关键判断与风险](findings.md)
+3. [当前执行分发页](task_plan.md)
+4. [AiChat「AI 小镇」总规划](docs/specs/2026-04-23-aichat-ai-town-master-plan.md)
+5. [AiChat 自治生活主链 v1 设计稿](docs/superpowers/specs/2026-04-26-aichat-autonomous-living-loop-v1-design.md)
+6. [AiChat Autonomous Living Loop v1 Implementation Plan](docs/superpowers/plans/2026-04-26-aichat-autonomous-living-loop-v1-implementation-plan.md)
+7. [AiChat 自治生活主链 v1 任务板](docs/tasks/2026-04-26-aichat-autonomous-living-loop-v1-task-board.md)
 8. [AGENTS 指南](AGENTS.md)
 
-## 先记住这 6 件事
+## 当前唯一权威主线
 
-- [pages/chat/chat.vue](pages/chat/chat.vue) 只负责面对面私聊，不再承载手机聊天。
-- 手机聊天只走 [components/TownPhoneChatSheet.vue](components/TownPhoneChatSheet.vue) 这条底部弹窗链路，而且必须保持“纯远程频道”语义。
-- 住宅拜访不是普通私聊皮肤，而是一条围绕住处访问权限展开的“门口协商机制”。
-- [pages/scene/scene.vue](pages/scene/scene.vue) 现在是“多人现场聊天壳”，留在现场说话，点头像切到 1v1 私聊。
-- 世界时间的手动跳转、手动设时和睡觉入口，这一轮已经统一收口到 store 级快进能力，会真实推进居民 slice，而不只是改时钟显示。
-- 关系真正落在 `playerRelationship` 这组“玩家与居民之间的结构化关系对象”里，后续要继续消费的是“关系 -> 权限 -> 事件 -> 行为”这条链。
+1. [AiChat「AI 小镇」总规划](docs/specs/2026-04-23-aichat-ai-town-master-plan.md)
+2. [AiChat 自治生活主链 v1 设计稿](docs/superpowers/specs/2026-04-26-aichat-autonomous-living-loop-v1-design.md)
+3. [AiChat Autonomous Living Loop v1 Implementation Plan](docs/superpowers/plans/2026-04-26-aichat-autonomous-living-loop-v1-implementation-plan.md)
+4. [AiChat 自治生活主链 v1 任务板](docs/tasks/2026-04-26-aichat-autonomous-living-loop-v1-task-board.md)
 
-## 这轮刚完成的关键更新
+当前默认从任务板 `T1` 开始继续：
+`T1 生活接触成立`
 
-- 时间系统入口已收口：
-  - [composables/useGameTime.js](composables/useGameTime.js) 现在会先停表，再调用 [stores/useTownStore.js](stores/useTownStore.js) 里的 `advanceTimeTo(...)`，最后恢复时钟。
-  - [pages/chat/chat.vue](pages/chat/chat.vue) 不再通过旧的 `currentTime.value = newTime` 把快进结果写回成“只改时钟”的旧路径。
-  - [pages/scene/scene.vue](pages/scene/scene.vue) 的睡觉入口现在也会走同一套停表 -> 快进 -> 恢复流程。
-- 主入口文档已重写成“新 Codex 快速接手”视角，减少必须先翻历史 plans 才能看懂项目的情况。
+## 补充参考
 
-## 当前主线能力
+- [AiChat 第二阶段实施计划：更像真的在生活的小镇](docs/superpowers/plans/2026-04-26-aichat-phase2-living-town-implementation-plan.md)
+- [AiChat 第二阶段预备任务板：让小镇更像真的在生活](docs/tasks/2026-04-24-aichat-phase2-prep-task-board.md)
+- [AiChat 当前补强优先级计划](docs/superpowers/plans/2026-04-24-aichat-current-reinforcement-priority-plan.md)
+- `docs/superpowers/plans/2026-04-24-aichat-phase2-t1-*.md` 到 `T6`
+- [历史文档索引](docs/history/README.md)
 
-- 小镇总览：[pages/index/index.vue](pages/index/index.vue)
-- 居民次级详情：[pages/town-resident/town-resident.vue](pages/town-resident/town-resident.vue)
-- 关系页：[pages/town-relationship/town-relationship.vue](pages/town-relationship/town-relationship.vue)
-- 多人场景页：[pages/scene/scene.vue](pages/scene/scene.vue)
-- 面对面私聊页：[pages/chat/chat.vue](pages/chat/chat.vue)
-- 手机聊天弹窗：[components/TownPhoneChatSheet.vue](components/TownPhoneChatSheet.vue)
-- 住宅拜访与门口聊天：[components/TownDoorstepChatSheet.vue](components/TownDoorstepChatSheet.vue)
-- 小镇状态主源：[stores/useTownStore.js](stores/useTownStore.js)
+除“当前唯一权威主线”外，其余计划默认只承担背景参考角色，不替代当前任务排序。
+
+## 当前主链能力
+
+- 小镇首页已经是观察台入口：[pages/index/index.vue](pages/index/index.vue)
+- 场景页已经是地点现场入口：[pages/scene/scene.vue](pages/scene/scene.vue)
+- 居民详情页和关系页已经接入世界快照投影
+- 玩家可进行面对面私聊、场景公开聊天、手机聊天、门口拜访
+- 第一阶段 `T1-T8` 已完成，时间推进、居民时间片模拟、世界快照、首页、场景页、主链调试都已收口
+
+## 这轮要做什么
+
+当前第一优先子项目不是婚恋、搬家或更多聊天入口，而是：
+
+**先让居民稳定过日子，并且会自己持续聊起来。**
+
+也就是让以下闭环真正成立：
+
+`生活调度 -> 居民接触 -> 自治线程 -> 多轮对白 -> 世界回写 -> 页面投影`
 
 ## 关键代码入口
 
-- 时间与居民推进：
+- 全局小镇状态：
   - [stores/useTownStore.js](stores/useTownStore.js)
+- 时间与居民推进：
   - [composables/useGameTime.js](composables/useGameTime.js)
   - [services/townSimulationService.js](services/townSimulationService.js)
   - [services/townClockService.js](services/townClockService.js)
-- 场景公开聊天：
+- 场景现场与公开聊天：
   - [pages/scene/scene.vue](pages/scene/scene.vue)
   - [services/townSceneChatService.js](services/townSceneChatService.js)
   - [utils/town/town-scene-chat.js](utils/town/town-scene-chat.js)
@@ -65,38 +87,17 @@
   - [utils/town/town-home-visit-conversation.js](utils/town/town-home-visit-conversation.js)
   - [utils/town/town-home-visit-follow-ups.js](utils/town/town-home-visit-follow-ups.js)
   - [utils/town/town-doorstep-chat-actions.js](utils/town/town-doorstep-chat-actions.js)
-- 关系与后劲：
-  - [utils/town/player-relationship.js](utils/town/player-relationship.js)
-  - [utils/town/player-relationship-settlement.js](utils/town/player-relationship-settlement.js)
-  - [utils/town/town-behavior-bias.js](utils/town/town-behavior-bias.js)
 
-## 当前默认推进方向
+## 文档分层
 
-1. 继续做深 [pages/scene/scene.vue](pages/scene/scene.vue) 的公开聊天调度、记忆回流和后续行为承接。
-2. 继续把关系变化稳定回流到权限、事件和居民行为，而不是只改结构化分值。
-3. 做旧功能手工回归，例如购物、物品转移、旧移动链路。
-4. 历史 specs / plans 的乱码清理继续做，但它不该再盖过当前主线。
-
-补充说明：
-
-- `worldSemantics` 这个“世界语义配置对象”第一阶段已经落地，但当前不是默认继续推进方向；除非用户重新开启这条线，否则不要把它当成第一主线。
-
-## 当前主要风险
-
-- 场景页多人聊天已经能跑，但“谁继续跟进、谁只旁听、谁把后劲带回住处”这条链还没做深。
-- 手机聊天、面对面私聊、门口拜访的产品边界已经清楚，但底层 helper 还没完全统一。
-- 旧功能还没完成系统性手工回归。
-- 历史 specs / plans 仍有中文乱码和旧预期残留，所以它们只能作为历史参考，不该充当默认入口。
+- 当前主线：见 [docs/README.md](docs/README.md)
+- 历史归档：见 [docs/history/README.md](docs/history/README.md)
+- 模板资料：见 [docs/模板库/00-模板使用说明.md](docs/模板库/00-模板使用说明.md)
 
 ## 常用验证
 
 ```powershell
-.\node_modules\.bin\vitest.cmd run tests/composables/useGameTime.spec.js tests/town/town-page-script-syntax.spec.js
-.\node_modules\.bin\vitest.cmd run tests/town/town-page-copy-integrity.spec.js tests/town/town-page-script-syntax.spec.js
+.\node_modules\.bin\vitest.cmd run tests/town/town-simulation.spec.js tests/store/useTownStore.spec.js
+.\node_modules\.bin\vitest.cmd run tests/town/town-shell-view-models.spec.js tests/town/town-scene-overview-entry.spec.js
 $env:npm_config_cache = "$PWD\.npm-cache"; npm run test
 ```
-
-说明：
-
-- 这轮最新刚补过的是“时间系统入口”和“主入口脚本结构”的聚焦回归。
-- 如果要交付较高置信度结果，仍建议再跑一次全量 `npm run test`。

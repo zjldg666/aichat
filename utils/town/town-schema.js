@@ -3,6 +3,7 @@ import {
   buildResidenceLabel,
   buildResidenceLocationId
 } from '@/utils/town/town-location-access.js';
+import { normalizeSceneContent } from '@/utils/town/town-scene-content.js';
 import { normalizeWorldSemantics } from '@/utils/town/world-semantics.js';
 import { normalizeWorldConversationVisibility } from '@/utils/town/world-conversation-visibility.js';
 
@@ -50,7 +51,9 @@ function mapLegacyTypeToCategory(type = '') {
   return normalized;
 }
 
-function normalizePublicLocations(publicLocations = []) {
+function normalizePublicLocations(publicLocations = [], {
+  sceneContentFallbackById = new Map()
+} = {}) {
   const normalizedMap = new Map();
 
   (publicLocations || []).forEach((location, index) => {
@@ -71,7 +74,10 @@ function normalizePublicLocations(publicLocations = []) {
       id,
       name: String(base?.name || id).trim(),
       category: String(base?.category || 'public').trim(),
-      openHours: normalizeOpenHours(base?.openHours)
+      openHours: normalizeOpenHours(base?.openHours),
+      sceneContent: normalizeSceneContent(
+        base?.sceneContent ?? sceneContentFallbackById.get(id)?.sceneContent
+      )
     };
 
     if (normalizedMap.has(id)) {
@@ -83,7 +89,9 @@ function normalizePublicLocations(publicLocations = []) {
   return Array.from(normalizedMap.values());
 }
 
-function normalizeResidentialZones(residentialZones = []) {
+function normalizeResidentialZones(residentialZones = [], {
+  sceneContentFallbackById = new Map()
+} = {}) {
   const seenZones = new Set();
   const normalized = [];
 
@@ -117,6 +125,9 @@ function normalizeResidentialZones(residentialZones = []) {
       id,
       name: String(zone?.name || id).trim(),
       description: zone?.description || '',
+      sceneContent: normalizeSceneContent(
+        zone?.sceneContent ?? sceneContentFallbackById.get(id)?.sceneContent
+      ),
       units
     });
   });
@@ -274,16 +285,29 @@ export function buildDefaultWorldTemplate() {
 export function normalizeWorldTemplate(world = {}) {
   const base = buildDefaultWorldTemplate();
   const source = world && typeof world === 'object' ? deepClone(world) : {};
+  const shouldBackfillDefaultSceneContent = String(source.id || '').trim() === String(base.id || '').trim();
+  const publicSceneContentFallbackById = shouldBackfillDefaultSceneContent
+    ? new Map((base.publicLocations || []).map((item) => [String(item.id || '').trim(), item]))
+    : new Map();
+  const residentialSceneContentFallbackById = shouldBackfillDefaultSceneContent
+    ? new Map((base.residentialZones || []).map((item) => [String(item.id || '').trim(), item]))
+    : new Map();
   const hasStructuredLocationInput = Array.isArray(source.publicLocations) || Array.isArray(source.residentialZones);
   const legacyLocationsInput = hasStructuredLocationInput
     ? (Array.isArray(source.locations) ? source.locations : [])
     : (source.locations ?? base.locations);
   const legacyLocations = splitLegacyLocations(legacyLocationsInput);
   const normalizedPublicLocations = normalizePublicLocations(
-    Array.isArray(source.publicLocations) ? source.publicLocations : legacyLocations.publicLocations
+    Array.isArray(source.publicLocations) ? source.publicLocations : legacyLocations.publicLocations,
+    {
+      sceneContentFallbackById: publicSceneContentFallbackById
+    }
   );
   const normalizedResidentialZones = normalizeResidentialZones(
-    Array.isArray(source.residentialZones) ? source.residentialZones : legacyLocations.residentialZones
+    Array.isArray(source.residentialZones) ? source.residentialZones : legacyLocations.residentialZones,
+    {
+      sceneContentFallbackById: residentialSceneContentFallbackById
+    }
   );
   const runtimeLocations = buildRuntimeLocations({
     publicLocations: normalizedPublicLocations,
